@@ -5,6 +5,7 @@ import { useAirlockTools } from "./agent/tools";
 import { TopBar } from "./components/TopBar";
 import { LeftRail } from "./components/LeftRail";
 import { CenterTabs } from "./components/CenterTabs";
+import { RecipePanel } from "./components/RecipePanel";
 import { DataGrid } from "./components/DataGrid";
 import { ChartPanel } from "./components/ChartPanel";
 import { ReportPanel } from "./components/ReportPanel";
@@ -41,6 +42,7 @@ export function App() {
             <LeftRail />
             <main className="flex min-w-0 flex-1 flex-col border-x border-ink-800">
               <CenterTabs />
+              <RecipePanel />
               <div className="min-h-0 flex-1 overflow-hidden">
                 {ui.tab === "grid" && <DataGrid />}
                 {ui.tab === "charts" && <ChartPanel />}

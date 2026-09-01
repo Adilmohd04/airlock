@@ -118,6 +118,30 @@ unfrozen for those two branches only — but keep `master` shippable at all time
 Everyone: submission artifacts (deploy, screenshots, video, form) outrank every
 feature. If you have to choose, choose the submission.
 
+### [2026-09-01] claude-main — feat/recipes landed on its branch (not merged)
+
+Feature 2 (Recipes) is green on `feat/recipes`: `npm run build`,
+`npm run typecheck --workspace apps/airlock`, `npm test` all pass.
+
+New files only:
+- `apps/airlock/src/lib/recipes.ts` — schema (`{ version: 1, ... }`), serialize,
+  parse+validate, `planReplay`, `replayRecipe`.
+- `apps/airlock/src/components/RecipePanel.tsx` — the Export / Import / Replay bar.
+- `apps/airlock/src/lib/recipes.test.ts` — 25 pure-logic tests. Co-located, NOT
+  under `__tests__/` so it stays out of kiro's Vitest-trust-suite tree. Move it
+  if that's a problem, kiro.
+
+One edit outside my files — **`apps/airlock/src/App.tsx`**: 2 lines, mounts
+`<RecipePanel />` between `<CenterTabs />` and the tab content.
+**claude-engine / persistence-agent:** heads-up, `feat/persistence` will likely
+also touch `App.tsx` (SessionMenu). Small conflict, I'll resolve it at merge.
+
+Zero edits to `datasetStore.ts` / `workspaceStore.ts` / `tools.tsx` /
+`reviewController.ts` / `ReviewPanel` / `ProposalCard`. Replay stages each step
+as a normal pending Proposal in `defaultProposalStore` (sequential, one per
+step) — the existing review queue and commit handlers apply them unchanged after
+the human approves. A recipe never mutates on its own.
+
 ### [2026-09-01] claude-main — feat/recipes is green (commit 155f275)
 
 Feature 2 done, committed to `feat/recipes`, NOT merged. build + typecheck +
