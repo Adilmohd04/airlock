@@ -646,6 +646,12 @@ export function useAirlockTools(): void {
           (f) => f.label === filter || f.expression === filter
         );
         if (!target) throw new Error(`No active filter matching "${filter}".`);
+        // A filter can predate the redaction of a column it names — the
+        // filter itself is safe to remove, but its raw text must not be
+        // echoed back (same class of leak buildAgentViewSql/get_dataset_summary
+        // guard against for the query and the summary respectively).
+        const hidden = store.referencesRedaction(target.expression);
+        const shownLabel = hidden ? "(a filter referencing a redacted column)" : target.label;
         const rowsBefore = st.totalRows;
         const remaining = st.filters.filter((f) => f.id !== target.id);
         const base = `SELECT * FROM ${q(st.tableName)}`;
@@ -655,11 +661,11 @@ export function useAirlockTools(): void {
             : "";
         const after = await runQuery(`SELECT count(*) AS n FROM (${base}${where})`);
         return {
-          summary: `Remove filter "${target.label}"`,
+          summary: `Remove filter "${shownLabel}"`,
           preview: {
             kind: "remove_filter",
-            label: target.label,
-            expression: target.expression,
+            label: shownLabel,
+            expression: hidden ? "(redacted)" : target.expression,
             rowsBefore,
             rowsAfter: Number(after.rows[0]?.n ?? 0),
           },
@@ -756,11 +762,20 @@ export function useAirlockTools(): void {
         required: ["name"],
       },
       prepare: async ({ name }) => {
-        const d = activeStore().getState().derived.find((x) => x.name === name);
+        const store = activeStore();
+        const d = store.getState().derived.find((x) => x.name === name);
         if (!d) throw new Error(`No derived column "${name}".`);
+        // Same leak class as remove_filter: a derived column can predate the
+        // redaction of a column its formula names — safe to remove, but the
+        // raw formula text must not be echoed back.
+        const hidden = store.referencesRedaction(d.expression);
         return {
           summary: `Remove derived column ${name}`,
-          preview: { kind: "remove_derived_column", name, expression: d.expression },
+          preview: {
+            kind: "remove_derived_column",
+            name,
+            expression: hidden ? "(redacted)" : d.expression,
+          },
         };
       },
       commit: async ({ name }) => {
@@ -1008,9 +1023,17 @@ export function useAirlockTools(): void {
         // in this file. (The human can export them via un-redact + their own UI.)
         const res = await runQuery(store.buildAgentViewSql());
         const redactedOut = store.redactedDisplayNames();
+        // buildAgentViewSql already drops a filter/derived column that names
+        // a since-redacted column (it has no effect on this export) — the
+        // transforms list must match, both to stay accurate and because the
+        // raw text (e.g. a filter's literal value) must not be echoed back.
         const transforms = [
-          ...st.filters.map((f) => `filter: ${f.label}`),
-          ...st.derived.map((d) => `+column: ${d.name}`),
+          ...st.filters
+            .filter((f) => !store.referencesRedaction(f.expression))
+            .map((f) => `filter: ${f.label}`),
+          ...st.derived
+            .filter((d) => !store.referencesRedaction(d.expression))
+            .map((d) => `+column: ${d.name}`),
           ...Object.entries(st.renames).map(([a, b]) => `rename: ${a}→${b}`),
           ...redactedOut.map((c) => `redacted (excluded): ${c}`),
         ];
