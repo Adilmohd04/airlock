@@ -36,7 +36,7 @@ Build artifacts:
 DuckDB-WASM assets are large (~34–39 MB total):
 - `duckdb-eh-[hash].wasm` (~33 MB, with SIMD)
 - `duckdb-mvp-[hash].wasm` (~38 MB, for older browsers)
-- `duckdb-[hash].worker.js` (~800 KB each, web worker entrypoints)
+- `duckdb-browser-eh.worker-[hash].js` / `duckdb-browser-mvp.worker-[hash].js` (~800 KB each, web worker entrypoints)
 
 ## Deployment Configuration
 
@@ -46,11 +46,14 @@ The root `netlify.toml` file configures:
 
 1. **Build command**: `npm install && npm run build`
 2. **Publish directory**: `apps/airlock/dist`
-3. **SPA routing**: All requests to `/*` redirect to `/index.html` (status 200)
-4. **Cache headers**:
+3. **Node version**: pinned via `[build.environment] NODE_VERSION = "20"` — don't rely on
+   Netlify's default image, which has drifted across Node majors over time and doesn't
+   always match the `"engines": { "node": ">=20" }` in the root `package.json`.
+4. **SPA routing**: All requests to `/*` redirect to `/index.html` (status 200)
+5. **Cache headers**:
    - Hashed assets (`/assets/*`, `/demo/*`): `max-age=31536000, immutable` (1 year)
    - Root HTML files: `max-age=0, must-revalidate` (no cache)
-5. **WASM security headers**:
+6. **WASM security headers**:
    - `Cross-Origin-Opener-Policy: same-origin` (enable SharedArrayBuffer)
    - `Cross-Origin-Embedder-Policy: require-corp` (require explicit cross-origin opt-in)
 
@@ -59,7 +62,12 @@ The root `netlify.toml` file configures:
 Netlify processes `_headers` file to set per-path HTTP headers. This file:
 
 - **Assets** (`/assets/*`): Immutable cache + COOP/COEP headers + explicit `application/wasm` MIME type
-- **Workers** (`/assets/*.worker.js`): `Cross-Origin-Resource-Policy: cross-origin` (required for workers)
+- **JS assets, including workers** (`/assets/*.js`): explicit `application/javascript` MIME
+  type + `Cross-Origin-Resource-Policy: cross-origin`. Matched on the `.js` suffix rather
+  than `*.worker.js` — Vite emits worker filenames as
+  `duckdb-browser-eh.worker-<hash>.js` (hash between `worker` and `.js`), so a
+  `*.worker.js` pattern silently never matches, and Netlify's `_headers` syntax
+  only allows one wildcard per rule.
 - **Root** (`/*`): No-cache, COOP/COEP, security headers (nosniff, SAMEORIGIN, referrer policy)
 
 ## Deployment Steps
@@ -198,11 +206,21 @@ Airlock has zero network traffic after page load (except WebMCP agent tool calls
 - Demo data is bundled, not fetched
 
 ### COEP & COOP
-These headers are **essential** for DuckDB-WASM SharedArrayBuffer support:
+These headers are what DuckDB-WASM needs *if* it ever runs in threaded mode
+(SharedArrayBuffer):
 - `Cross-Origin-Opener-Policy: same-origin` — Isolates the origin (prevents certain attacks)
 - `Cross-Origin-Embedder-Policy: require-corp` — Requires explicit opt-in for cross-origin resources
 
 Both headers must be present for modern browsers to allocate SharedArrayBuffer to web workers.
+
+**Current state, verified against `apps/airlock/src/engine/duckdb.ts`**: the app only wires
+the `mvp` and `eh` DuckDB bundles into `selectBundle()` — not the `coi` (cross-origin-isolated,
+pthread-backed) bundle that ships in the `@duckdb/duckdb-wasm` package. Neither `mvp` nor `eh`
+needs a `pthreadWorker` or `SharedArrayBuffer`, so today these headers are defense-in-depth /
+future-proofing, not a hard runtime requirement. They're kept on because (a) they're free —
+every asset is same-origin and self-hosted, so `require-corp` never blocks anything — and
+(b) if `duckdb.ts` ever adds the `coi` bundle for multi-threaded queries, the headers are
+already in place and nothing about the deploy config needs to change.
 
 ### CSP (Content Security Policy)
 Airlock does not require CSP. If you add CSP, ensure:

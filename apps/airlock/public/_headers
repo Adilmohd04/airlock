@@ -3,7 +3,7 @@
 # and MIME types for assets
 
 # All hashed JS/CSS/WASM assets in /assets/*
-# Vite output: index-[hash].js, duckdb-[hash].wasm, duckdb-[hash].worker.js
+# Vite output: index-[hash].js, duckdb-[hash].wasm, duckdb-browser-eh.worker-[hash].js
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
   Cross-Origin-Opener-Policy: same-origin
@@ -16,8 +16,14 @@
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
 
-# Web workers (used by DuckDB-WASM)
-/assets/*.worker.js
+# Web workers (used by DuckDB-WASM) and every other JS asset.
+# NOTE: Vite hashes worker filenames as `duckdb-browser-eh.worker-<hash>.js`
+# (the hash lands BETWEEN "worker" and ".js"), so a `*.worker.js` suffix
+# pattern never matches the emitted filename. Netlify's `_headers` allows only
+# one wildcard per rule, so match on the `.js` suffix instead — this covers
+# the worker files and every other JS chunk; the extra CORP/Content-Type
+# headers are harmless on the non-worker JS chunks too.
+/assets/*.js
   Content-Type: application/javascript; charset=UTF-8
   Cache-Control: public, max-age=31536000, immutable
   Cross-Origin-Opener-Policy: same-origin
