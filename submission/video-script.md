@@ -169,6 +169,25 @@ Preview:
 
 ---
 
+## ⭐ Shot 9b: Click a claim (OPTIONAL — +12s) — RECOMMENDED
+
+> **Why record this.** It is the strongest 12 seconds available. Every judge has
+> the same private worry about agent-written analysis: *is this number real, or
+> did it make it up?* This beat answers that on camera. If you cut anything to
+> fit, cut from Shot 11's outro, not from here.
+>
+> **Requires** `feat/citations` merged. Skip this shot if it isn't in the build
+> you record — do not fake it.
+
+**Visual:** The rendered report is on screen. A sentence reads *"Engineering is paid 8% below market"* with a small teal footnote chip after it. Cursor clicks the chip. A panel expands inline showing the exact ledger entry: the `run_sql` query, its arguments, the row count returned, the timestamp.
+
+Optionally pan up to the approval card still visible in the ledger, showing the `4 cited · 1 uncited` badge from before approval.
+
+**Voiceover:**
+"Every claim in this report is a link. Click it and you see the exact query the agent ran to produce that number, and what came back. And before I approved it, the card told me how many claims were backed by evidence and how many weren't. I'm not trusting the prose—I'm checking the receipts."
+
+---
+
 ## Shot 10: Export (1:53–2:05)
 
 **Visual:** Review panel shows one final proposal:
@@ -220,9 +239,21 @@ Use it for HR comp audits, financial data review, medical cohort analysis—any 
 - Approve chart: 13s
 - Agent writes report: 17s
 - Approve report: 8s
+- ⭐ Click a claim (9b, optional): 12s
 - Export: 12s
 - Outro: 35s
 
-**Total: 160s (~2:40)**
+**Total without 9b: 160s (~2:40). With 9b: 172s (~2:52).**
 
-If tighter: trim intro (5s), show 2 proposals instead of 3 (save 10s), shorter outro (25s) → ~145s (~2:25).
+2:52 is inside the 3-minute limit but leaves no margin for a slow DuckDB load or
+a fumbled take. Recommended cut to buy room: **trim the outro from 35s to 23s**
+(→ ~2:40 with 9b included). The outro is the most compressible thing in the
+script; shot 9b is the least. If you must choose one, keep 9b.
+
+Other trims if still tight: intro 8s → 5s; show 2 proposals instead of 3 (−10s).
+
+**Closing line to use if the later features are in the recorded build** — say it
+over the outro, don't add a shot:
+> "Sessions persist, so this workspace is still here tomorrow. The whole
+> transform sequence exports as a recipe you can replay on next quarter's file.
+> And any column you mark sensitive, the agent simply cannot read."
