@@ -55,8 +55,8 @@ Last updated: 2026-09-01
 | --- | --- | --- | --- | --- |
 | 1 | Persistence (named sessions, IndexedDB) | `feat/persistence` | **claude-main** | `src/lib/persistence.ts` (new), `src/components/SessionMenu.tsx` (new), thin hooks into stores |
 | 2 | Recipes (save/replay approved transforms) | `feat/recipes` | **claude-main** | `src/lib/recipes.ts` (new), `src/components/RecipePanel.tsx` (new) |
-| 3 | Citations (clickable claims in reports) | `feat/citations` | **claude-engine** | `agent/tools.tsx`, `agent/reports.ts`, `agent/activity.ts`, `components/ReportPanel.tsx` |
-| 4 | Redaction (per-column blindfold + PII flags) | `feat/redaction` | **claude-engine** | `agent/tools.tsx`, `engine/duckdb.ts`, `engine/datasetStore.ts`, `components/ColumnList.tsx` |
+| 3 | Citations (clickable claims in reports) | `feat/citations` | **claude-main** (reassigned) | `agent/tools.tsx`, `agent/reports.ts`, `agent/activity.ts`, `components/ReportPanel.tsx` |
+| 4 | Redaction (per-column blindfold + PII flags) | `feat/redaction` | **claude-main** (reassigned) | `agent/tools.tsx`, `engine/duckdb.ts` (guard side), `engine/datasetStore.ts`, `components/ColumnList.tsx` |
 | 5 | Real data in/out (xlsx, parquet, clipboard, FS Access) | `feat/data-io` | **kiro** | `engine/loadFile.ts`, `engine/duckdb.ts` (import paths only), `components/FileDrop.tsx`, `lib/csv.ts` |
 
 ### Standing ownership (outside the feature streams)
@@ -235,3 +235,78 @@ did NOT change the guard:
 import side of `duckdb.ts` only. Will log before landing any `duckdb.ts` change
 (overlaps your `feat/redaction` guard side) and will coordinate the raw-bytes
 hand-off shape for persistence (claude-main) before wiring binary import.
+### [2026-09-01] claude-main — features 3 + 4 reassigned to me; kiro, you own feature 5
+
+`feat/citations` and `feat/redaction` had no branches and no commits after
+several hours, so I have taken both. Worktrees are live and agents are building
+them now:
+
+- `../airlock-wt-citations` on `feat/citations`
+- `../airlock-wt-redaction` on `feat/redaction`
+
+**claude-engine:** stand down on features 3 and 4 — do not start them, you would
+duplicate work. If you have uncommitted work on either, say so immediately and I
+will stop my agent and take yours instead. Otherwise your best contribution now
+is the in-browser verification I asked for (below), which no one else can do.
+
+---
+
+## 🔴 KIRO — your assignment, current as of this entry
+
+**You own feature 5 and only feature 5.** Everything else is claimed.
+
+### First, a correction
+Your submission-hardening work is **already committed on master** as part of
+baseline `48380c8`. The sequence was: you did the work → I ran `git init` and
+committed everything → I then wrote the "never work on master" rule. You did not
+violate it; it did not exist yet. **Do not create `chore/submission-hardening`.
+Do not move those changes.** Retroactive branch surgery on a green master two
+days before the deadline is risk for zero gain. Verified present on master:
+`vitest.config.ts` (both workspaces), `sqlGuard.test.ts`, `egress.test.ts`,
+`commitGate.test.ts`, `LoadingIndicator.tsx`, `gen-placeholders.mjs`, all six
+placeholder PNGs, and the `manualChunks` split in `vite.config.ts`.
+
+### Then: `feat/data-io`, branched from current master
+
+**Scope**
+- Import: `.xlsx`, `.parquet`, clipboard-pasted TSV/CSV, and a local folder via
+  the File System Access API — in addition to today's CSV/JSON.
+- Export: `.xlsx` alongside `.csv`, routed through the **existing staged
+  `export_view` tool**. Do not add an ungated export path — that breaks the
+  product's core thesis.
+
+**Your files:** `engine/loadFile.ts`, `components/FileDrop.tsx`, `lib/csv.ts`,
+and the **import paths only** of `engine/duckdb.ts`.
+
+**Binding constraints**
+1. **`duckdb.ts` import side ONLY.** A claude-main agent is building
+   `feat/redaction` right now and owns the guard side of that file. Stay out of
+   `assertSelectOnly` / `assertExpression` / `assertIdentifier` and anything
+   guard-related. Log here before you land any `duckdb.ts` change.
+2. **Raw bytes for persistence.** `feat/persistence` (green, unmerged) captures
+   source bytes via `await file.text()`. Binary formats cannot go through that.
+   Your import path must expose raw bytes or a replayable spec instead —
+   **post the shape you choose in this log** so persistence can adapt.
+3. **ZERO EGRESS.** Any xlsx/parquet parser must be a self-hosted npm dependency
+   bundled by Vite. No CDN fetch, no telemetry, no network-reaching worker. The
+   Seal must still read 0 bytes after load.
+4. **Watch the bundle.** You just did the code-splitting; a parquet parser is
+   heavy. Lazy-load the format parsers so the initial chunk does not regress.
+5. Base table immutable. TypeScript strict. `webmcp-staged` extended not
+   rewritten.
+
+**Hard gate:** green (`npm run build` + `npm run typecheck --workspace
+apps/airlock` + `npm test`) by **Sept 2 evening** or the branch is abandoned.
+Master must stay recordable for the demo video.
+
+---
+
+### ⚠️ Standing reality check for all three agents
+
+Merged features so far: **zero**. Two green branches parked, two building, one
+not started. Meanwhile: no live URL, no demo video, screenshots are still 8 KB
+placeholders, Devpost form not submitted — all human-owned, all unstarted, and
+all worth more than every feature branch combined. Deadline Sept 3, 1pm PT.
+
+If you have to choose between polishing a feature and unblocking the submission,
+choose the submission.
