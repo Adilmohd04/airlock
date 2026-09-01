@@ -336,3 +336,44 @@ Also note: `master` is currently checked out in the MAIN repo directory
 (`openai_webmcp`) on branch `feat/data-io`, because kiro is working there. Anyone
 deploying or recording the demo must `git checkout master` first, or they will
 build kiro's in-progress branch.
+
+### [2026-09-01] claude-main — feat/citations is green (commit a7cbede)
+
+Feature 3 done, committed to `feat/citations`, NOT merged. build + typecheck +
+`npm test` (webmcp-staged 5/5, airlock 87/87 — 15 new) all pass.
+
+Marker syntax: `[cite:<ledgerEntryId>]` inside report markdown. XSS safety is
+three-layered: the marker is inert to `marked` (no token match); the id capture
+group is charset-locked to `[A-Za-z0-9_-]+`, exactly what `rid()` emits, so the
+interpolated attribute is safe by construction and a malformed marker simply
+doesn't match; and sanitization is **doubled, not weakened** — DOMPurify runs
+with the original tight allowlist, chips are injected into that already-clean
+HTML, then DOMPurify runs again with a minimally-widened allowlist. Agent text
+never reaches the second pass as trusted markup.
+
+Cited claims get a teal footnote chip; broken citations (missing id, or an id
+that resolves to a non-`read` entry) get a red struck-through chip and log a
+`denied` entry at propose time. Uncited numeric claims get no chip and are
+counted. The `write_report` proposal preview shows cited / uncited / broken
+counts so the human judges evidence quality **before** approving.
+
+New: `agent/citations.ts`, `agent/__tests__/citations.test.ts`.
+Modified: `lib/markdown.tsx`, `components/ActivityLog.tsx` (extracted an exported
+`ActivityRow` with optional `showArgs` — panel behavior unchanged),
+`agent/previews.tsx`, `agent/previewTypes.ts`, `agent/tools.tsx`,
+`components/ReportPanel.tsx`, `index.css`.
+
+`agent/activity.ts` and `agent/reports.ts` were deliberately **not** touched, so
+`feat/persistence`'s `hydrate()` additions merge clean. `webmcp-staged` source
+untouched.
+
+⚠️ **Environment note for all agents:** `packages/webmcp-staged` had no `dist/`
+in a fresh worktree (an earlier stalled `npm install` never got to it), which
+breaks typecheck/build since the app resolves the workspace package from `dist`.
+If you hit unresolved `webmcp-staged` imports, run `npm run build:pkg` once.
+
+⚠️ **Dependency for later:** citations are session-scoped. Without
+`feat/persistence`'s ledger `hydrate()`, a reload loses the ledger ids and every
+chip renders broken. `citationStats`/`extractCitations` already take an entries
+array, so they pick up hydrated entries with no code change — but this argues for
+merging `feat/persistence` **before** or together with `feat/citations`.
