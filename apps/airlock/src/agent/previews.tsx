@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { ToolPreview } from "./previewTypes";
+import type { CitationStats } from "./citations";
 import { Markdown } from "../lib/markdown";
 import { num } from "../lib/format";
 
@@ -171,9 +172,10 @@ export function PreviewBody({ preview }: { preview: ToolPreview }) {
     case "write_report":
       return (
         <div>
-          <p className="mb-1 text-[10px] text-slate-600">
-            {preview.words} words · preview
-          </p>
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px]">
+            <span className="text-slate-600">{preview.words} words · preview</span>
+            <CitationSummary citations={preview.citations} />
+          </div>
           <div className="max-h-56 overflow-y-auto rounded-md border border-ink-800 bg-ink-950 px-3 py-2">
             <Markdown source={preview.markdown} />
           </div>
@@ -246,6 +248,47 @@ function Stat({ label, value }: { label: string; value: string }) {
       </div>
     </div>
   );
+}
+
+// Evidence-quality summary the human reads BEFORE approving — cited claims in
+// commit green, uncited in pending amber, broken citations in danger red, so
+// the three counts read at the same glance as the row-delta chips above.
+function CitationSummary({ citations }: { citations: CitationStats }) {
+  const { citedClaims, uncitedClaims, brokenCitations } = citations;
+  if (citedClaims === 0 && uncitedClaims === 0 && brokenCitations === 0) {
+    return <span className="text-slate-600">no numeric claims detected</span>;
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <Badge tone="commit">{citedClaims} cited</Badge>
+      <Badge tone={uncitedClaims > 0 ? "pending" : "muted"}>
+        {uncitedClaims} uncited
+      </Badge>
+      {brokenCitations > 0 && (
+        <Badge tone="danger">
+          {brokenCitations} broken citation{brokenCitations === 1 ? "" : "s"}
+        </Badge>
+      )}
+    </span>
+  );
+}
+
+function Badge({
+  tone,
+  children,
+}: {
+  tone: "commit" | "pending" | "danger" | "muted";
+  children: React.ReactNode;
+}) {
+  const cls =
+    tone === "commit"
+      ? "bg-commit/15 text-commit"
+      : tone === "pending"
+        ? "bg-pending/15 text-pending"
+        : tone === "danger"
+          ? "bg-danger/15 text-danger"
+          : "bg-ink-800 text-slate-500";
+  return <span className={`rounded px-1.5 py-0.5 font-mono ${cls}`}>{children}</span>;
 }
 
 function fmtVal(v: unknown): string {

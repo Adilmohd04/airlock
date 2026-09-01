@@ -61,7 +61,7 @@ export function ActivityLog() {
                 No tool calls yet.
               </p>
             ) : (
-              [...entries].reverse().map((e) => <Row key={e.id} e={e} />)
+              [...entries].reverse().map((e) => <ActivityRow key={e.id} e={e} />)
             )}
           </div>
         </>
@@ -70,8 +70,20 @@ export function ActivityLog() {
   );
 }
 
-function Row({ e }: { e: ActivityEntry }) {
+/** One ledger entry, rendered. Exported so citation chips in `lib/markdown`
+ *  can show "the exact query + result" for a cited entry id without a second
+ *  copy of this markup. `showArgs` adds the call arguments (the SQL query,
+ *  expression, column, …) — the ledger panel keeps them collapsed, a citation
+ *  expands them. */
+export function ActivityRow({
+  e,
+  showArgs = false,
+}: {
+  e: ActivityEntry;
+  showArgs?: boolean;
+}) {
   const s = KIND_STYLE[e.kind];
+  const args = showArgs ? argLines(e.args) : [];
   return (
     <div className="rounded-md px-1.5 py-1 hover:bg-ink-850">
       <div className="flex items-center gap-2">
@@ -84,6 +96,11 @@ function Row({ e }: { e: ActivityEntry }) {
           {relativeTime(e.ts)}
         </span>
       </div>
+      {args.length > 0 && (
+        <pre className="ml-3.5 mt-1 overflow-x-auto whitespace-pre-wrap rounded border border-ink-800 bg-ink-950 px-2 py-1 font-mono text-[10px] text-slate-400">
+          {args.map(([k, v]) => `${k}: ${v}`).join("\n")}
+        </pre>
+      )}
       <p className="ml-3.5 mt-0.5 text-[10px] leading-snug text-slate-500">
         {e.summary}
         {e.returned?.rows !== undefined && (
@@ -92,4 +109,11 @@ function Row({ e }: { e: ActivityEntry }) {
       </p>
     </div>
   );
+}
+
+/** Non-empty call arguments as [key, value] pairs, for the expanded view. */
+function argLines(args: Record<string, unknown>): [string, string][] {
+  return Object.entries(args)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)]);
 }

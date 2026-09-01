@@ -201,6 +201,41 @@ body {
   text-decoration: underline;
 }
 
+/* Citation chips: a valid one is a calm teal superscript that reads like a
+   footnote; a broken one (missing / non-read ledger id) is loud danger-red and
+   struck through so an uncited-but-claimed number can never pass as verified.
+   Styled off the data-attributes so the sanitizer never needs to allow class. */
+.airlock-prose [data-citation-id] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15em;
+  margin: 0 0.15em;
+  padding: 0 0.3em;
+  border: 1px solid #0e8d80;
+  border-radius: 999px;
+  background: rgba(23, 179, 163, 0.16);
+  color: #7fe9dc;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.68em;
+  font-weight: 700;
+  line-height: 1.5;
+  vertical-align: super;
+  cursor: pointer;
+}
+.airlock-prose [data-citation-id]:hover {
+  background: rgba(23, 179, 163, 0.32);
+}
+.airlock-prose [data-citation-ok="false"] {
+  border-color: rgba(229, 87, 92, 0.6);
+  background: rgba(229, 87, 92, 0.16);
+  color: #e5575c;
+  text-decoration: line-through;
+}
+.airlock-prose [data-citation-ok="false"]:hover {
+  background: rgba(229, 87, 92, 0.32);
+}
+
 /* Keyboard focus: one teal ring on every interactive element. Mouse focus
    (:focus without :focus-visible) stays quiet. The `:enabled` doubles
    specificity so it beats the `focus:outline-none` Tailwind puts on fields. */
