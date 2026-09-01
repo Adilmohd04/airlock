@@ -4,7 +4,6 @@ import {
   loadFile as loadFileDataset,
   loadPastedText,
   pickLocalFile,
-  xlsxSheetNames,
 } from "../engine/loadFile";
 import { sniffDelimiter } from "../lib/importFormats";
 
@@ -13,19 +12,12 @@ const DEMOS = [
   { url: "/demo/headcount.csv", name: "headcount.csv", label: "Headcount & managers (for the join demo)" },
 ];
 
-const ACCEPT = ".csv,.tsv,.json,.xlsx,.parquet,text/csv";
-
-/** A multi-sheet workbook waiting for the human to pick a sheet. */
-interface PendingWorkbook {
-  file: File;
-  sheets: string[];
-}
+const ACCEPT = ".csv,.tsv,.json,.parquet,text/csv";
 
 export function FileDrop({ compact = false }: { compact?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [over, setOver] = useState(false);
-  const [pending, setPending] = useState<PendingWorkbook | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -42,46 +34,16 @@ export function FileDrop({ compact = false }: { compact?: boolean }) {
     }
   }, []);
 
-  const loadOneFile = useCallback(
-    async (f: File, sheet?: string): Promise<"loaded" | "needs-sheet"> => {
-      // A multi-sheet .xlsx stops here so the human chooses which sheet — it is
-      // never silently truncated to the first one.
-      if (!sheet) {
-        const sheets = await xlsxSheetNames(f).catch(() => null);
-        if (sheets && sheets.length > 1) {
-          setPending({ file: f, sheets });
-          return "needs-sheet";
-        }
-      }
-      await loadFileDataset(f, sheet ? { sheet } : {});
-      return "loaded";
-    },
-    []
-  );
-
   const handleFiles = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
-      setPending(null);
       await runLoad(async () => {
         for (const f of Array.from(files)) {
-          // Stop the batch on the first workbook that needs a sheet choice;
-          // the rest can be re-dropped after.
-          if ((await loadOneFile(f)) === "needs-sheet") break;
+          await loadFileDataset(f);
         }
       });
     },
-    [runLoad, loadOneFile]
-  );
-
-  const chooseSheet = useCallback(
-    (sheet: string) => {
-      const wb = pending;
-      if (!wb) return;
-      setPending(null);
-      void runLoad(() => loadFileDataset(wb.file, { sheet }));
-    },
-    [pending, runLoad]
+    [runLoad]
   );
 
   const importPaste = useCallback(
@@ -103,36 +65,6 @@ export function FileDrop({ compact = false }: { compact?: boolean }) {
   );
 
   const pasteGuess = pasteText.trim() ? sniffDelimiter(pasteText) : null;
-
-  if (pending) {
-    return (
-      <div className={compact ? "" : "w-full max-w-lg"}>
-        <p className="text-sm font-medium text-slate-200">
-          {pending.file.name} has {pending.sheets.length} sheets
-        </p>
-        <p className="mt-1 text-xs text-slate-500">Pick one to import.</p>
-        <div className="mt-3 space-y-1.5">
-          {pending.sheets.map((s) => (
-            <button
-              key={s}
-              onClick={() => chooseSheet(s)}
-              disabled={busy}
-              className="flex w-full items-center gap-2 rounded-md border border-ink-700 bg-ink-850 px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:border-ink-600 hover:bg-ink-800 disabled:opacity-40"
-            >
-              <span className="font-mono text-xs text-airlock-400">{s}</span>
-            </button>
-          ))}
-        </div>
-        <button
-          className="mt-2 text-[11px] text-slate-500 hover:text-slate-300"
-          onClick={() => setPending(null)}
-        >
-          cancel
-        </button>
-        {err && <p className="mt-3 text-xs text-danger">{err}</p>}
-      </div>
-    );
-  }
 
   return (
     <div className={compact ? "" : "w-full max-w-lg"}>
@@ -173,7 +105,7 @@ export function FileDrop({ compact = false }: { compact?: boolean }) {
         ) : (
           <>
             <p className={`font-medium text-slate-200 ${compact ? "text-sm" : ""}`}>
-              Drop a CSV, TSV, JSON, Excel or Parquet file
+              Drop a CSV, TSV, JSON or Parquet file
             </p>
             <p className="mt-1 text-xs text-slate-500">
               Or click to browse, or paste table data. Read in this tab. Never uploaded.
@@ -188,7 +120,7 @@ export function FileDrop({ compact = false }: { compact?: boolean }) {
           onClick={() =>
             void runLoad(async () => {
               const f = await pickLocalFile();
-              if (f) await loadOneFile(f);
+              if (f) await loadFileDataset(f);
             })
           }
           disabled={busy}

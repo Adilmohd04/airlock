@@ -14,7 +14,6 @@ import {
 describe("fileExtension", () => {
   it.each([
     ["data.csv", "csv"],
-    ["Q3 Report.XLSX", "xlsx"],
     ["archive.tar.gz", "gz"],
     ["noext", ""],
     ["  trailing.parquet  ", "parquet"],
@@ -30,8 +29,6 @@ describe("detectFormat", () => {
     ["dump.tab", "tsv"],
     ["records.json", "json"],
     ["log.ndjson", "json"],
-    ["book.xlsx", "xlsx"],
-    ["macro.xlsm", "xlsx"],
     ["events.parquet", "parquet"],
     ["events.pq", "parquet"],
     ["NOTES.TXT", "csv"],
@@ -41,12 +38,6 @@ describe("detectFormat", () => {
 
   it("falls back to MIME when the extension is unknown", () => {
     expect(detectFormat("blob", "text/csv")).toBe("csv");
-    expect(
-      detectFormat(
-        "download",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      )
-    ).toBe("xlsx");
     expect(detectFormat("f", "application/x-parquet")).toBe("parquet");
   });
 
@@ -61,8 +52,7 @@ describe("detectFormat", () => {
     expect(detectFormat("mystery")).toBeNull();
   });
 
-  it("marks xlsx and parquet as binary, csv/tsv/json as text", () => {
-    expect(BINARY_FORMATS.has("xlsx")).toBe(true);
+  it("marks parquet as binary, csv/tsv/json as text", () => {
     expect(BINARY_FORMATS.has("parquet")).toBe(true);
     expect(BINARY_FORMATS.has("csv")).toBe(false);
     expect(BINARY_FORMATS.has("tsv")).toBe(false);

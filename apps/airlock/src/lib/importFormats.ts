@@ -1,19 +1,17 @@
 /**
- * Import format detection + delimiter sniffing — pure string logic, no DuckDB,
- * no SheetJS. `workspaceStore.loadFile` dispatches on `detectFormat`; the
- * clipboard-paste affordance in `FileDrop` uses `sniffDelimiter` to tell the
- * human what it thinks they pasted before importing it.
+ * Import format detection + delimiter sniffing — pure string logic, no DuckDB.
+ * `workspaceStore.loadFile` dispatches on `detectFormat`; the clipboard-paste
+ * affordance in `FileDrop` uses `sniffDelimiter` to tell the human what it thinks
+ * they pasted before importing it.
  *
- * The heavy parsers (SheetJS for .xlsx, DuckDB's native reader for .parquet)
- * live behind this and are only reached once a format is known — see `lib/xlsx.ts`
- * and `engine/duckdb.ts`.
+ * The heavy parser (DuckDB's native reader for .parquet) lives behind this and is
+ * only reached once a format is known — see `engine/duckdb.ts`.
  */
 
-export type ImportFormat = "csv" | "tsv" | "json" | "xlsx" | "parquet";
+export type ImportFormat = "csv" | "tsv" | "json" | "parquet";
 
 /** Formats that arrive as binary bytes rather than decodable text. */
 export const BINARY_FORMATS: ReadonlySet<ImportFormat> = new Set<ImportFormat>([
-  "xlsx",
   "parquet",
 ]);
 
@@ -24,8 +22,6 @@ const EXT_TO_FORMAT: Record<string, ImportFormat> = {
   tab: "tsv",
   json: "json",
   ndjson: "json",
-  xlsx: "xlsx",
-  xlsm: "xlsx",
   parquet: "parquet",
   pq: "parquet",
 };
@@ -36,8 +32,6 @@ const MIME_TO_FORMAT: Record<string, ImportFormat> = {
   "text/csv": "csv",
   "text/tab-separated-values": "tsv",
   "application/json": "json",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
-  "application/vnd.ms-excel": "xlsx",
   "application/x-parquet": "parquet",
   "application/parquet": "parquet",
 };

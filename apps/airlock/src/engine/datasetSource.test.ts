@@ -2,8 +2,8 @@
  * `DatasetSource` <-> `PackedSource` round trip — the persistence-interop seam.
  * `lib/persistence.ts` stores `packSource(...)` in an IndexedDB blob record and
  * rebuilds the table from `unpackSource(...)` on restore, so a binary-sourced
- * session (.xlsx / .parquet) must come back byte-identical, and a pre-binary
- * text snapshot must still unpack.
+ * session (.parquet) must come back byte-identical, and a pre-binary text
+ * snapshot must still unpack.
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -37,15 +37,6 @@ describe("packSource / unpackSource", () => {
     ]);
   });
 
-  it("round-trips an xlsx byte source and keeps the chosen sheet", () => {
-    const src: DatasetSource = {
-      kind: "xlsx",
-      bytes: new Uint8Array([0x50, 0x4b, 3, 4, 42]),
-      sheet: "Q3 Actuals",
-    };
-    expect(roundTrip(src)).toEqual(src);
-  });
-
   it("packs text xor bytes, never both", () => {
     expect(packSource({ kind: "csv", text: "x" }).bytes).toBeUndefined();
     expect(
@@ -53,7 +44,7 @@ describe("packSource / unpackSource", () => {
     ).toBeUndefined();
   });
 
-  it("unpacks a legacy text blob (no bytes / sheet fields)", () => {
+  it("unpacks a legacy text blob (no bytes field)", () => {
     expect(unpackSource({ kind: "csv", text: "a\n1" })).toEqual({
       kind: "csv",
       text: "a\n1",
@@ -62,15 +53,6 @@ describe("packSource / unpackSource", () => {
 
   it("returns null when a binary blob lost its bytes (corrupt store)", () => {
     expect(unpackSource({ kind: "parquet" })).toBeNull();
-    expect(unpackSource({ kind: "xlsx", sheet: "S1" })).toBeNull();
     expect(unpackSource({ kind: "csv" })).toBeNull();
-  });
-
-  it("defaults a missing xlsx sheet to '' rather than dropping the source", () => {
-    const back = unpackSource({
-      kind: "xlsx",
-      bytes: new Uint8Array([0x50, 0x4b]),
-    });
-    expect(back).toEqual({ kind: "xlsx", bytes: new Uint8Array([0x50, 0x4b]), sheet: "" });
   });
 });

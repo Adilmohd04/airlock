@@ -22,7 +22,6 @@ import {
 } from "./duckdb";
 import { gridToCsv, parseDelimited, rowsToCsv } from "../lib/csv";
 import { detectFormat, sniffDelimiter } from "../lib/importFormats";
-import { readSheetNames, sheetToCsv } from "../lib/xlsx";
 
 export interface DatasetHandle {
   id: string;
@@ -32,29 +31,25 @@ export interface DatasetHandle {
 /**
  * The replayable origin of a dataset's base table, kept in memory so
  * `lib/persistence.ts` can rebuild the table on reload through the exact same
- * import path. Text formats carry their text; binary formats (`.xlsx`,
- * `.parquet`) carry raw bytes — `file.text()` would corrupt those. `.xlsx` also
- * records which sheet was imported so a restore re-derives the identical CSV.
- * Never leaves the tab.
+ * import path. Text formats carry their text; the binary format (`.parquet`)
+ * carries raw bytes — `file.text()` would corrupt those. Never leaves the tab.
  */
 export type DatasetSource =
   | { kind: "csv" | "json"; text: string }
-  | { kind: "xlsx"; bytes: Uint8Array; sheet: string }
   | { kind: "parquet"; bytes: Uint8Array };
 
 export type DatasetSourceKind = DatasetSource["kind"];
 
 /**
  * A `DatasetSource` flattened to plain, IndexedDB-storable fields (text xor
- * bytes; `sheet` only for xlsx). `lib/persistence.ts` spreads this into a blob
- * record on save and calls `unpackSource` on restore, so the source
- * (de)serialization lives next to the type it round-trips.
+ * bytes). `lib/persistence.ts` spreads this into a blob record on save and calls
+ * `unpackSource` on restore, so the source (de)serialization lives next to the
+ * type it round-trips.
  */
 export interface PackedSource {
   kind: DatasetSourceKind;
   text?: string;
   bytes?: Uint8Array;
-  sheet?: string;
 }
 
 export function packSource(src: DatasetSource): PackedSource {
@@ -62,8 +57,6 @@ export function packSource(src: DatasetSource): PackedSource {
     case "csv":
     case "json":
       return { kind: src.kind, text: src.text };
-    case "xlsx":
-      return { kind: "xlsx", bytes: src.bytes, sheet: src.sheet };
     case "parquet":
       return { kind: "parquet", bytes: src.bytes };
   }
@@ -77,9 +70,6 @@ export function unpackSource(p: PackedSource): DatasetSource | null {
   if (p.kind === "parquet") {
     return p.bytes ? { kind: "parquet", bytes: p.bytes } : null;
   }
-  if (p.kind === "xlsx") {
-    return p.bytes ? { kind: "xlsx", bytes: p.bytes, sheet: p.sheet ?? "" } : null;
-  }
   return null;
 }
 
@@ -92,8 +82,6 @@ export interface DatasetSnapshot {
   tableName: string;
   /** How to rebuild the base table from the saved source. */
   kind: DatasetSourceKind;
-  /** `.xlsx` only: the sheet that was imported (needed to re-derive the CSV). */
-  sheet?: string;
   view: DatasetViewSnapshot;
 }
 
@@ -237,19 +225,17 @@ class WorkspaceStore {
   /**
    * Build a `DatasetSource` from a user File, registering the base table as a
    * side effect. Dispatches on the detected format. Throws (before any state
-   * mutation) on an unsupported file, an unparseable one, or a multi-sheet
-   * workbook with no sheet chosen — the caller turns that into an honest error
-   * or a sheet picker.
+   * mutation) on an unsupported file or an unparseable one — the caller turns
+   * that into an honest error.
    */
   private async importSource(
     file: File,
-    tableName: string,
-    opts: { sheet?: string }
+    tableName: string
   ): Promise<DatasetSource> {
     const fmt = detectFormat(file.name, file.type);
     if (!fmt) {
       throw new Error(
-        `Airlock can't read "${file.name}". Supported: .csv, .tsv, .json, .xlsx, .parquet.`
+        `Airlock can't read "${file.name}". Supported: .csv, .tsv, .json, .parquet.`
       );
     }
 
@@ -276,25 +262,18 @@ class WorkspaceStore {
       return { kind: "csv", text };
     }
 
-    if (fmt === "parquet") {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      try {
-        await registerParquet(tableName, bytes);
-      } catch (e) {
-        throw new Error(
-          `That .parquet file could not be read — it may be corrupt or truncated. (${
-            e instanceof Error ? e.message : String(e)
-          })`
-        );
-      }
-      return { kind: "parquet", bytes };
-    }
-
-    // xlsx: one sheet -> CSV -> the normal registerCsv path.
+    // parquet: DuckDB's native reader, straight from the raw bytes.
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const { csv, sheet } = await sheetToCsv(bytes, opts.sheet);
-    await registerCsv(tableName, csv);
-    return { kind: "xlsx", bytes, sheet };
+    try {
+      await registerParquet(tableName, bytes);
+    } catch (e) {
+      throw new Error(
+        `That .parquet file could not be read — it may be corrupt or truncated. (${
+          e instanceof Error ? e.message : String(e)
+        })`
+      );
+    }
+    return { kind: "parquet", bytes };
   }
 
   /** Re-register a base table from a saved `DatasetSource` (used by `hydrate`). */
@@ -315,27 +294,14 @@ class WorkspaceStore {
       case "parquet":
         await registerParquet(tableName, src.bytes);
         return;
-      case "xlsx": {
-        const { csv } = await sheetToCsv(src.bytes, src.sheet);
-        await registerCsv(tableName, csv);
-        return;
-      }
     }
   }
 
-  /** The sheet names of an .xlsx File, so the UI can offer a picker. */
-  async xlsxSheetNames(file: File): Promise<string[]> {
-    return readSheetNames(new Uint8Array(await file.arrayBuffer()));
-  }
-
-  /** Load a user File entirely client-side. `opts.sheet` picks an .xlsx sheet. */
-  async loadFile(
-    file: File,
-    opts: { sheet?: string } = {}
-  ): Promise<DatasetHandle> {
+  /** Load a user File entirely client-side. */
+  async loadFile(file: File): Promise<DatasetHandle> {
     const id = rid();
     const tableName = this.tableNameFor(file.name, id.slice(0, 8));
-    const source = await this.importSource(file, tableName, opts);
+    const source = await this.importSource(file, tableName);
     this.sources.set(id, source);
 
     const store = createDatasetStore({
@@ -550,7 +516,6 @@ class WorkspaceStore {
             source: st.source,
             tableName: st.tableName,
             kind: src.kind,
-            ...(src.kind === "xlsx" ? { sheet: src.sheet } : {}),
             view: h.store.serialize(),
           };
         }),
@@ -559,7 +524,7 @@ class WorkspaceStore {
 
   /**
    * Rebuild the workspace from a saved snapshot: re-register each base table
-   * from its source (text for csv/json, raw bytes for xlsx/parquet), recreate
+   * from its source (text for csv/json, raw bytes for parquet), recreate
    * the dataset store, re-profile, then re-apply the view layer. A dataset that
    * fails to restore is skipped so the rest of the session still opens. The
    * caller (`lib/persistence.ts`) has already cleared any existing workspace.

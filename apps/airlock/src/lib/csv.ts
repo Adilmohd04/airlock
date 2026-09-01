@@ -92,12 +92,3 @@ export function downloadText(
 ): void {
   downloadBlob(filename, new Blob([text], { type: mime }));
 }
-
-/** Download raw bytes (e.g. an .xlsx workbook from `viewToXlsx`). */
-export function downloadBytes(
-  filename: string,
-  bytes: Uint8Array,
-  mime = "application/octet-stream"
-): void {
-  downloadBlob(filename, new Blob([bytes as BlobPart], { type: mime }));
-}

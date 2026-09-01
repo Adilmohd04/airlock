@@ -30,10 +30,10 @@
  *                               reports:  InsightReport[],
  *                               activity: ActivityEntry[] }
  *   blobs     keyPath "key"   { key: `${sessionId}::${tableName}`, sessionId,
- *                               tableName, kind, text? | bytes?, sheet? }
+ *                               tableName, kind, text? | bytes? }
  *              index "bySession" -> sessionId
- *              (text for csv/json; bytes for the binary formats xlsx/parquet —
- *               IndexedDB stores a Uint8Array natively; sheet is the xlsx sheet)
+ *              (text for csv/json; bytes for the binary format parquet —
+ *               IndexedDB stores a Uint8Array natively)
  *   meta      keyPath "k"     { k: "currentSessionId", v: string }
  */
 
@@ -81,11 +81,10 @@ interface BlobRecord {
   key: string;
   sessionId: string;
   tableName: string;
-  /** `kind` + (`text` for csv/json | `bytes` [+`sheet`] for xlsx/parquet). */
+  /** `kind` + (`text` for csv/json | `bytes` for parquet). */
   kind: DatasetSourceKind;
   text?: string;
   bytes?: Uint8Array;
-  sheet?: string;
 }
 
 export interface PersistenceState {

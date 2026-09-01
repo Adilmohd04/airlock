@@ -62,7 +62,6 @@ export type ToolPreview =
   | {
       kind: "export_view";
       filename: string;
-      format: "csv" | "xlsx";
       rows: number;
       columns: string[];
       appliedTransforms: string[];

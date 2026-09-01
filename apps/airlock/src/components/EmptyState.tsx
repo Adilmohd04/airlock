@@ -27,7 +27,7 @@ export function EmptyState() {
           </h1>
           <p className="mt-4 text-sm leading-relaxed text-slate-400">
             Load a spreadsheet you would never paste into a chat window — CSV,
-            TSV, JSON, Excel or Parquet, or rows straight off your clipboard.
+            TSV, JSON or Parquet, or rows straight off your clipboard.
             Airlock queries it locally with DuckDB-WebAssembly and exposes a set
             of WebMCP tools an AI agent can use to explore it.
           </p>

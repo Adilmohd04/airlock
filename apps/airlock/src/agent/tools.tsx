@@ -35,8 +35,7 @@ import {
   assertNoRedactedColumns,
   assertNoStarProjection,
 } from "../engine/duckdb";
-import { rowsToCsv, downloadText, downloadBytes } from "../lib/csv";
-import { viewToXlsx } from "../lib/xlsx";
+import { rowsToCsv, downloadText } from "../lib/csv";
 import { activityLog } from "./activity";
 import { citationStats, extractCitations } from "./citations";
 import { reportStore } from "./reports";
@@ -50,7 +49,7 @@ function activeStore(): DatasetStore {
   const s = workspaceStore.getActiveStore();
   if (!s) {
     throw new Error(
-      "No dataset is loaded yet. Ask the user to drop a data file (CSV, TSV, JSON, Excel or Parquet) or load the demo dataset, then try again."
+      "No dataset is loaded yet. Ask the user to drop a data file (CSV, TSV, JSON or Parquet) or load the demo dataset, then try again."
     );
   }
   return s;
@@ -141,17 +140,16 @@ function scrubRedactedColumns(
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Export download name: honor an explicit filename, force the format's extension. */
+/** Export download name: honor an explicit filename, force the .csv extension. */
 function exportFileName(
   filename: string | undefined,
-  sourceName: string,
-  format: "csv" | "xlsx"
+  sourceName: string
 ): string {
   const base = (filename || `${sourceName.replace(/\.[^.]+$/, "")}-airlock`).replace(
-    /\.(csv|xlsx|tsv|json|parquet)$/i,
+    /\.(csv|tsv|json|parquet)$/i,
     ""
   );
-  return `${base}.${format}`;
+  return `${base}.csv`;
 }
 
 // ── the hook ───────────────────────────────────────────────────────────────
@@ -970,19 +968,17 @@ export function useAirlockTools(): void {
       },
     });
 
-    stage<{ filename?: string; format?: "csv" | "xlsx" }>({
+    stage<{ filename?: string }>({
       name: "export_view",
       description:
-        "Export the current transformed view of the active dataset (filters + derived columns + renames applied) as a download. `format` is \"csv\" (default) or \"xlsx\". This is the one action that moves data out of the browser — into the user's own Downloads folder, on their approval.",
+        "Export the current transformed view of the active dataset (filters + derived columns + renames applied) as a CSV download. This is the one action that moves data out of the browser — into the user's own Downloads folder, on their approval.",
       inputSchema: {
         type: "object",
         properties: {
           filename: { type: "string" },
-          format: { type: "string", enum: ["csv", "xlsx"] },
         },
       },
-      prepare: async ({ filename, format }) => {
-        const fmt: "csv" | "xlsx" = format === "xlsx" ? "xlsx" : "csv";
+      prepare: async ({ filename }) => {
         const store = activeStore();
         const st = store.getState();
         // Agent-proposed egress respects redaction: redacted columns are not
@@ -997,38 +993,27 @@ export function useAirlockTools(): void {
         ];
         return {
           summary:
-            `Export ${res.rowCount.toLocaleString()} rows × ${res.columns.length} cols to ${fmt.toUpperCase()}` +
+            `Export ${res.rowCount.toLocaleString()} rows × ${res.columns.length} cols to CSV` +
             (redactedOut.length ? ` (${redactedOut.length} redacted column(s) excluded)` : ""),
           preview: {
             kind: "export_view",
-            filename: exportFileName(filename, st.fileName, fmt),
-            format: fmt,
+            filename: exportFileName(filename, st.fileName),
             rows: res.rowCount,
             columns: res.columns,
             appliedTransforms: transforms.length ? transforms : ["(raw view, no transforms)"],
           },
         };
       },
-      commit: async ({ filename, format }) => {
-        const fmt: "csv" | "xlsx" = format === "xlsx" ? "xlsx" : "csv";
+      commit: async ({ filename }) => {
         const store = activeStore();
         const st = store.getState();
         const res = await runQuery(store.buildAgentViewSql());
-        const name = exportFileName(filename, st.fileName, fmt);
-        if (fmt === "xlsx") {
-          const bytes = await viewToXlsx(res.columns, res.rows);
-          downloadBytes(
-            name,
-            bytes,
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          );
-        } else {
-          downloadText(
-            name,
-            rowsToCsv(res.columns, res.rows),
-            "text/csv;charset=utf-8"
-          );
-        }
+        const name = exportFileName(filename, st.fileName);
+        downloadText(
+          name,
+          rowsToCsv(res.columns, res.rows),
+          "text/csv;charset=utf-8"
+        );
         return `Exported ${res.rowCount} rows to ${name}.`;
       },
     });
