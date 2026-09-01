@@ -180,11 +180,13 @@ function assertNoAbuse(fragment: string): string {
   }
 
   // Keyword / URL / file-reader check runs on the copy that STILL HAS string
-  // literals, so `read_csv('https://…')` and a bare `FROM 'https://…'`
-  // replacement scan are both visible. A filter that legitimately compares
-  // against a literal URL is rejected too — deliberately: keeping data local is
-  // the whole point, and the error message is explicit.
-  if (NETWORKISH.test(noComments)) {
+  // literals AND comments, so `read_csv('https://…')`, a bare
+  // `FROM 'https://…'` replacement scan, and a URL hidden only in a `--` or
+  // `/* */` comment are all visible. A filter that legitimately compares
+  // against a literal URL (or a comment that merely mentions one) is rejected
+  // too — deliberately: keeping data local is the whole point, and the error
+  // message is explicit.
+  if (NETWORKISH.test(trimmed)) {
     throw new Error(
       "Remote URLs are not allowed in a query — the data must stay in this browser."
     );
