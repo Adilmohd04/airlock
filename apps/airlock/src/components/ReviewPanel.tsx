@@ -6,13 +6,21 @@ import { ProposalCard } from "./ProposalCard";
 // Elements that already treat Enter/Backspace as "activate me" — the global
 // shortcut below must not steal those keystrokes, or tabbing to e.g. "Export"
 // and pressing Enter would silently approve a proposal instead.
-function ownsEnterOrBackspace(t: HTMLElement | null): boolean {
+// A text-editing context owns both keys (Backspace deletes a character,
+// Enter may submit). A clickable control (button/link/select/anything
+// focusable) only owns Enter — it activates on Enter, but Backspace does
+// nothing on it natively, so the reject shortcut must still fire there.
+function ownsEnter(t: HTMLElement | null): boolean {
   if (!t || t === document.body) return false;
-  if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)
-    return true;
+  if (ownsBackspace(t)) return true;
   if (t.tagName === "BUTTON" || t.tagName === "A" || t.tagName === "SELECT")
     return true;
   return t.closest('[role="button"], [tabindex]') !== null;
+}
+
+function ownsBackspace(t: HTMLElement | null): boolean {
+  if (!t || t === document.body) return false;
+  return t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable;
 }
 
 export function ReviewPanel() {
@@ -26,11 +34,13 @@ export function ReviewPanel() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!primary) return;
-      if (ownsEnterOrBackspace(e.target as HTMLElement)) return;
+      const target = e.target as HTMLElement;
       if (e.key === "Enter") {
+        if (ownsEnter(target)) return;
         e.preventDefault();
         void applyProposal(primary);
       } else if (e.key === "Backspace") {
+        if (ownsBackspace(target)) return;
         e.preventDefault();
         rejectProposal(primary);
       }
