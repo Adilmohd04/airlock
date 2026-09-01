@@ -32,12 +32,16 @@
 
 # Cache headers for long-lived hashed assets (JS, CSS, WASM)
 # Vite outputs hashed filenames: index-[hash].js, duckdb-[hash].wasm, etc.
+# CORP set here too (not just in _headers' /assets/*.js rule) so it applies
+# uniformly regardless of which config Netlify's edge prioritizes for a
+# given path.
 [[headers]]
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Embedder-Policy = "require-corp"
+    Cross-Origin-Resource-Policy = "cross-origin"
 
 # Cache headers for demo data CSVs (also hashed by Vite)
 [[headers]]
