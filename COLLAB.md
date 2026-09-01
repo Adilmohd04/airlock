@@ -182,3 +182,56 @@ Persistence has no unit tests (no `fake-indexeddb`, and `__tests__/` is kiro's)
 and it rebuilds DuckDB tables from stored bytes at boot — a bug there breaks the
 demo. Gate before merging: an in-browser check that load → transform → report →
 reload restores everything. Requested from claude-engine, who has a live instance.
+
+### [2026-09-01] kiro — submission-hardening is on master at 48380c8 (documented, not branched)
+
+The submission-hardening spec (`.kiro/specs/submission-hardening/`) is COMPLETE
+and its changes are ALREADY on `master` — they were folded into baseline commit
+`48380c8` (the work predates the "never work on master" rule, so no rule was
+broken). Per human direction, NOT moving it to a branch: retroactive branch
+surgery on a green, shippable master two days out is churn with no upside. The
+branch rule applies to everything from here forward. Working tree is clean.
+
+What landed (all green: `npm run build` + `npm run typecheck --workspace apps/airlock` + `npm test`, 77 tests):
+
+- **Vitest trust suite (new):** `apps/airlock/vitest.config.ts`,
+  `packages/webmcp-staged/vitest.config.ts`, and three test files —
+  `apps/airlock/src/engine/__tests__/sqlGuard.test.ts` (67 tests, Properties 1–6),
+  `packages/webmcp-staged/src/__tests__/commitGate.test.ts` (5 tests, Properties 7–9),
+  `apps/airlock/src/lib/__tests__/egress.test.ts` (Property 10). fast-check, ≥100 runs each.
+  Root `test` script = `npm run test --workspaces --if-present`; each workspace has `test: vitest run`.
+- **Cold-start UX (new/edited):** `LoadingIndicator.tsx` (new, tokens-only),
+  loading/error state + setters added to `engine/uiStore.ts`, load wrappers in
+  `engine/loadFile.ts` driving beginLoad/endLoad/failLoad, `FileDrop.tsx`
+  repointed to those wrappers, and `App.tsx` renders the indicator + a
+  reload-path error line.
+- **Code-splitting:** `apps/airlock/vite.config.ts` gained
+  `build.rollupOptions.output.manualChunks` (vendor-react / vendor-recharts /
+  vendor-markdown), and `engine/duckdb.ts` now lazy-imports the DuckDB glue
+  (`await import("@duckdb/duckdb-wasm")` inside `createDb()`) so it splits into
+  its own async chunk. Vite's >500 kB advisory is gone; largest JS app chunk is
+  vendor-recharts (~383 kB), DuckDB glue is a separate ~199 kB chunk.
+- **README/screenshots:** six placeholder PNGs at `docs/screenshots/01..06`
+  (via `docs/screenshots/gen-placeholders.mjs`), README gallery captions fixed,
+  zero-egress note added to `docs/screenshots/CAPTURE-GUIDE.md`.
+
+⚠️ **claude-engine — cross-owner change in your territory:** the egress test
+needed to drive the classifier directly, so I added ONE additive line to
+`apps/airlock/src/lib/egress.ts` — `record(...)` is now `export`ed (signature
+unchanged, zero logic change). Nothing else in egress.ts changed. Flagging
+because `src/engine/**` + core lib are yours.
+
+⚠️ **Behavioral findings in `engine/duckdb.ts` SQL guard (yours, claude-engine).**
+The tests pin ACTUAL behavior and document two gaps vs. the stricter intent — I
+did NOT change the guard:
+  1. A networkish URL that appears ONLY inside a SQL comment is NOT rejected —
+     `stripComments()` runs before the NETWORKISH check. URLs inside string
+     literals ARE still rejected. Small hole in the exact privacy claim; ~5-line
+     fix + test if you want it closed on `feat/redaction` (you own the guard side).
+  2. Trailing-semicolon trim keeps the space before the `;`
+     (`"SELECT 1 ;"` → `"SELECT 1 "`). Cosmetic.
+
+**Next:** starting feature 5 `feat/data-io` (branched from current master),
+import side of `duckdb.ts` only. Will log before landing any `duckdb.ts` change
+(overlaps your `feat/redaction` guard side) and will coordinate the raw-bytes
+hand-off shape for persistence (claude-main) before wiring binary import.
