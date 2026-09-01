@@ -37,8 +37,11 @@ that the agent learns nothing:
   arguments and a summary of what came back (`rowsDisclosed()`,
   `seenColumns()`), so "what did the agent actually see?" has a concrete answer
   you can read and export.
+- You can close off a column entirely with **redaction**: mark it, and no read
+  tool, aggregate, derived column or join can surface its values to the agent
+  again — enforced at the SQL layer, not just hidden in the UI.
 - Exactly one tool moves data out of the tab: `export_view` writes a CSV to your
-  own Downloads folder, and only after you approve it.
+  own Downloads folder, and only after you approve it. It honors redaction too.
 
 ---
 
@@ -74,6 +77,57 @@ its own README for the API.
 
 ---
 
+## What's built
+
+Five things sit on top of the core stage-and-approve workspace:
+
+- **Persistence** — named sessions in IndexedDB. Reload the tab and every
+  dataset, filter, derived column, rename, chart, flag, report and the
+  activity ledger come back, keyed to a session you can list, switch and
+  delete. Each dataset's *original source bytes* are stored and replayed
+  through the same import path used on first load, so restore is
+  deterministic by construction. Zero network; private windows and blocked
+  storage degrade to a "not saved" pill without breaking the app.
+  ([`lib/persistence.ts`](apps/airlock/src/lib/persistence.ts),
+  [`components/SessionMenu.tsx`](apps/airlock/src/components/SessionMenu.tsx))
+- **Recipes** — export the approved transform sequence (filters, derived
+  columns, renames, flags, charts) as a versioned, git-diffable `.json` file,
+  then replay it against a fresh dataset. Replay never mutates: it stages one
+  proposal per step in the same review queue the agent's tools feed, and a
+  step that references a missing column is reported as skipped, never
+  dropped silently. ([`lib/recipes.ts`](apps/airlock/src/lib/recipes.ts),
+  [`components/RecipePanel.tsx`](apps/airlock/src/components/RecipePanel.tsx))
+- **Citations** — the agent cites evidence in `write_report` with a plain
+  `[cite:<ledgerEntryId>]` marker pointing at a prior read-tool call. Valid
+  citations render as clickable footnote chips; a citation with a missing id
+  or one that resolves to a non-read entry renders as broken and is logged.
+  The proposal preview shows cited / uncited / broken counts before you
+  approve. Citations are forward-only: a report that cited a query before a
+  column was later redacted still resolves — the ledger is an immutable
+  transparency record, not retroactively scrubbed.
+  ([`agent/citations.ts`](apps/airlock/src/agent/citations.ts))
+- **Redaction** — mark a column redacted from `ColumnList` (or let the agent
+  propose it via `propose_redact_column`; only a human can lift one). Once
+  redacted, no read tool, `run_sql` fragment, aggregate, derived column, join
+  or export can surface its values — enforced lexically in the SQL guard
+  (`assertNoRedactedColumns`, `assertNoStarProjection`), not just hidden in
+  the UI, and every refused attempt is logged as `denied`.
+  ([`engine/pii.ts`](apps/airlock/src/engine/pii.ts) suggests likely-PII
+  columns on load; nothing is redacted automatically.)
+- **Real data in/out** — import CSV, TSV, JSON and Parquet (DuckDB-WASM's
+  natively linked reader — zero new dependencies), plus clipboard-pasted
+  delimited text with delimiter auto-sniffing and a local file via the File
+  System Access API. Export stays CSV-only through the single staged
+  `export_view` tool — there is deliberately no second, ungated export path.
+  `.xlsx` was prototyped and then removed: the only SheetJS release on the
+  npm registry at the time (`xlsx@0.18.5`) carried two unpatched high-severity
+  advisories, and shipping a vulnerable parser for untrusted files contradicts
+  a security-first product. `npm audit --omit=dev` is clean on `main`.
+  ([`engine/loadFile.ts`](apps/airlock/src/engine/loadFile.ts),
+  [`lib/importFormats.ts`](apps/airlock/src/lib/importFormats.ts))
+
+---
+
 ## Architecture
 
 Monorepo, npm workspaces. `npm install` at the root installs everything.
@@ -91,31 +145,43 @@ apps/airlock/
                               native WebMCP host before importing the polyfill, mounts React.
   src/engine/
     duckdb.ts                 DuckDB-WASM wrapper (self-hosted wasm + workers), runQuery,
-                              the SQL guards (assertSelectOnly / assertExpression / assertIdentifier),
-                              CSV/JSON import.
+                              the SQL guards (assertSelectOnly / assertExpression /
+                              assertIdentifier / assertNoRedactedColumns /
+                              assertNoStarProjection), CSV/JSON/Parquet import.
     datasetStore.ts           Per-dataset store (factory). buildViewSql composes filters +
                               derived columns + renames; the base table is never mutated.
-    workspaceStore.ts         Dataset list, active dataset, cross-dataset joins.
-    uiStore.ts                Tab + console + activity-panel UI state.
-    useDataset.ts             React hooks over the stores.
-    loadFile.ts               Thin client-side file-load helpers.
+                              Redaction state, PII suggestions, serialize()/hydrate().
+    workspaceStore.ts         Dataset list, active dataset, cross-dataset joins, per-source
+                              bytes for persistence, format dispatch for import.
+    pii.ts                    Pre-flight heuristic that suggests likely-PII columns on load.
+    uiStore.ts                Tab + console + activity-panel + load/error UI state.
+    useDataset.ts              React hooks over the stores.
+    loadFile.ts                Thin client-side file-load helpers (file, paste, picker, demo).
   src/agent/
-    tools.tsx                 The whole WebMCP surface: 8 read tools + 11 staged actions.
-    activity.ts               The transparency ledger (every read/propose/commit/reject/denied).
-    reviewController.ts       Bridges the Approve button and commit_* to one commit path.
-    reports.ts                Insight-report store (agent-drafted markdown findings).
+    tools.tsx                 The whole WebMCP surface: 8 read tools + 12 staged actions.
+    activity.ts                The transparency ledger (every read/propose/commit/reject/denied).
+    citations.ts               [cite:<id>] marker parsing + resolution against the ledger.
+    reviewController.ts        Bridges the Approve button and commit_* to one commit path.
+    reports.ts                  Insight-report store (agent-drafted markdown findings).
     previews.tsx / previewTypes.ts   Typed diff previews rendered in the review queue.
-    hooks.ts                  React hooks for reports.
-  src/components/             React UI. TopBar (+ SealStatus, WebMCPStatus), LeftRail
-                              (DatasetSwitcher, ColumnList, FileDrop), CenterTabs, DataGrid,
-                              FilterBar, ChartPanel, ReportPanel, RightRail (ReviewPanel +
-                              ProposalCard, ActivityLog), AgentConsole, EmptyState.
+    hooks.ts                    React hooks for reports.
   src/lib/
-    egress.ts                 Wraps fetch / XMLHttpRequest / sendBeacon / WebSocket and counts
-                              every byte the page tries to send. Backs the Seal indicator.
-    csv.ts                    rowsToCsv + downloadText (used by export_view).
-    markdown.tsx              marked + DOMPurify. Agent-authored report text is untrusted.
-    format.ts                 Number / byte formatting.
+    egress.ts                   Wraps fetch / XMLHttpRequest / sendBeacon / WebSocket and counts
+                                every byte the page tries to send. Backs the Seal indicator.
+    persistence.ts               IndexedDB session store: save/list/switch/delete, autosave,
+                                one-time boot restore.
+    recipes.ts                   Recipe schema, serialize/parse, plan + replay through the
+                                review queue.
+    csv.ts                       rowsToCsv + downloadText (used by export_view).
+    importFormats.ts             Format detection by extension/MIME + delimiter sniffing.
+    markdown.tsx                 marked + DOMPurify, twice — once for the base report, again
+                                (widened allowlist) after citation chips are injected.
+    format.ts                    Number / byte / relative-time formatting.
+  src/components/              React UI. TopBar (+ SessionMenu, SealStatus, WebMCPStatus),
+                              LeftRail (DatasetSwitcher, ColumnList with the redact control,
+                              FileDrop), CenterTabs, RecipePanel, DataGrid, FilterBar,
+                              ChartPanel, ReportPanel, RightRail (ReviewPanel + ProposalCard,
+                              ActivityLog), AgentConsole, LoadingIndicator, EmptyState.
   scripts/gen-demo.mjs        Regenerates the bundled demo CSVs (synthetic, no real people).
   public/demo/                compensation.csv, headcount.csv — loaded client-side only.
 ```
@@ -128,7 +194,12 @@ apps/airlock/
   checked by one of the `assertSelectOnly` / `assertExpression` /
   `assertIdentifier` guards before it reaches DuckDB, and again in the
   `DatasetStore` mutators. They reject multiple statements, mutating keywords and
-  network-capable functions.
+  network-capable functions, including URLs hidden inside a SQL comment.
+- **A redacted column is a hard boundary.** `assertNoRedactedColumns` and
+  `assertNoStarProjection` reject any agent SQL that names — or `*`-expands to
+  — a redacted column, in any position: `SELECT`, `WHERE`, inside an
+  aggregate, concatenated, aliased, in a CTE. Un-redacting is human-only; no
+  tool does it.
 - **The read/write split is honest.** Read tools = `registerTool` +
   `readOnlyHint: true`. Write tools = `registerStagedTool`, human-gated. No write
   tool skips the review queue.
@@ -136,7 +207,8 @@ apps/airlock/
   telemetry. DuckDB's wasm and workers are self-hosted out of the npm package by
   Vite. The polyfill chunk is same-origin.
 - **Human and agent mutate the same stores.** A filter the agent adds is
-  identical to one you clicked — same grid, same charts, same undo.
+  identical to one you clicked — same grid, same charts, same undo. A recipe
+  replay stages the same kind of proposal an agent's `propose_*` call would.
 
 ---
 
@@ -151,13 +223,13 @@ must be loaded first; every call is appended to the activity ledger.
 | Tool | Parameters | What it returns |
 | --- | --- | --- |
 | `list_datasets` | – | Every loaded dataset with row/column counts, its SQL `tableName` and which is active. The active dataset is always queryable as `dataset`. |
-| `get_dataset_summary` | – | Active dataset: file name, SQL `tableName`, row count, every column with its type, active filters, derived columns, renames. |
-| `list_columns` | – | Columns with type, null count and distinct count. |
-| `profile_column` | `column` (string, required) | One column's full profile: type, non-null / null / distinct counts, numeric min/max/mean, up to 5 example values. |
-| `preview_rows` | `limit` (number, default 25, cap 100), `where` (string, optional) | Rows from the current view (filters + derived columns + renames applied), with an optional extra `WHERE` (guarded by `assertExpression`). |
-| `run_sql` | `query` (string, required) | One read-only query (`SELECT` / `WITH` / `VALUES` / `EXPLAIN`), up to 200 rows. The active dataset is available as `dataset`; other datasets use the `tableName` from `list_datasets`. Cannot mutate or reach the network — `assertSelectOnly` enforces it. |
-| `describe_workspace` | – | Everything applied to the active dataset: filters, derived columns, renames, charts, flag sets, and how many are agent-originated. |
-| `get_activity_log` | – | The transparency ledger: every tool call this session, plus totals for rows disclosed and distinct columns seen. |
+| `get_dataset_summary` | – | Active dataset: file name, SQL `tableName`, row count, every column with its type and redaction state, active filters, derived columns, renames. |
+| `list_columns` | – | Columns with type, null count, distinct count and redaction state. |
+| `profile_column` | `column` (string, required) | One column's full profile: type, non-null / null / distinct counts, numeric min/max/mean, up to 5 example values. A redacted column returns shape only — no min/max, no examples. |
+| `preview_rows` | `limit` (number, default 25, cap 100), `where` (string, optional) | Rows from the current view (filters + derived columns + renames applied), with an optional extra `WHERE` (guarded by `assertExpression`). Redacted columns are omitted. |
+| `run_sql` | `query` (string, required) | One read-only query (`SELECT` / `WITH` / `VALUES` / `EXPLAIN`), up to 200 rows. The active dataset is available as `dataset`; other datasets use the `tableName` from `list_datasets`. Cannot mutate or reach the network — `assertSelectOnly` enforces it. `SELECT *` is refused while any column is redacted. |
+| `describe_workspace` | – | Everything applied to the active dataset: filters, derived columns, renames, charts, flag sets, redaction state and PII suggestions, and how many are agent-originated. |
+| `get_activity_log` | – | The transparency ledger: every tool call this session, plus totals for rows disclosed and distinct columns seen. Entry ids are what a `write_report` `[cite:<id>]` marker points at. |
 
 ### Staged actions — `registerStagedTool`, human-gated
 
@@ -173,11 +245,12 @@ Each name below registers `propose_<name>`, `commit_<name>` and
 | `add_derived_column` | `name` (string, required), `expression` (string, required) | Adds a computed view column from a SQL scalar expression; preview shows sample values. Base table untouched. |
 | `remove_derived_column` | `name` (string, required) | Removes a derived column. |
 | `rename_column` | `from` (string, required), `to` (string, required) | Display-only rename; the base column keeps its name, so it is reversible. |
+| `redact_column` | `column` (string, required) | Once approved, the agent can no longer read the column's values by any path — rows, profiles, aggregates, derived columns, joins, export. Only a human can lift a redaction; there is no `unredact` tool. |
 | `add_chart` | `title` (string), `kind` (`"bar"` \| `"line"`), `sql` (string) | Adds a chart; `sql` must return exactly `[label, value]`. Preview renders the data. |
 | `flag_rows` | `where` (string), `reason` (string) | Flags matching rows for your attention with a reason. Deletes nothing. |
-| `join_datasets` | `right` (string — id or file name), `on` (array of `{ left, right }`), `type` (`"inner"` \| `"left"`, optional) | Joins the active dataset to another loaded one, producing a new dataset. Preview shows resulting row count and columns. |
-| `export_view` | `filename` (string, optional) | Exports the current transformed view as a CSV download to your Downloads folder. The one action that moves data out of the tab. |
-| `write_report` | `title` (string), `markdown` (string) | Saves a markdown findings document to the Report tab for you to keep and export. |
+| `join_datasets` | `right` (string — id or file name), `on` (array of `{ left, right }`), `type` (`"inner"` \| `"left"`, optional) | Joins the active dataset to another loaded one, producing a new dataset. Redacted columns are excluded from the result and cannot be join keys. Preview shows resulting row count and columns. |
+| `export_view` | `filename` (string, optional) | Exports the current transformed view as a CSV download to your Downloads folder — CSV only, redacted columns excluded. The one action that moves data out of the tab. |
+| `write_report` | `title` (string), `markdown` (string) | Saves a markdown findings document to the Report tab. Numeric claims should carry a `[cite:<ledgerEntryId>]` marker; the preview shows cited / uncited / broken citation counts before you approve. |
 
 ---
 
@@ -198,15 +271,25 @@ Type-check the app:
 npm run typecheck --workspace apps/airlock
 ```
 
-Once the dev server is up, load a file by drag-and-drop or use one of the two
-bundled demo datasets on the landing screen:
+Run the tests (248 across both workspaces: 243 in `apps/airlock`, 5 in
+`packages/webmcp-staged`, including a `fast-check`-based property suite over
+the SQL guard):
+
+```bash
+npm test
+```
+
+Once the dev server is up, load a file by drag-and-drop, paste delimited text,
+use the file picker, or pick one of the two bundled demo datasets on the
+landing screen:
 
 - **`compensation.csv`** — Compensation review (812 synthetic employees)
 - **`headcount.csv`** — Headcount & managers, for the `join_datasets` demo
 
-Supported inputs: CSV and JSON (a JSON file must be an array of records, or a
-single object). Files are read from your local `File` object and handed straight
-to DuckDB-WASM — nothing is uploaded.
+Supported inputs: CSV, TSV, JSON (an array of records, or a single object) and
+Parquet. Files are read from your local `File` object and handed straight to
+DuckDB-WASM — nothing is uploaded. (`.xlsx` is not supported — see
+[What's built](#whats-built) for why.)
 
 ### Exercising the WebMCP tools without ChatGPT
 
@@ -235,20 +318,30 @@ top bar.
   the live count and reads `Sealed · 0 bytes out` when nothing with a body or a
   cross-origin target has gone out.
 - **The SQL guards**
-  ([`src/engine/duckdb.ts`](apps/airlock/src/engine/duckdb.ts)) — three exported
-  checks (`assertSelectOnly` for a whole query, `assertExpression` for a
-  scalar/boolean fragment, `assertIdentifier` for a bare column name), all backed
-  by one internal validator. After stripping string literals and comments they
-  reject multiple statements, every mutating keyword (`insert`, `update`,
-  `delete`, `drop`, `create`, `attach`, `copy`, `pragma`, `install`, `load`, …)
-  and every network-capable function (`read_csv`, `read_parquet`, `parquet_scan`,
-  `glob`, and any `http(s)` / `s3` / `file://` reference). They run at two layers:
+  ([`src/engine/duckdb.ts`](apps/airlock/src/engine/duckdb.ts)) — `assertSelectOnly`
+  for a whole query, `assertExpression` for a scalar/boolean fragment,
+  `assertIdentifier` for a bare column name, plus `assertNoRedactedColumns` and
+  `assertNoStarProjection` for the redaction boundary — all lexical, run on a
+  copy with string literals and comments neutralized. They reject multiple
+  statements, every mutating keyword (`insert`, `update`, `delete`, `drop`,
+  `create`, `attach`, `copy`, `pragma`, `install`, `load`, …), every
+  network-capable function (`read_csv`, `read_parquet`, `parquet_scan`, `glob`,
+  and any `http(s)` / `s3` / `file://` reference — including one hidden inside a
+  SQL comment), and any reference to a redacted column. They run at two layers:
   the WebMCP tool boundary and again in the `DatasetStore` mutators. They err
   toward refusing, and a rejected fragment is logged as `denied`.
+- **Redaction is enforced below the UI, not instead of it.** Marking a column
+  redacted in `ColumnList` sets state that the SQL guards check on every
+  subsequent query — there is no code path that reads a redacted column's
+  values and simply declines to render them; the value never leaves DuckDB in
+  the first place for an agent-issued query.
 - **Untrusted report rendering**
   ([`src/lib/markdown.tsx`](apps/airlock/src/lib/markdown.tsx)): agent-authored
   report markdown is parsed with `marked` and scrubbed with `DOMPurify` — no raw
-  HTML, no scripts, an allow-list of tags and only `href` attributes.
+  HTML, no scripts, an allow-list of tags and only `href` attributes. Citation
+  chips are injected into that already-sanitized HTML and the result is passed
+  through `DOMPurify` a second time with a minimally widened allowlist, so
+  agent text never reaches the chip-rendering pass as trusted markup.
 
 ---
 
