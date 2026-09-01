@@ -144,12 +144,10 @@ drift between the two documents starts.
 ## Documentation
 
 - [x] Root `README.md` exists (problem statement, architecture, run
-  instructions, tool inventory, screenshots section). Note: as of this pass
-  the README still describes 8 read + 11 staged tools and doesn't mention
-  persistence, recipes, redaction, citations or the wider import formats.
-  It's out of scope for this pass (submission/ only, no application-source or
-  root-doc edits) but it should get the same correction `devpost.md` got
-  before submission, since a judge who clones the repo will read it.
+  instructions, tool inventory, screenshots section). A parallel pass fixed
+  the same staleness this note used to flag: it now correctly says
+  8 read + 12 staged tools and documents persistence, recipes, redaction,
+  citations and the wider import formats.
 - [x] `LICENSE` (MIT) at repo root.
 - [x] `devpost.md` covers all four judging criteria, corrected against
   `COLLAB.md` and the actual code in `apps/airlock/src/agent/tools.tsx`,
