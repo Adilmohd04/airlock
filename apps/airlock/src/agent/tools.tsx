@@ -32,6 +32,8 @@ import {
   runQuery,
   assertSelectOnly,
   assertExpression,
+  assertNoRedactedColumns,
+  assertNoStarProjection,
 } from "../engine/duckdb";
 import { rowsToCsv, downloadText } from "../lib/csv";
 import { activityLog } from "./activity";
@@ -84,6 +86,58 @@ async function read(
 }
 
 const q = (id: string) => `"${id.replace(/"/g, '""')}"`;
+
+// ── redaction: the agent-side blindfold ────────────────────────────────────
+
+/**
+ * Every identifier the agent must not name, unioned across ALL loaded datasets.
+ * A redacted column is a hard boundary regardless of which table a fragment
+ * targets — conservative on purpose (a clean column that happens to share a
+ * name with a redacted one elsewhere is blocked too; the error says why).
+ */
+function redactedIds(): string[] {
+  const ids = new Set<string>();
+  for (const h of workspaceStore.list()) {
+    for (const id of h.store.redactedIdentifiers()) ids.add(id);
+  }
+  return [...ids];
+}
+
+/** Reject an agent SQL fragment that names — or `*`-expands to — a redacted column. */
+function guardRedaction(sql: string): void {
+  const ids = redactedIds();
+  assertNoStarProjection(sql, ids);
+  assertNoRedactedColumns(sql, ids);
+}
+
+/** Drop any result column that matches a redacted identifier (final safety net). */
+function scrubRedactedColumns(
+  columns: string[],
+  rows: Record<string, unknown>[]
+): { columns: string[]; rows: Record<string, unknown>[]; dropped: string[] } {
+  const ids = redactedIds();
+  if (ids.length === 0) return { columns, rows, dropped: [] };
+  const isRedacted = (name: string): boolean =>
+    ids.some((id) =>
+      new RegExp(`(?:^|[^A-Za-z0-9_"])"?${escapeRe(id)}"?(?:[^A-Za-z0-9_"]|$)`, "i").test(
+        ` ${name} `
+      )
+    );
+  const dropped = columns.filter(isRedacted);
+  if (dropped.length === 0) return { columns, rows, dropped: [] };
+  const keep = columns.filter((c) => !dropped.includes(c));
+  return {
+    columns: keep,
+    rows: rows.map((r) => {
+      const o: Record<string, unknown> = {};
+      for (const c of keep) o[c] = r[c];
+      return o;
+    }),
+    dropped,
+  };
+}
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // ── the hook ───────────────────────────────────────────────────────────────
 
@@ -140,8 +194,11 @@ export function useAirlockTools(): void {
           execute: () =>
             read("get_dataset_summary", {}, async () => {
               const st = activeStore().getState();
+              const redacted = new Set(st.redactedColumns);
               return {
-                summary: `"${st.fileName}" — ${st.totalRows.toLocaleString()} rows, ${st.columns.length} columns. Query it as \`dataset\`.`,
+                summary: `"${st.fileName}" — ${st.totalRows.toLocaleString()} rows, ${st.columns.length} columns${
+                  redacted.size ? ` (${redacted.size} redacted — unreadable to you)` : ""
+                }. Query it as \`dataset\`.`,
                 data: {
                   fileName: st.fileName,
                   tableName: st.tableName,
@@ -151,12 +208,16 @@ export function useAirlockTools(): void {
                     name: st.renames[c] ?? c,
                     baseName: c,
                     type: st.columnTypes[c],
+                    redacted: redacted.has(c),
                   })),
+                  redactedColumns: [...redacted].map((c) => st.renames[c] ?? c),
                   activeFilters: st.filters.map((f) => f.label),
                   derivedColumns: st.derived.map((d) => `${d.name} = ${d.expression}`),
                   renames: st.renames,
                 },
-                returned: { columns: st.columns },
+                // Redacted columns are deliberately omitted from `returned.columns`
+                // — the agent never received their data.
+                returned: { columns: st.columns.filter((c) => !redacted.has(c)) },
               };
             }),
         },
@@ -175,6 +236,7 @@ export function useAirlockTools(): void {
             read("list_columns", {}, async () => {
               const store = activeStore();
               const st = store.getState();
+              const redacted = new Set(st.redactedColumns);
               const cols = st.columns.map((c) => {
                 const p = st.profiles[c];
                 return {
@@ -183,12 +245,15 @@ export function useAirlockTools(): void {
                   type: st.columnTypes[c],
                   nulls: p ? p.nullCount : null,
                   distinct: p ? p.distinctCount : null,
+                  redacted: redacted.has(c),
                 };
               });
               return {
-                summary: `${cols.length} columns.`,
+                summary: `${cols.length} columns${
+                  redacted.size ? `, ${redacted.size} redacted` : ""
+                }.`,
                 data: cols,
-                returned: { columns: st.columns },
+                returned: { columns: st.columns.filter((c) => !redacted.has(c)) },
               };
             }),
         },
@@ -201,7 +266,7 @@ export function useAirlockTools(): void {
         {
           name: "profile_column",
           description:
-            "Full profile of one column: type, non-null count, nulls, distinct count, numeric min/max/mean, and up to 5 example values.",
+            "Full profile of one column: type, non-null count, nulls, distinct count, numeric min/max/mean, and up to 5 example values. A redacted column returns shape only (count / nulls / distinct) — no min/max, no examples.",
           inputSchema: {
             type: "object",
             properties: {
@@ -219,9 +284,20 @@ export function useAirlockTools(): void {
                 st.columns.find((c) => c === column) ??
                 st.columns.find((c) => (st.renames[c] ?? c) === column);
               if (!base) throw new Error(`No column "${column}".`);
+              const shown = st.renames[base] ?? base;
+              if (st.redactedColumns.includes(base)) {
+                // Shape only — recomputed fresh so a pre-redaction cached profile
+                // (with samples / min / max) can never be handed back.
+                const p = await store.profileColumnShape(base);
+                return {
+                  summary: `${shown} (${p.type}, REDACTED): ${p.count} non-null, ${p.nullCount} null, ${p.distinctCount} distinct. Values, min/max and examples are withheld.`,
+                  data: p,
+                  returned: { columns: [] },
+                };
+              }
               const p = st.profiles[base] ?? (await store.profileColumn(base));
               return {
-                summary: `${st.renames[base] ?? base} (${p.type}): ${p.count} non-null, ${p.nullCount} null, ${p.distinctCount} distinct.`,
+                summary: `${shown} (${p.type}): ${p.count} non-null, ${p.nullCount} null, ${p.distinctCount} distinct.`,
                 data: p,
                 returned: { columns: [base], rows: p.samples.length },
               };
@@ -237,7 +313,7 @@ export function useAirlockTools(): void {
         {
           name: "preview_rows",
           description:
-            "Return rows from the CURRENT VIEW of the active dataset (all filters, derived columns and renames applied). Optional extra WHERE clause and row limit.",
+            "Return rows from the CURRENT VIEW of the active dataset (all filters, derived columns and renames applied). Redacted columns are omitted. Optional extra WHERE clause and row limit.",
           inputSchema: {
             type: "object",
             properties: {
@@ -257,17 +333,27 @@ export function useAirlockTools(): void {
             const where = String((input as { where?: unknown }).where ?? "").trim();
             return read("preview_rows", { limit, where }, async () => {
               const store = activeStore();
-              let sql = store.buildViewSql();
+              // Agent view: redacted base columns and any derived column built
+              // from one are already gone before the query runs.
+              let sql = store.buildAgentViewSql();
               if (where) {
                 assertExpression(where);
+                guardRedaction(where);
                 sql = `SELECT * FROM (${sql}) WHERE (${where})`;
               }
               sql += ` LIMIT ${limit}`;
               const res = await runQuery(sql);
+              // Belt-and-suspenders: scrub by name in case a rename slipped through.
+              const clean = scrubRedactedColumns(res.columns, res.rows);
+              const hidden = store.redactedDisplayNames();
               return {
-                summary: `${res.rowCount} row(s) from the current view.`,
-                data: { columns: res.columns, rows: res.rows },
-                returned: { rows: res.rowCount, columns: res.columns },
+                summary:
+                  `${res.rowCount} row(s) from the current view.` +
+                  (hidden.length
+                    ? ` ${hidden.length} redacted column(s) withheld: ${hidden.join(", ")}.`
+                    : ""),
+                data: { columns: clean.columns, rows: clean.rows },
+                returned: { rows: res.rowCount, columns: clean.columns },
               };
             });
           },
@@ -281,7 +367,7 @@ export function useAirlockTools(): void {
         {
           name: "run_sql",
           description:
-            "Run ONE read-only SQL query (SELECT / WITH / VALUES / EXPLAIN) and return up to 200 rows. The active dataset is available as `dataset` (e.g. \"SELECT department, avg(base_salary) FROM dataset GROUP BY 1\"); other loaded datasets use the `tableName` from list_datasets. Cannot modify data, read files, or reach the network — use the staged propose_* tools for changes.",
+            "Run ONE read-only SQL query (SELECT / WITH / VALUES / EXPLAIN) and return up to 200 rows. The active dataset is available as `dataset` (e.g. \"SELECT department, avg(base_salary) FROM dataset GROUP BY 1\"); other loaded datasets use the `tableName` from list_datasets. Cannot modify data, read files, or reach the network — use the staged propose_* tools for changes. While any column is redacted, name your columns explicitly (`SELECT *` is refused) and do not reference a redacted column in any form.",
           inputSchema: {
             type: "object",
             properties: { query: { type: "string" } },
@@ -292,11 +378,18 @@ export function useAirlockTools(): void {
             const query = String((input as { query?: unknown }).query ?? "");
             return read("run_sql", { query }, async () => {
               const safe = assertSelectOnly(query);
+              // Redaction guard: no `*`/COLUMNS() expansion, no named reference
+              // (aliased, concatenated, CASEd or aggregated) to a redacted column.
+              guardRedaction(safe);
               const res = await runQuery(`SELECT * FROM (${safe}) LIMIT 200`);
+              const clean = scrubRedactedColumns(res.columns, res.rows);
+              const note = clean.dropped.length
+                ? ` ${clean.dropped.length} redacted column(s) dropped from the result: ${clean.dropped.join(", ")}.`
+                : "";
               return {
-                summary: `${res.rowCount} row(s), ${res.columns.length} column(s) in ${res.elapsedMs}ms.`,
-                data: { columns: res.columns, rows: res.rows },
-                returned: { rows: res.rowCount, columns: res.columns },
+                summary: `${res.rowCount} row(s), ${clean.columns.length} column(s) in ${res.elapsedMs}ms.${note}`,
+                data: { columns: clean.columns, rows: clean.rows },
+                returned: { rows: res.rowCount, columns: clean.columns },
               };
             });
           },
@@ -310,13 +403,16 @@ export function useAirlockTools(): void {
         {
           name: "describe_workspace",
           description:
-            "List everything currently applied to the active dataset: filters, derived columns, renames, charts and flag sets — plus how many are agent-originated.",
+            "List everything currently applied to the active dataset: filters, derived columns, renames, charts, flag sets, and redaction state — plus how many are agent-originated. Check `redaction` here so you know what you cannot see rather than guessing.",
           annotations: { readOnlyHint: true },
           execute: () =>
             read("describe_workspace", {}, async () => {
               const st = activeStore().getState();
+              const redactedShown = st.redactedColumns.map((c) => st.renames[c] ?? c);
               return {
-                summary: `${st.filters.length} filter(s), ${st.derived.length} derived column(s), ${Object.keys(st.renames).length} rename(s), ${st.charts.length} chart(s), ${st.flags.length} flag set(s).`,
+                summary:
+                  `${st.filters.length} filter(s), ${st.derived.length} derived column(s), ${Object.keys(st.renames).length} rename(s), ${st.charts.length} chart(s), ${st.flags.length} flag set(s)` +
+                  `, ${st.redactedColumns.length} redacted column(s).`,
                 data: {
                   tableName: st.tableName,
                   sqlAlias: "dataset",
@@ -325,6 +421,18 @@ export function useAirlockTools(): void {
                   renames: st.renames,
                   charts: st.charts.map((c) => ({ id: c.id, title: c.title, kind: c.kind, sql: c.sql })),
                   flags: st.flags,
+                  redaction: {
+                    columns: redactedShown,
+                    baseColumns: st.redactedColumns,
+                    // Policy: redaction is total. A redacted column may not appear
+                    // in any agent SQL — not even inside avg()/min()/max() — and
+                    // never appears in any tool output. Un-redacting is human-only.
+                    aggregatesAllowed: false,
+                    piiSuggestions: st.piiSuggestions
+                      .filter((c) => !st.redactedColumns.includes(c))
+                      .map((c) => st.renames[c] ?? c),
+                    note: "Un-redacting is a human-only action; you may propose_redact_column to add one.",
+                  },
                 },
               };
             }),
@@ -460,10 +568,11 @@ export function useAirlockTools(): void {
       },
       prepare: async ({ expression, label }) => {
         assertExpression(expression);
+        guardRedaction(expression);
         const store = activeStore();
         const st = store.getState();
         const rowsBefore = st.totalRows;
-        const inner = store.buildViewSql();
+        const inner = store.buildAgentViewSql();
         const after = await runQuery(
           `SELECT count(*) AS n FROM (${inner}) WHERE (${expression})`
         );
@@ -571,16 +680,24 @@ export function useAirlockTools(): void {
       },
       prepare: async ({ name, expression }) => {
         assertExpression(expression);
+        guardRedaction(expression);
         const store = activeStore();
         const st = store.getState();
         if (st.columns.includes(name))
           throw new Error(`"${name}" already exists as a base column.`);
+        // Sample against non-redacted columns only — the preview is echoed back
+        // to the agent in structuredContent.
+        const visibleCols = st.columns
+          .filter((c) => !st.redactedColumns.includes(c))
+          .slice(0, 3);
         const probe = await runQuery(
-          `SELECT *, (${expression}) AS ${q(name)} FROM ${q(st.tableName)} LIMIT 3`
+          `SELECT ${visibleCols.map(q).join(", ")}${
+            visibleCols.length ? "," : ""
+          } (${expression}) AS ${q(name)} FROM ${q(st.tableName)} LIMIT 3`
         );
         const samples = probe.rows.map((row) => {
           const slim: Record<string, unknown> = {};
-          for (const c of st.columns.slice(0, 3)) slim[c] = row[c];
+          for (const c of visibleCols) slim[c] = row[c];
           return { row: slim, value: row[name] };
         });
         return {
@@ -652,6 +769,49 @@ export function useAirlockTools(): void {
       },
     });
 
+    stage<{ column: string }>({
+      name: "redact_column",
+      description:
+        "Propose redacting a column: once approved, YOU can no longer read its values by any path — not rows, not profiles, not aggregates, not derived columns. Use this when you notice a column holds personal data the analysis does not need. Only the human can lift a redaction.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          column: { type: "string", description: "Column name (display or base name)." },
+        },
+        required: ["column"],
+      },
+      prepare: async ({ column }) => {
+        const st = activeStore().getState();
+        const base =
+          st.columns.find((c) => c === column) ??
+          st.columns.find((c) => (st.renames[c] ?? c) === column);
+        if (!base) throw new Error(`No column "${column}".`);
+        if (st.redactedColumns.includes(base))
+          throw new Error(`"${column}" is already redacted.`);
+        const shown = st.renames[base] ?? base;
+        const suggested = st.piiSuggestions.includes(base);
+        return {
+          summary: `Redact "${shown}" — the agent loses all access to its values`,
+          preview: {
+            kind: "redact_column",
+            column: shown,
+            type: st.columnTypes[base] ?? "?",
+            suggestedByHeuristic: suggested,
+          },
+        };
+      },
+      commit: async ({ column }) => {
+        const store = activeStore();
+        const st = store.getState();
+        const base =
+          st.columns.find((c) => c === column) ??
+          st.columns.find((c) => (st.renames[c] ?? c) === column);
+        if (!base) throw new Error(`No column "${column}".`);
+        store.redactColumn(base, "agent");
+        return `Redacted "${st.renames[base] ?? base}". It is now unreadable to the agent.`;
+      },
+    });
+
     stage<{ title: string; kind: "bar" | "line"; sql: string }>({
       name: "add_chart",
       description:
@@ -667,6 +827,7 @@ export function useAirlockTools(): void {
       },
       prepare: async ({ title, kind, sql }) => {
         const safe = assertSelectOnly(sql);
+        guardRedaction(safe);
         const res = await runQuery(`SELECT * FROM (${safe}) LIMIT 50`);
         if (res.columns.length < 2)
           throw new Error("Chart query must return two columns: [label, value].");
@@ -698,12 +859,15 @@ export function useAirlockTools(): void {
       },
       prepare: async ({ where, reason }) => {
         assertExpression(where);
-        const st = activeStore().getState();
+        guardRedaction(where);
+        const store = activeStore();
+        const st = store.getState();
         const cnt = await runQuery(
           `SELECT count(*) AS n FROM ${q(st.tableName)} WHERE (${where})`
         );
+        // Sample from the agent view so redacted columns never reach the preview.
         const sample = await runQuery(
-          `SELECT * FROM ${q(st.tableName)} WHERE (${where}) LIMIT 5`
+          `SELECT * FROM (${store.buildAgentViewSql()}) WHERE (${where}) LIMIT 5`
         );
         return {
           summary: `Flag ${Number(cnt.rows[0]?.n ?? 0)} row(s): ${reason}`,
@@ -729,7 +893,7 @@ export function useAirlockTools(): void {
     }>({
       name: "join_datasets",
       description:
-        "Join the active dataset (left) to another loaded dataset (right) on one or more key pairs, producing a new dataset. Use list_datasets to get dataset ids or file names.",
+        "Join the active dataset (left) to another loaded dataset (right) on one or more key pairs, producing a new dataset. Use list_datasets to get dataset ids or file names. Redacted columns are dropped from the result and cannot be join keys.",
       inputSchema: {
         type: "object",
         properties: {
@@ -759,6 +923,7 @@ export function useAirlockTools(): void {
           rightId: rightHandle.id,
           on,
           type: jt,
+          excludeRedacted: true,
         });
         return {
           summary: `Join to "${rightHandle.store.getState().fileName}" → ${p.rowCount.toLocaleString()} rows`,
@@ -784,6 +949,7 @@ export function useAirlockTools(): void {
           on,
           type: type ?? "inner",
           origin: "agent",
+          excludeRedacted: true,
         });
         return `Created joined dataset "${h.store.getState().fileName}" (${h.store.getState().totalRows} rows).`;
       },
@@ -800,14 +966,20 @@ export function useAirlockTools(): void {
       prepare: async ({ filename }) => {
         const store = activeStore();
         const st = store.getState();
-        const res = await runQuery(store.buildViewSql());
+        // Agent-proposed egress respects redaction: redacted columns are not
+        // in this file. (The human can export them via un-redact + their own UI.)
+        const res = await runQuery(store.buildAgentViewSql());
+        const redactedOut = store.redactedDisplayNames();
         const transforms = [
           ...st.filters.map((f) => `filter: ${f.label}`),
           ...st.derived.map((d) => `+column: ${d.name}`),
           ...Object.entries(st.renames).map(([a, b]) => `rename: ${a}→${b}`),
+          ...redactedOut.map((c) => `redacted (excluded): ${c}`),
         ];
         return {
-          summary: `Export ${res.rowCount.toLocaleString()} rows × ${res.columns.length} cols to CSV`,
+          summary:
+            `Export ${res.rowCount.toLocaleString()} rows × ${res.columns.length} cols to CSV` +
+            (redactedOut.length ? ` (${redactedOut.length} redacted column(s) excluded)` : ""),
           preview: {
             kind: "export_view",
             filename: filename || `${st.fileName.replace(/\.[^.]+$/, "")}-airlock.csv`,
@@ -820,7 +992,7 @@ export function useAirlockTools(): void {
       commit: async ({ filename }) => {
         const store = activeStore();
         const st = store.getState();
-        const res = await runQuery(store.buildViewSql());
+        const res = await runQuery(store.buildAgentViewSql());
         const name = filename || `${st.fileName.replace(/\.[^.]+$/, "")}-airlock.csv`;
         downloadText(name, rowsToCsv(res.columns, res.rows), "text/csv;charset=utf-8");
         return `Exported ${res.rowCount} rows to ${name}.`;

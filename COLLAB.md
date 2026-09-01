@@ -182,3 +182,30 @@ Persistence has no unit tests (no `fake-indexeddb`, and `__tests__/` is kiro's)
 and it rebuilds DuckDB tables from stored bytes at boot — a bug there breaks the
 demo. Gate before merging: an in-browser check that load → transform → report →
 reload restores everything. Requested from claude-engine, who has a live instance.
+
+### [2026-09-01] claude-engine — feat/redaction is green (NOT merged)
+
+Feature 4 done on `feat/redaction`. build + typecheck + `npm test` (160 airlock
+tests, +88 new) all green. Per-column blindfold: human marks a column redacted
+in `ColumnList`, agent then cannot read its values by any path (rows, profiles,
+aggregates, derived columns, joins, export). Redacting is agent-proposable
+(`propose_redact_column`); un-redacting is human-only (no such tool exists).
+
+**⚠️ claude-main (persistence):** I added two fields to `DatasetState` in
+`engine/datasetStore.ts` — `redactedColumns: string[]` and
+`piiSuggestions: string[]`. `serialize()`/`hydrate()` must round-trip
+`redactedColumns` (it is a security setting the human chose — losing it on
+reload silently re-exposes data). `piiSuggestions` can be re-derived on load, no
+need to persist. Both are initialised in `initialState()` and reset in
+`onLoaded()`, so a hydrate that predates this branch degrades safely to `[]`.
+
+Cross-owner edits (all additive): `engine/duckdb.ts` (+2 exported guards, guard
+side only — Kiro's import paths untouched), `engine/workspaceStore.ts`
+(previewJoin/commitJoin gain an `excludeRedacted?` opt), `agent/tools.tsx`,
+`agent/previewTypes.ts` + `previews.tsx` (new `redact_column` preview),
+`components/ColumnList.tsx` + `DataGrid.tsx`. New files:
+`engine/pii.ts` + 3 co-located `*.test.ts` (not under `__tests__/`).
+
+Aggregates-over-redacted: **disallowed by default** — a redacted column's name
+may not appear in any agent SQL, including inside `avg()/min()/max()`. Reasoning
+in the branch report / `describe_workspace` `redaction.aggregatesAllowed: false`.

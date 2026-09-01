@@ -11,6 +11,17 @@ export function DataGrid() {
     () => new Set(state?.derived.map((d) => d.name) ?? []),
     [state?.derived]
   );
+  // Display names of redacted columns — the human still sees the values here;
+  // the glyph is a reminder that the agent does not.
+  const redactedSet = useMemo(
+    () =>
+      new Set(
+        (state?.redactedColumns ?? []).map(
+          (b) => state?.renames[b] ?? b
+        )
+      ),
+    [state?.redactedColumns, state?.renames]
+  );
   const flagExprs = state?.flags ?? [];
 
   if (!state) return null;
@@ -85,6 +96,14 @@ export function DataGrid() {
                     derivedSet.has(c) ? "text-airlock-300" : "text-slate-300"
                   }`}
                 >
+                  {redactedSet.has(c) && (
+                    <span
+                      className="mr-1 text-danger"
+                      title="Redacted — hidden from the agent"
+                    >
+                      ●
+                    </span>
+                  )}
                   {c}
                   {derivedSet.has(c) && (
                     <span className="ml-1 text-[9px] text-airlock-600">derived</span>

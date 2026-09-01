@@ -11,11 +11,13 @@
 
 import {
   assertExpression,
+  assertNoRedactedColumns,
   assertSelectOnly,
   runQuery,
   runStatement,
   type QueryResult,
 } from "./duckdb";
+import { suggestPiiColumns } from "./pii";
 
 export interface ColumnProfile {
   name: string;
@@ -32,6 +34,8 @@ export interface ColumnProfile {
   samples: string[];
   /** Coarse histogram for the mini-sparkline (numeric columns only). */
   histogram?: number[];
+  /** True when this column is redacted: everything above is shape only, no values. */
+  redacted?: boolean;
 }
 
 export interface ChartSpec {
@@ -89,6 +93,14 @@ export interface DatasetState {
   profiles: Record<string, ColumnProfile>;
   /** Display renames: base column name -> shown name. Base table is untouched. */
   renames: Record<string, string>;
+  /**
+   * Base column names the human has blindfolded the agent to. Enforcement is
+   * view-/guard-level (never a mutation of the base table). Redacting can be
+   * agent-proposed + human-approved; un-redacting is human-only.
+   */
+  redactedColumns: string[];
+  /** Base column names the pre-flight PII heuristic suggests redacting (advisory). */
+  piiSuggestions: string[];
   filters: FilterClause[];
   derived: DerivedColumn[];
   flags: FlagSet[];
@@ -124,6 +136,8 @@ function initialState(o: CreateDatasetOptions): DatasetState {
     columnTypes: {},
     profiles: {},
     renames: {},
+    redactedColumns: [],
+    piiSuggestions: [],
     filters: [],
     derived: [],
     flags: [],
@@ -204,6 +218,136 @@ export class DatasetStore {
     return `SELECT ${selectList} FROM ${this.q(s.tableName)}${where}${lim}`;
   }
 
+  // --- Redaction: per-column blindfold of the agent ------------------------
+
+  /** Resolve a display-or-base column name to its base name. */
+  private resolveBase(name: string): string | null {
+    const s = this.state;
+    return (
+      s.columns.find((c) => c === name) ??
+      s.columns.find((c) => (s.renames[c] ?? c) === name) ??
+      null
+    );
+  }
+
+  isRedacted(name: string): boolean {
+    const base = this.resolveBase(name);
+    return base !== null && this.state.redactedColumns.includes(base);
+  }
+
+  /** Every identifier an agent query must not mention: redacted base names + their renames. */
+  redactedIdentifiers(): string[] {
+    const ids = new Set<string>();
+    for (const base of this.state.redactedColumns) {
+      ids.add(base);
+      const shown = this.state.renames[base];
+      if (shown) ids.add(shown);
+    }
+    return [...ids];
+  }
+
+  /** Display names of redacted columns — for UI badges. */
+  redactedDisplayNames(): string[] {
+    return this.state.redactedColumns.map((b) => this.state.renames[b] ?? b);
+  }
+
+  /** Throw if an AGENT-supplied SQL fragment names a redacted column. */
+  assertAgentMaySee(sql: string): void {
+    assertNoRedactedColumns(sql, this.redactedIdentifiers());
+  }
+
+  private referencesRedaction(expr: string, ids: string[]): boolean {
+    if (ids.length === 0) return false;
+    try {
+      assertNoRedactedColumns(expr, ids);
+      return false;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
+   * Mark a column redacted. Both the human (UI) and an approved agent proposal
+   * land here; the origin is not load-bearing because the effect is identical.
+   */
+  redactColumn(name: string, origin: Origin = "human"): void {
+    const base = this.resolveBase(name);
+    if (!base) throw new Error(`No column "${name}" in this dataset.`);
+    if (this.state.redactedColumns.includes(base)) return;
+    void origin;
+    // Strip the cached profile down to shape immediately — the sample values it
+    // holds must not linger where a later code path could read them.
+    const profiles = { ...this.state.profiles };
+    const cached = profiles[base];
+    if (cached) {
+      profiles[base] = {
+        name: base,
+        type: cached.type,
+        count: cached.count,
+        nullCount: cached.nullCount,
+        distinctCount: cached.distinctCount,
+        samples: [],
+        redacted: true,
+      };
+    }
+    this.set({
+      redactedColumns: [...this.state.redactedColumns, base],
+      profiles,
+    });
+  }
+
+  /**
+   * Lift a redaction. HUMAN ONLY: there is deliberately no `propose_unredact`
+   * tool, so the agent has no path to call this.
+   */
+  unredactColumn(name: string): void {
+    const base = this.resolveBase(name);
+    if (!base) return;
+    this.set({
+      redactedColumns: this.state.redactedColumns.filter((c) => c !== base),
+    });
+    // Restore the full profile for the human's column list (best effort).
+    if (this.state.loaded) {
+      void this.profileColumn(base)
+        .then((p) => this.set({ profiles: { ...this.state.profiles, [base]: p } }))
+        .catch(() => {
+          /* next profileAll will fill it in */
+        });
+    }
+  }
+
+  /**
+   * Like `buildViewSql`, but for the AGENT: redacted base columns are dropped
+   * entirely, and any derived column whose formula references a redacted column
+   * is dropped too. Renames and filters apply as normal. Every read tool that
+   * returns row values queries through this. The human's grid keeps using
+   * `buildViewSql` — the human does the redacting and still needs to see the data.
+   */
+  buildAgentViewSql(limit?: number): string {
+    const s = this.state;
+    const redactedBase = new Set(s.redactedColumns);
+    const redactedIds = this.redactedIdentifiers();
+
+    const baseCols = s.columns
+      .filter((c) => !redactedBase.has(c))
+      .map((c) => {
+        const shown = s.renames[c];
+        return shown ? `${this.q(c)} AS ${this.q(shown)}` : this.q(c);
+      });
+    const derivedCols = s.derived
+      .filter((d) => !this.referencesRedaction(d.expression, redactedIds))
+      .map((d) => `(${d.expression}) AS ${this.q(d.name)}`);
+
+    const selectList =
+      [...baseCols, ...derivedCols].join(", ") || "NULL AS all_columns_redacted";
+    const where =
+      s.filters.length > 0
+        ? " WHERE " + s.filters.map((f) => `(${f.expression})`).join(" AND ")
+        : "";
+    const lim = typeof limit === "number" ? ` LIMIT ${limit}` : "";
+    return `SELECT ${selectList} FROM ${this.q(s.tableName)}${where}${lim}`;
+  }
+
   /** Re-run the current view query and update the grid + row count. */
   async refreshView(limit = 500): Promise<void> {
     if (!this.state.loaded) return;
@@ -237,6 +381,8 @@ export class DatasetStore {
       columns,
       columnTypes,
       renames: {},
+      redactedColumns: [],
+      piiSuggestions: [],
       filters: [],
       derived: [],
       flags: [],
@@ -244,6 +390,17 @@ export class DatasetStore {
       focusedColumn: null,
     });
     await this.profileAll();
+    // Pre-flight: flag likely-PII columns as suggested-redact. Advisory only —
+    // never auto-applied, never claimed exhaustive.
+    this.set({
+      piiSuggestions: suggestPiiColumns(
+        columns.map((c) => ({
+          name: c,
+          type: columnTypes[c] ?? "UNKNOWN",
+          samples: this.state.profiles[c]?.samples ?? [],
+        }))
+      ),
+    });
     await this.refreshView();
   }
 
@@ -251,9 +408,39 @@ export class DatasetStore {
     return /INT|DECIMAL|DOUBLE|FLOAT|REAL|BIGINT|HUGEINT|NUMERIC/i.test(type);
   }
 
+  /**
+   * Shape-only profile for a redacted column: counts / nulls / distinct, and
+   * nothing else. min/max/mean and sample values ARE real cell values, so they
+   * are never computed or returned for a redacted column.
+   */
+  async profileColumnShape(name: string): Promise<ColumnProfile> {
+    const s = this.state;
+    const col = this.q(name);
+    const tbl = this.q(s.tableName);
+    const base = await runQuery(
+      `SELECT
+         count(${col}) AS cnt,
+         count(*) - count(${col}) AS nulls,
+         count(DISTINCT ${col}) AS distinct_count
+       FROM ${tbl}`
+    );
+    const row = base.rows[0] ?? {};
+    return {
+      name,
+      type: s.columnTypes[name] ?? "UNKNOWN",
+      count: Number(row.cnt ?? 0),
+      nullCount: Number(row.nulls ?? 0),
+      distinctCount: Number(row.distinct_count ?? 0),
+      samples: [],
+      redacted: true,
+    };
+  }
+
   /** Profile a single column: counts, distinct, numeric stats, samples. */
   async profileColumn(name: string): Promise<ColumnProfile> {
     const s = this.state;
+    // A redacted column never gets a value-bearing profile, even internally.
+    if (s.redactedColumns.includes(name)) return this.profileColumnShape(name);
     const type = s.columnTypes[name] ?? "UNKNOWN";
     const col = this.q(name);
     const tbl = this.q(s.tableName);
@@ -339,6 +526,9 @@ export class DatasetStore {
     origin: Origin = "human"
   ): Promise<FilterClause> {
     assertExpression(expression);
+    // Defence in depth: whatever the tool layer did, an agent-origin filter
+    // can never reference a redacted column.
+    if (origin === "agent") this.assertAgentMaySee(expression);
     const clause: FilterClause = {
       id: rid(),
       expression,
@@ -369,6 +559,7 @@ export class DatasetStore {
       throw new Error(`Column "${name}" already exists in the base table.`);
     }
     assertExpression(expression);
+    if (origin === "agent") this.assertAgentMaySee(expression);
     const existing = this.state.derived.filter((d) => d.name !== name);
     const col: DerivedColumn = { id: rid(), name, expression, origin };
     this.set({ derived: [...existing, col] });
@@ -416,6 +607,7 @@ export class DatasetStore {
     origin: Origin = "human"
   ): Promise<ChartSpec> {
     assertSelectOnly(spec.sql);
+    if (origin === "agent") this.assertAgentMaySee(spec.sql);
     const result = await runQuery(spec.sql);
     if (result.columns.length < 2) {
       throw new Error(
@@ -442,6 +634,7 @@ export class DatasetStore {
     origin: Origin = "human"
   ): Promise<FlagSet> {
     assertExpression(expression);
+    if (origin === "agent") this.assertAgentMaySee(expression);
     const countRes = await runQuery(
       `SELECT count(*) AS n FROM ${this.q(this.state.tableName)} WHERE (${expression})`
     );

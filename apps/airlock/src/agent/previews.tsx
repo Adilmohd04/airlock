@@ -82,6 +82,27 @@ export function PreviewBody({ preview }: { preview: ToolPreview }) {
         </div>
       );
 
+    case "redact_column":
+      return (
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center gap-2 font-mono">
+            <span className="rounded bg-danger/15 px-1.5 py-0.5 text-danger">
+              redact {preview.column}
+            </span>
+            <span className="text-[10px] text-slate-600">({preview.type})</span>
+          </div>
+          <p className="text-[11px] leading-relaxed text-slate-400">
+            The agent will lose all access to this column — values, samples,
+            aggregates and any derived column built from it. Only you can undo this.
+          </p>
+          {preview.suggestedByHeuristic && (
+            <p className="text-[10px] text-pending">
+              Flagged by the pre-flight PII heuristic.
+            </p>
+          )}
+        </div>
+      );
+
     case "add_chart":
       return (
         <div>

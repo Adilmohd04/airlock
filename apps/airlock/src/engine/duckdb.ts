@@ -229,6 +229,97 @@ export function assertIdentifier(id: string): string {
   return t;
 }
 
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Redaction guard — the enforcement half of "the human can blindfold the agent
+ * per column". Rejects any agent-supplied SQL that so much as NAMES a redacted
+ * column: not in the SELECT list, not in WHERE, not inside avg()/min()/max(),
+ * not in a CASE, not string-concatenated, not aliased away, not in a CTE.
+ *
+ * Lexical, for the same reason the rest of this guard is lexical: partial
+ * allowance ("aggregates are fine") needs a real SQL parser, and every parser
+ * gap is a leak — min()/max() return a real cell, `avg(x) FILTER (WHERE id=5)`
+ * reconstructs one row, GROUP BY differencing peels values off one at a time.
+ * So once a column is redacted its name is radioactive and may appear nowhere.
+ *
+ * Comments and single-quoted string literals are neutralized first so a row
+ * value or a note that merely contains the word ("dropped from payroll") does
+ * not false-trip. Double quotes are KEPT so a quoted identifier `"ssn"` is
+ * still caught.
+ */
+export function assertNoRedactedColumns(
+  sql: string,
+  redacted: readonly string[]
+): string {
+  const trimmed = sql.trim();
+  if (redacted.length === 0) return trimmed;
+  const scan = ` ${stripComments(trimmed).replace(/'(?:[^']|'')*'/g, "''")} `;
+  for (const col of redacted) {
+    // Manual identifier boundaries (a column name can contain spaces/hyphens),
+    // optional surrounding double-quotes.
+    const re = new RegExp(
+      `(?:^|[^A-Za-z0-9_"])"?${escapeRegExp(col)}"?(?:[^A-Za-z0-9_"]|$)`,
+      "i"
+    );
+    if (re.test(scan)) {
+      throw new Error(
+        `Column "${col}" is redacted: the agent cannot read it, aggregate it, ` +
+          `or derive from it. Remove every reference to "${col}" from the query. ` +
+          `If the analysis needs it, ask the user to lift the redaction in the ` +
+          `column list — un-redacting is a human-only action.`
+      );
+    }
+  }
+  return trimmed;
+}
+
+/**
+ * When any column is redacted, every "give me all the columns / all the stats"
+ * shorthand is refused: it surfaces the redacted column without ever naming it,
+ * so `assertNoRedactedColumns` can't see it coming. Covers `SELECT *`,
+ * `COLUMNS(...)`, DuckDB's `SUMMARIZE`, and the bare-`TABLE`/`FROM`/`PIVOT`
+ * whole-relation forms. `count(*)` is fine. The agent must name its columns —
+ * and any redacted name it then lists is caught by `assertNoRedactedColumns`.
+ */
+export function assertNoStarProjection(
+  sql: string,
+  redacted: readonly string[]
+): string {
+  const trimmed = sql.trim();
+  if (redacted.length === 0) return trimmed;
+  const names = redacted.map((r) => `"${r}"`).join(", ");
+  const scan = stripComments(trimmed)
+    .replace(/'(?:[^']|'')*'/g, "''")
+    .replace(/\bcount\s*\(\s*\*\s*\)/gi, "count(0)");
+  // `SUMMARIZE` reports min/max/quartiles/etc for EVERY column — real cell values.
+  if (/\bsummarize\b/i.test(scan)) {
+    throw new Error(
+      `\`SUMMARIZE\` is disabled while a column is redacted (${names}) — it returns ` +
+        "statistics for every column. Query the columns you need by name."
+    );
+  }
+  // Whole-relation shorthands: `TABLE t`, a bare leading `FROM t`, `PIVOT`/`UNPIVOT`.
+  if (/^\s*(table|from|pivot|unpivot)\b/i.test(scan)) {
+    throw new Error(
+      `\`TABLE\` / bare \`FROM\` / \`PIVOT\` return every column and are disabled ` +
+        `while a column is redacted (${names}). Name the columns you need explicitly.`
+    );
+  }
+  // A `*` that opens/continues a projection: at the start, or after whitespace /
+  // `,` / `(` / `.` (a qualified `t.*`), and followed by end / `,` / `)` / a
+  // clause keyword. Arithmetic `a * b` has an operand after it and is not caught.
+  const starProjection =
+    /(^|[\s,([.])\*(\s*($|[,)]|\bexclude\b|\breplace\b|\bfrom\b))/i;
+  if (starProjection.test(scan) || /\bcolumns\s*\(/i.test(scan)) {
+    throw new Error(
+      `\`SELECT *\` and \`COLUMNS(...)\` are disabled while a column is redacted ` +
+        `(${names}) — they would surface it. Name the columns you need explicitly.`
+    );
+  }
+  return trimmed;
+}
+
 /**
  * Register a raw file (CSV / JSON / Parquet / Arrow) into DuckDB's virtual
  * filesystem and load it into a table. The bytes come straight from the
