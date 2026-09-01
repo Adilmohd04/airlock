@@ -63,6 +63,16 @@ class ActivityLog {
     this.emit();
   }
 
+  /**
+   * Persistence: replace the ledger with a saved one (session restore/switch).
+   * Original ids and timestamps are preserved so the ledger stays a faithful
+   * record across reloads.
+   */
+  hydrate(entries: ActivityEntry[]): void {
+    this.entries = [...entries];
+    this.emit();
+  }
+
   list(): ActivityEntry[] {
     return [...this.entries];
   }
