@@ -911,4 +911,79 @@ math + `tsc`/`vite build`, not a rendered DOM — genuinely unverified in an
 actual browser, same standing caveat this file already carries for everything
 else tonight.
 
+### [2026-09-01, overnight] claude-main — Tier 1 merged, all four streams green on `main`
+
+Four subagents dispatched in parallel tonight (T0-d + Tier 1), each in its own
+isolated worktree/branch, each required to be green before I'd merge:
+
+- **`airlock-deploy` (T0-d)** → `fix/deploy-verification` → merged `f6dc482`.
+  Real bug found and fixed: `_headers`' `/assets/*.worker.js` rule never
+  matched Vite's actual worker filename shape
+  (`duckdb-browser-eh.worker-<hash>.js` — hash lands between "worker" and
+  ".js"), so the worker never got its intended headers. Fixed to `/assets/*.js`.
+  Node pinned to 20 in `netlify.toml`. No live deploy possible from this
+  sandbox (no credentials/egress) — exact human checklist is in the agent's
+  report and `DEPLOY.md`.
+- **`airlock-docs`** → `docs/readme-audit` → merged `43cc621` (then `docs/`
+  header realignment on top). README described only the earliest build; five
+  shipped features (persistence, recipes, citations, redaction, data-io) were
+  completely absent, and the tool count was stale (11→12 staged, missing
+  `redact_column`).
+- **`airlock-ux` (T1-c)** → `feat/ux-polish` → merged `ea0fdf2`. Two real
+  keyboard-reachability bugs fixed (Enter/Backspace hijack, three
+  hover-only controls unreachable by Tab) plus ARIA labeling. See this
+  agent's own entry directly above for detail.
+- **`airlock-writeup`** → `docs/devpost-writeup` → merged `3d18027`. Devpost
+  copy and video script corrected against the final feature set and actual
+  code, run through humanize-writing. Still blocked on the human: live URL,
+  recorded video, real screenshots, Devpost form submission itself.
+
+**Post-merge review pass (`/code-review high` on the full `cb7b02b..HEAD`
+range) caught three real issues, all fixed before push:**
+1. `netlify.toml`'s own `/assets/*` header block never set
+   `Cross-Origin-Resource-Policy` (only `_headers` did) — closed the gap so it
+   doesn't depend on which config source Netlify prioritizes (`f27ccf5`).
+2. The README realignment introduced a formatting regression of its own (a
+   literal `` /* */ `` inside a `/** */` JSDoc-style architecture comment isn't
+   the bug here — that was a different, earlier catch in the test file; this
+   one was description-column drift in the tree diagram) — realigned to the
+   file's existing column-30 convention, and fixed the `WebMCPStatus.tsx`
+   `STAGED_ACTIONS = 11` constant which was a genuine display bug, not just a
+   stale doc — the running UI has undercounted its own tool surface since
+   `redact_column` landed (`2d1cccf`).
+3. The UX pass's fix for one keyboard bug (Enter double-activating a focused
+   button) over-corrected: it excluded `SELECT`/`[tabindex]` from *both*
+   Enter and Backspace, silently killing the reject shortcut whenever focus
+   was on e.g. the chart-kind dropdown, even though those elements don't
+   consume Backspace at all. Split into `ownsEnter`/`ownsBackspace` so each
+   key's exclusion matches what's actually consumed (`fc2864e`).
+
+One review finding was judged non-blocking and left as a documented
+limitation rather than fixed tonight: `CenterTabs.tsx`'s tab strip has
+`role="tablist"`/`role="tab"`/`aria-selected` but not the full ARIA Tabs
+pattern (no roving tabindex, no arrow-key nav, no `aria-controls`). It's a
+partial improvement over the prior zero-ARIA state, not a regression, and a
+complete fix would need to touch `App.tsx` too (where the tab panels
+actually render) — more scope than this pass's review warranted. Worth
+picking up in a future pass.
+
+**Housekeeping:** all four merged branches and their worktrees deleted
+locally (nothing left to prune — this is routine cleanup, not the T0-a
+"prune stale worktrees" task, which had nothing to do). The session's
+designated branch (`claude/dispatcher-setup-sg48b3`) fast-forwarded to match
+`main` and pushed, so it doesn't drift.
+
+**Could not run:** `/graphify . --update`, per the dispatcher's instruction
+to run it after each tier. `/graphify` is not among the skills loaded in
+this session despite CLAUDE.md referencing it and `graphify-out/` existing in
+the repo — I can't invoke a skill that isn't available rather than
+fabricate having run it. Flagging so whoever has it available runs it
+before relying on `graphify-out/` being current.
+
+`main` at `fc2864e`: build clean, typecheck clean, 248/248 tests, `npm audit
+--omit=dev` clean. Moving to the `airlock-reviewer` pass next (closest
+grounded interpretation of the dispatcher's "T2.1 attestation" — a real
+agent that exists in this repo, rather than a guess at an undefined task
+code), then a final summary of tonight's run.
+
 Branch `feat/ux-polish`, not merged, not pushed.
