@@ -8,6 +8,9 @@ dist/
 # graphify cache (the graph itself is kept, the cache is regenerable)
 graphify-out/cache/
 
+# live git worktrees for in-flight background subagents — not repo content
+.claude/worktrees/
+
 # editor / OS
 .DS_Store
 Thumbs.db
