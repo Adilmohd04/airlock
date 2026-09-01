@@ -6,6 +6,12 @@
   command = "npm install && npm run build"
   publish = "apps/airlock/dist"
 
+[build.environment]
+  # Pin Node explicitly — don't rely on Netlify's shifting default image.
+  # Matches the root package.json "engines.node": ">=20" requirement (Vite 5 /
+  # tsup / the workspace tooling all need >=20).
+  NODE_VERSION = "20"
+
 [context.production]
   # Production context
   environment = { NODE_ENV = "production" }
