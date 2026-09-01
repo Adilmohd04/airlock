@@ -179,6 +179,7 @@ export function PreviewBody({ preview }: { preview: ToolPreview }) {
           </div>
           <Code>{preview.filename}</Code>
           <div className="flex gap-4">
+            <Stat label="format" value={preview.format.toUpperCase()} />
             <Stat label="rows" value={num(preview.rows)} />
             <Stat label="columns" value={String(preview.columns.length)} />
           </div>

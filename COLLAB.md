@@ -615,3 +615,83 @@ Add these to the checklist, they are the highest-risk paths in the build:
 
 Still true: **nothing in this build has been seen running by a human.** 209
 passing tests is not the same thing.
+
+### [2026-09-01] claude (feat/data-io-impl) — feature 5 (Real data in/out) is green on its branch, NOT merged
+
+Branch `feat/data-io-impl` off master (b2bf911). Gates: `npm run build` clean
+(no warnings), `npm run typecheck --workspace apps/airlock` clean,
+**webmcp-staged 5/5 + airlock 258/258** (204 baseline + 54 new). Not merged.
+
+**What landed**
+- **Import:** `.xlsx`, `.parquet`, clipboard-pasted TSV/CSV/`;`/`|`, and a local
+  file via the File System Access API — alongside CSV/JSON. `.tsv` files too.
+- **Export:** `export_view` gained a `format` param (`"csv"` default | `"xlsx"`).
+  Same single staged tool, same commit path — no second, ungated export.
+
+**Native Parquet worked — zero new deps for it.** Verified against
+`@duckdb/duckdb-wasm` 1.32 in a throwaway node harness: `registerFileBuffer` +
+`CREATE TABLE t AS SELECT * FROM read_parquet('<vpath>')` reads a registered
+buffer, and `information_schema` sees the table. Only `.xlsx` needed a parser.
+
+**Dependency added: `xlsx@0.18.5` (SheetJS), 1 line in `apps/airlock/package.json`.**
+Self-hosted from the npm registry, bundled by Vite, lazy-loaded via `import("xlsx")`
+inside `lib/xlsx.ts` — it lands in its own 429 kB async chunk
+(`assets/xlsx-*.js`), NOT modulepreloaded, fetched only on the first .xlsx
+read/export. `browser` field stubs `fs`/`crypto`/`stream` → no network, no disk.
+Caveat: 0.18.5 is the last npm-registry release and carries two "high" advisories
+(prototype-pollution GHSA-4r6h-8v6p-xvw6, ReDoS GHSA-5pgg-2g8v-p4x9), fixed only
+in the SheetJS-CDN 0.20.x. The CDN tarball install is blocked by this env's
+classifier. Mitigation in code: magic-byte gate before parsing (`PK`/OLE2), parse
+→ extract one sheet as CSV → drop the workbook object. Recommend bumping to
+`xlsx@0.20.3` from the SheetJS tarball before the final submission.
+
+**Import path is separate from the agent SQL guard — and the guard is untouched.**
+`registerParquet` (new, in `engine/duckdb.ts`) is system-level, same tier as
+`registerCsv`/`registerJson`: called only by `workspaceStore` for a file the
+human chose, SQL built here from a `tableName` already sanitized to `[a-z0-9_]`,
+nothing agent- or user-typed flows in. It never calls `assertSelectOnly` /
+`assertExpression` / `assertNoAbuse`. `FORBIDDEN_TOKENS` still lists
+`read_parquet`/`parquet_scan`; `NETWORKISH` unchanged — `git diff` on the guard
+region is comment-only + the new fn. `.xlsx` and pasted TSV don't touch DuckDB
+readers at all: they're converted to comma-CSV in JS and go through `registerCsv`.
+
+**Persistence interop (claude-main — this touched `lib/persistence.ts`, +27 lines).**
+`workspaceStore`'s `sources` map is now `DatasetSource` =
+`{kind:"csv"|"json"; text}` | `{kind:"xlsx"; bytes; sheet}` | `{kind:"parquet"; bytes}`.
+Two pure exported helpers in `workspaceStore.ts` — `packSource()` / `unpackSource()`
+— flatten it to/from IndexedDB-storable fields (`text` xor `bytes`, `sheet` for
+xlsx). `BlobRecord` in `persistence.ts` gained optional `bytes`/`sheet`;
+`doSave` spreads `packSource(src)`, `restoreSession` builds the hydrate payload
+via `unpackSource(blob)`. `workspaceStore.hydrate()` now takes
+`(DatasetSnapshot & { payload: DatasetSource })[]` and rebuilds binary tables:
+parquet → `registerParquet(bytes)`, xlsx → re-derive the CSV from the stored
+workbook bytes + sheet name → `registerCsv`. **Old text snapshots still hydrate**
+(`unpackSource` returns `{kind,text}` for a legacy `{kind:"csv",text}` blob;
+covered by a test). A restored `.xlsx`/`.parquet` session comes back identical
+because the bytes are identical and the importer is deterministic.
+
+**Redaction interop:** untouched and works by construction — every format funnels
+into `createDatasetStore(...)` + `store.onLoaded(fileName)`, exactly like CSV, so
+`suggestPiiColumns()` runs for xlsx/parquet/pasted datasets too.
+
+**Files**
+- New: `lib/importFormats.ts` (format detect + delimiter sniff, pure),
+  `lib/xlsx.ts` (lazy SheetJS wrapper). Co-located tests:
+  `lib/importFormats.test.ts` (29), `lib/csv.test.ts` (8), `lib/xlsx.test.ts` (10),
+  `engine/datasetSource.test.ts` (7). None under `__tests__/`.
+- Modified (mine per the ownership map): `engine/loadFile.ts`,
+  `engine/duckdb.ts` (import side only), `components/FileDrop.tsx`, `lib/csv.ts`.
+- Modified (cross-owner, flagged): `engine/workspaceStore.ts` (source union +
+  format dispatch + binary hydrate), `lib/persistence.ts` (blob bytes),
+  `agent/tools.tsx` + `agent/previewTypes.ts` + `agent/previews.tsx` (`export_view`
+  `format` param), `components/EmptyState.tsx` (copy).
+
+**Bundle:** main app chunk 127.65 kB → 137.77 kB raw (gzip 37.78 → 41.31,
++3.5 kB) for the dispatch/paste/FS-Access UI. Heavy parser fully deferred: new
+`xlsx-*.js` 429 kB / 143 kB gzip, async-only. Other chunks unchanged.
+
+**Rough edges:** multi-sheet .xlsx reads its bytes twice (once for the sheet
+picker, once for load); parquet STRUCT/LIST columns import but may not profile
+cleanly (caught per-column); pasted ragged rows lean on DuckDB's CSV
+autodetect to null-pad; `xlsx` advisory above.
+Not seen in a browser yet — same standing caveat as the rest of this build.

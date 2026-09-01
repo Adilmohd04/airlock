@@ -26,9 +26,10 @@ export function EmptyState() {
             <span className="text-airlock-400">The data stays in your browser.</span>
           </h1>
           <p className="mt-4 text-sm leading-relaxed text-slate-400">
-            Load a spreadsheet you would never paste into a chat window. Airlock
-            queries it locally with DuckDB-WebAssembly and exposes a set of
-            WebMCP tools an AI agent can use to explore it.
+            Load a spreadsheet you would never paste into a chat window — CSV,
+            TSV, JSON, Excel or Parquet, or rows straight off your clipboard.
+            Airlock queries it locally with DuckDB-WebAssembly and exposes a set
+            of WebMCP tools an AI agent can use to explore it.
           </p>
           <ul className="mt-4 space-y-2 text-sm text-slate-400">
             <li className="flex gap-2">

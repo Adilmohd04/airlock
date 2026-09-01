@@ -327,7 +327,9 @@ export function assertNoStarProjection(
  */
 export async function registerCsv(
   tableName: string,
-  text: string
+  text: string,
+  /** Force a delimiter (clipboard paste sniffs one); omit to let DuckDB detect. */
+  delimiter?: string
 ): Promise<void> {
   const db = await getDb();
   const vpath = `${tableName}.csv`;
@@ -339,7 +341,45 @@ export async function registerCsv(
       name: tableName,
       detect: true,
       header: true,
+      ...(delimiter ? { delimiter } : {}),
     });
+  } finally {
+    await conn.close();
+  }
+}
+
+/**
+ * Register a Parquet file's bytes as a table. DuckDB-WASM reads Parquet
+ * natively (the reader is statically linked in the wasm build — verified against
+ * @duckdb/duckdb-wasm 1.32), so this needs no extension and no new dependency.
+ *
+ * SEPARATION FROM THE AGENT SQL GUARD — deliberate and load-bearing:
+ * `read_parquet` / `parquet_scan` are in `FORBIDDEN_TOKENS` and stay there, so
+ * the agent still cannot reach a file/URL reader through `run_sql` or chart SQL.
+ * This function is SYSTEM-level import, the same tier as `registerCsv` /
+ * `registerJson` above: it is only ever called by `workspaceStore` for a file
+ * the human chose, the SQL is built here from a `tableName` that
+ * `workspaceStore.tableNameFor` has already reduced to `[a-z0-9_]`, and the
+ * bytes come straight off a `File` — nothing agent-supplied and nothing
+ * user-typed ever flows in. It never touches `assertSelectOnly` /
+ * `assertExpression`, and those guards are not weakened to accommodate it.
+ */
+export async function registerParquet(
+  tableName: string,
+  bytes: Uint8Array
+): Promise<void> {
+  const db = await getDb();
+  const vpath = `${tableName}.parquet`;
+  await db.registerFileBuffer(vpath, bytes);
+  const conn = await db.connect();
+  try {
+    const t = tableName.replace(/"/g, '""');
+    await conn.query(`DROP TABLE IF EXISTS "${t}"`);
+    // Single-quoted vpath is safe by construction: tableName is already
+    // sanitized to [a-z0-9_] by the one caller.
+    await conn.query(
+      `CREATE TABLE "${t}" AS SELECT * FROM read_parquet('${vpath}')`
+    );
   } finally {
     await conn.close();
   }
