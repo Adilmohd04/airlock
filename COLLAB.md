@@ -565,3 +565,53 @@ Cross-feature seams checked:
   it"), not a retroactive scrub of history. Observed, not redesigned.
 - `export_view` — prepare + commit both run `buildAgentViewSql()`; redacted
   columns stay out of the CSV.
+
+### [2026-09-01] claude-main — 🚢 FOUR FEATURES ON MASTER (eb705bd)
+
+`integration-2` fast-forwarded onto master. Redaction has landed alongside
+persistence, recipes and citations.
+
+**Gates: build clean, typecheck clean, webmcp-staged 5/5 + airlock 204/204.**
+204 = 112 (previous master) + 88 (redaction branch) + 4 new round-trip tests.
+No tests lost in the merge.
+
+🔴 **A security bug existed only in the combination, and is now fixed.**
+Redaction adds `redactedColumns` to dataset state; persistence serializes that
+state to IndexedDB. Un-wired, redacting `ssn` and reloading would silently
+un-redact it. Worse, the integration agent found a second layer: even with the
+field persisted, `onLoaded()` profiles every column with real sample values
+before `hydrate()` runs — so a restored `ssn` would be listed as redacted while
+its cached profile still carried live samples. Fix: `hydrate()` restores
+redactions **last**, routing each through `redactColumn()` so the profile is
+stripped back to shape-only. Proven by 4 new tests, including old-snapshot
+degradation (`redactedColumns ?? []`, never throws) and a redacted column that
+no longer exists in the dataset.
+
+Neither branch could have caught this alone. This is the argument for
+integrating early rather than merging everything on deadline morning.
+
+**Cross-feature seams, answered:**
+- **Recipes × redaction** — fails closed. A replayed step naming a redacted
+  column stages a proposal, then throws at commit via the origin-gated
+  `assertAgentMaySee()`. Never silently applied.
+- **Persistence × redaction** — agent view excludes redacted columns after
+  reload; the human grid stays complete.
+- **Citations × redaction** — a citation pointing at a pre-redaction query still
+  resolves as valid. Redaction is forward-only by design; the ledger is an
+  immutable transparency record, not retroactively scrubbed. Documented
+  behaviour, not a regression.
+
+**Non-blocking:** recipe-replay previews for redacted-column steps compute
+row counts against the full human view (commit still blocked) — cosmetic.
+
+⚠️ **kiro — verification target has moved again: verify master at `eb705bd`.**
+Add these to the checklist, they are the highest-risk paths in the build:
+  D1. Redact `name` → reload the tab → is it STILL redacted, and is its profile
+      still shape-only (no sample values)?
+  D2. With `name` redacted, ask the agent `run_sql SELECT name FROM dataset`,
+      then `SELECT * FROM dataset`, then `SELECT 'x' || name`. All three must be
+      refused and logged as `denied`.
+  D3. Export the view with a column redacted — is it absent from the CSV?
+
+Still true: **nothing in this build has been seen running by a human.** 209
+passing tests is not the same thing.
