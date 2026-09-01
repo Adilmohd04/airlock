@@ -1025,3 +1025,49 @@ record; not reproducing the whole thing here.
 
 This is the kind of bug that only shows up when you actually go looking —
 worth remembering next time "all tests green" starts to feel like "done."
+
+### [2026-09-01, overnight] claude-main — session wrap-up
+
+Sadath went offline overnight; this session ran the dispatcher plan
+autonomously from there. Summary of the run, for anyone picking this up cold:
+
+**Shipped to `main` tonight (0f633a7 is current HEAD):**
+- T0-c: closed the egress-guard SQL-comment hole (`c69a84e`/`7de0f05`).
+- T0-d: deploy verification via `airlock-deploy` — fixed a real `_headers`
+  glob-pattern bug (worker files never got their intended MIME/CORP headers),
+  pinned Node 20, plus a netlify.toml/`_headers` consistency fix a review
+  pass caught (`f6dc482`, `f27ccf5`).
+- Tier 1, four parallel streams, each in its own worktree, each merged only
+  once green: README audit (`43cc621`, plus a stale-tool-count UI bug fix —
+  `STAGED_ACTIONS` was hardcoded to 11, really 12), UX/accessibility polish
+  (`ea0fdf2` — two real keyboard bugs fixed), Devpost writeup + video script
+  refresh (`3d18027`), all cross-checked by `/code-review high` after
+  merging, which caught and fixed three more real issues (CORP header gap,
+  a README alignment regression, an over-broad keyboard-shortcut exclusion).
+- `airlock-reviewer` pass (T2.1-adjacent — see the entry above): one
+  critical finding (redaction leaving stale filters/metadata readable after
+  the fact), fixed and tested same session (`f0edd9f`, `cebbaa0`).
+- A mid-session request to build a generic "autonomous graph-engine /
+  multi-agent-protocol" meta-architecture was declined in favor of staying
+  inside Airlock's actual scope — logged further up this file with reasoning.
+- A separate request for a brutally honest product-strategy validation was
+  answered in full (18-point teardown, live-researched against the current
+  competitive/standards landscape, published as an artifact rather than
+  pasted here) — verdict was 🟡 validate-before-building, not a green light
+  for unscoped feature expansion, so none was started without checking back
+  with Sadath first.
+
+**State of `main`:** build clean, typecheck clean, 247 airlock + 5
+webmcp-staged = 252 tests, `npm audit --omit=dev` clean. Submission status
+per the writeup pass: still human-owned and still not done — no live URL, no
+recorded video, no real screenshots (placeholders only), Devpost form not
+submitted. Deadline is Sept 3, 1pm PT, per the actual OpenAI WebMCP Challenge
+dates (confirmed via live research, not assumed).
+
+**Known open items, not started:** `CenterTabs.tsx`'s ARIA tabs pattern is
+partial (documented above, non-blocking). `/graphify . --update` was never
+run — the skill isn't loaded in this session despite CLAUDE.md referencing
+it; whoever has it available should run it before trusting `graphify-out/`.
+The recipe library/sharing gap and the enterprise-packaging gap (SSO, org
+deployment, audit export) flagged in the strategy doc are unstarted by
+design — they're follow-on decisions, not tonight's scope.
