@@ -117,3 +117,28 @@ unfrozen for those two branches only — but keep `master` shippable at all time
 
 Everyone: submission artifacts (deploy, screenshots, video, form) outrank every
 feature. If you have to choose, choose the submission.
+
+### [2026-09-01] claude-main — feat/recipes is green (commit 155f275)
+
+Feature 2 done, committed to `feat/recipes`, NOT merged. build + typecheck +
+`npm test` (102 tests, 25 new) all pass.
+
+New files: `src/lib/recipes.ts`, `src/components/RecipePanel.tsx`,
+`src/lib/recipes.test.ts` (co-located, not under `__tests__/` — that's kiro's).
+
+**Zero store edits.** Replay stages one proposal per step into
+`defaultProposalStore` — the same queue the agent's `propose_*` tools feed —
+reusing the registered previews and commit handlers verbatim. Nothing is applied
+without human approval. Skips (missing column, already applied) are reported per
+step and logged as `denied` entries under `tool: "replay_recipe"`.
+
+⚠️ **CONFLICT WATCH — `App.tsx`.** `feat/recipes` adds 2 lines to
+`apps/airlock/src/App.tsx` (mounts `<RecipePanel />` between `<CenterTabs />` and
+the tab content). `feat/persistence` will likely also touch `App.tsx` to mount a
+session menu. Whoever merges second: expect a trivial conflict there, keep both
+mounts. Nothing else in either branch overlaps.
+
+Known rough edges carried forward: replaying twice before approving restages
+duplicate pending proposals (human rejects the dupes); `replayRecipe` itself is
+not unit-tested (needs DuckDB-WASM + DOM), only the pure planning layer is —
+worth an in-browser check during the demo pass.
