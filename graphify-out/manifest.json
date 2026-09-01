@@ -1,0 +1,284 @@
+{
+  "apps/airlock/package.json": {
+    "mtime": 1788200947.5652585,
+    "seen": 1788238766.5302901,
+    "ast_hash": "00d8b4f72ddf633f14f6cef241359e1d",
+    "semantic_hash": "00d8b4f72ddf633f14f6cef241359e1d"
+  },
+  "apps/airlock/postcss.config.js": {
+    "mtime": 1788117051.807674,
+    "seen": 1788238766.5303023,
+    "ast_hash": "c735540bb63936a123bc867d950c9f69",
+    "semantic_hash": "c735540bb63936a123bc867d950c9f69"
+  },
+  "apps/airlock/src/App.tsx": {
+    "mtime": 1788202117.7339778,
+    "seen": 1788238766.5303092,
+    "ast_hash": "aa1de5839e154865c9c64b3d16f9083b",
+    "semantic_hash": "aa1de5839e154865c9c64b3d16f9083b"
+  },
+  "apps/airlock/src/agent/activity.ts": {
+    "mtime": 1788201219.5478683,
+    "seen": 1788238766.5303123,
+    "ast_hash": "8ecf0364e05a8701562c2ef44a367c6c",
+    "semantic_hash": "8ecf0364e05a8701562c2ef44a367c6c"
+  },
+  "apps/airlock/src/agent/hooks.ts": {
+    "mtime": 1788202128.4954576,
+    "seen": 1788238766.5303147,
+    "ast_hash": "21288ab35e5b9e0c124bcd3634a004b9",
+    "semantic_hash": "21288ab35e5b9e0c124bcd3634a004b9"
+  },
+  "apps/airlock/src/agent/previewTypes.ts": {
+    "mtime": 1788201262.4748967,
+    "seen": 1788238766.5303173,
+    "ast_hash": "a84b43c313fab4853e976191aad6d3c4",
+    "semantic_hash": "a84b43c313fab4853e976191aad6d3c4"
+  },
+  "apps/airlock/src/agent/reports.ts": {
+    "mtime": 1788201253.2044115,
+    "seen": 1788238766.5303202,
+    "ast_hash": "25a39110ca60b18a2a1e088606afab28",
+    "semantic_hash": "25a39110ca60b18a2a1e088606afab28"
+  },
+  "apps/airlock/src/agent/reviewController.ts": {
+    "mtime": 1788202404.020844,
+    "seen": 1788238766.5303228,
+    "ast_hash": "73fe8c44214dba58d9c34f97895dfb54",
+    "semantic_hash": "73fe8c44214dba58d9c34f97895dfb54"
+  },
+  "apps/airlock/src/agent/tools.tsx": {
+    "mtime": 1788201386.5941482,
+    "seen": 1788238766.530325,
+    "ast_hash": "251cba415e80ece7c34e54df2fe9701f",
+    "semantic_hash": "251cba415e80ece7c34e54df2fe9701f"
+  },
+  "apps/airlock/src/components/CenterTabs.tsx": {
+    "mtime": 1788202273.1893666,
+    "seen": 1788238766.5303273,
+    "ast_hash": "c2a2e4c7ab1c278339b3289eb836ba6f",
+    "semantic_hash": "c2a2e4c7ab1c278339b3289eb836ba6f"
+  },
+  "apps/airlock/src/components/ChartPanel.tsx": {
+    "mtime": 1788202327.974653,
+    "seen": 1788238766.53033,
+    "ast_hash": "b49d4886594d0d359aef4f14aa429c84",
+    "semantic_hash": "b49d4886594d0d359aef4f14aa429c84"
+  },
+  "apps/airlock/src/components/ColumnList.tsx": {
+    "mtime": 1788202237.6486995,
+    "seen": 1788238766.5303335,
+    "ast_hash": "5e4058cbb0b4c188502446368d715b79",
+    "semantic_hash": "5e4058cbb0b4c188502446368d715b79"
+  },
+  "apps/airlock/src/components/DataGrid.tsx": {
+    "mtime": 1788202303.6626763,
+    "seen": 1788238766.5303357,
+    "ast_hash": "44a81d908898b7638ec3246c6eea94f5",
+    "semantic_hash": "44a81d908898b7638ec3246c6eea94f5"
+  },
+  "apps/airlock/src/components/DatasetSwitcher.tsx": {
+    "mtime": 1788202205.7230854,
+    "seen": 1788238766.5303385,
+    "ast_hash": "e63b023e47a1b5cb4c1b2e39d92ac1b0",
+    "semantic_hash": "e63b023e47a1b5cb4c1b2e39d92ac1b0"
+  },
+  "apps/airlock/src/components/EmptyState.tsx": {
+    "mtime": 1788202190.1226766,
+    "seen": 1788238766.5303416,
+    "ast_hash": "857aaadb8a7275c69ea931b9148701f0",
+    "semantic_hash": "857aaadb8a7275c69ea931b9148701f0"
+  },
+  "apps/airlock/src/components/FileDrop.tsx": {
+    "mtime": 1788202180.5664964,
+    "seen": 1788238766.530344,
+    "ast_hash": "d244669382e742c855fb9ae78354b9c9",
+    "semantic_hash": "d244669382e742c855fb9ae78354b9c9"
+  },
+  "apps/airlock/src/components/FilterBar.tsx": {
+    "mtime": 1788202282.9132712,
+    "seen": 1788238766.5303462,
+    "ast_hash": "f8bd269f4a2a7981aaf56d1abc02fc12",
+    "semantic_hash": "f8bd269f4a2a7981aaf56d1abc02fc12"
+  },
+  "apps/airlock/src/components/LeftRail.tsx": {
+    "mtime": 1788202243.2588482,
+    "seen": 1788238766.5303483,
+    "ast_hash": "7e18e9cd6f8f9e60d5ef8d2f854ee05b",
+    "semantic_hash": "7e18e9cd6f8f9e60d5ef8d2f854ee05b"
+  },
+  "apps/airlock/src/components/ReportPanel.tsx": {
+    "mtime": 1788202339.6313703,
+    "seen": 1788238766.5303507,
+    "ast_hash": "941b76d39e7c3a823b98cd98817dce25",
+    "semantic_hash": "941b76d39e7c3a823b98cd98817dce25"
+  },
+  "apps/airlock/src/components/SealStatus.tsx": {
+    "mtime": 1788202145.000493,
+    "seen": 1788238766.5303528,
+    "ast_hash": "ec49090c2d0ee6f8eb2ae084cf386927",
+    "semantic_hash": "ec49090c2d0ee6f8eb2ae084cf386927"
+  },
+  "apps/airlock/src/components/Sparkline.tsx": {
+    "mtime": 1788202196.723161,
+    "seen": 1788238766.5303547,
+    "ast_hash": "544315c76dd3b4d5b3f28043ad8992df",
+    "semantic_hash": "544315c76dd3b4d5b3f28043ad8992df"
+  },
+  "apps/airlock/src/components/TopBar.tsx": {
+    "mtime": 1788202165.703998,
+    "seen": 1788238766.5303574,
+    "ast_hash": "73e640968553e7af4119ed61f2e180ed",
+    "semantic_hash": "73e640968553e7af4119ed61f2e180ed"
+  },
+  "apps/airlock/src/components/WebMCPStatus.tsx": {
+    "mtime": 1788202155.0702634,
+    "seen": 1788238766.5303602,
+    "ast_hash": "c8888639d40ba6ed298e6b99239ce93d",
+    "semantic_hash": "c8888639d40ba6ed298e6b99239ce93d"
+  },
+  "apps/airlock/src/engine/datasetStore.ts": {
+    "mtime": 1788201098.8938308,
+    "seen": 1788238766.5303626,
+    "ast_hash": "b1e2074f86693be17dec331d441fe2ae",
+    "semantic_hash": "b1e2074f86693be17dec331d441fe2ae"
+  },
+  "apps/airlock/src/engine/duckdb.ts": {
+    "mtime": 1788201045.613816,
+    "seen": 1788238766.5303655,
+    "ast_hash": "7923738b3cf9bcc5cb55091c195d6aa0",
+    "semantic_hash": "7923738b3cf9bcc5cb55091c195d6aa0"
+  },
+  "apps/airlock/src/engine/loadFile.ts": {
+    "mtime": 1788201135.484128,
+    "seen": 1788238766.530368,
+    "ast_hash": "4f6471f69d9557dda7244028421f8e20",
+    "semantic_hash": "4f6471f69d9557dda7244028421f8e20"
+  },
+  "apps/airlock/src/engine/uiStore.ts": {
+    "mtime": 1788201291.608821,
+    "seen": 1788238766.5303707,
+    "ast_hash": "f49aa84f417ca3136b295f2fcf129081",
+    "semantic_hash": "f49aa84f417ca3136b295f2fcf129081"
+  },
+  "apps/airlock/src/engine/useDataset.ts": {
+    "mtime": 1788201141.4752018,
+    "seen": 1788238766.5303733,
+    "ast_hash": "3c74d4d78e66ef29008382bc7f22798f",
+    "semantic_hash": "3c74d4d78e66ef29008382bc7f22798f"
+  },
+  "apps/airlock/src/engine/workspaceStore.ts": {
+    "mtime": 1788201128.123707,
+    "seen": 1788238766.530376,
+    "ast_hash": "e22ca58e545b59d5d575b982906716e8",
+    "semantic_hash": "e22ca58e545b59d5d575b982906716e8"
+  },
+  "apps/airlock/src/lib/csv.ts": {
+    "mtime": 1788201149.2731442,
+    "seen": 1788238766.5303786,
+    "ast_hash": "b7d8b570ee6ec85c1d61bddc86dc559b",
+    "semantic_hash": "b7d8b570ee6ec85c1d61bddc86dc559b"
+  },
+  "apps/airlock/src/lib/egress.ts": {
+    "mtime": 1788201206.1689904,
+    "seen": 1788238766.5303805,
+    "ast_hash": "d5a68d44185e362ba192469705574530",
+    "semantic_hash": "d5a68d44185e362ba192469705574530"
+  },
+  "apps/airlock/src/lib/format.ts": {
+    "mtime": 1788201175.422781,
+    "seen": 1788238766.5303826,
+    "ast_hash": "82220a130bc450bff1de60f6dd955558",
+    "semantic_hash": "82220a130bc450bff1de60f6dd955558"
+  },
+  "apps/airlock/src/lib/markdown.tsx": {
+    "mtime": 1788201182.5374863,
+    "seen": 1788238766.5303848,
+    "ast_hash": "ec4c13c96fe94a20937a101f7322a651",
+    "semantic_hash": "ec4c13c96fe94a20937a101f7322a651"
+  },
+  "apps/airlock/src/main.tsx": {
+    "mtime": 1788202105.6671393,
+    "seen": 1788238766.5303874,
+    "ast_hash": "075581e3b999ddf2c62a8d21aae879ed",
+    "semantic_hash": "075581e3b999ddf2c62a8d21aae879ed"
+  },
+  "apps/airlock/tailwind.config.js": {
+    "mtime": 1788201405.0359156,
+    "seen": 1788238766.53039,
+    "ast_hash": "40c2217e9d14a0f53e69256211a2bc07",
+    "semantic_hash": "40c2217e9d14a0f53e69256211a2bc07"
+  },
+  "apps/airlock/tsconfig.json": {
+    "mtime": 1788117036.923098,
+    "seen": 1788238766.5303924,
+    "ast_hash": "640f20ebd915892cfeb01a9f07acccc4",
+    "semantic_hash": "640f20ebd915892cfeb01a9f07acccc4"
+  },
+  "apps/airlock/vite.config.ts": {
+    "mtime": 1788117045.3631127,
+    "seen": 1788238766.5303948,
+    "ast_hash": "02a936d6a8553e1646b4ef86d8f8ee87",
+    "semantic_hash": "02a936d6a8553e1646b4ef86d8f8ee87"
+  },
+  "package.json": {
+    "mtime": 1788116521.7481637,
+    "seen": 1788238766.5303974,
+    "ast_hash": "ec163cd01182ee3ee045386463fc7e3b",
+    "semantic_hash": "ec163cd01182ee3ee045386463fc7e3b"
+  },
+  "packages/webmcp-staged/package.json": {
+    "mtime": 1788116537.0472746,
+    "seen": 1788238766.5304003,
+    "ast_hash": "bf3ef25c838a7f280ec486a12d5c2d25",
+    "semantic_hash": "bf3ef25c838a7f280ec486a12d5c2d25"
+  },
+  "packages/webmcp-staged/src/core.ts": {
+    "mtime": 1788116724.4085937,
+    "seen": 1788238766.530403,
+    "ast_hash": "cc2a689bde839c033a2dcfce00c87bc6",
+    "semantic_hash": "cc2a689bde839c033a2dcfce00c87bc6"
+  },
+  "packages/webmcp-staged/src/index.ts": {
+    "mtime": 1788116755.9929743,
+    "seen": 1788238766.530405,
+    "ast_hash": "7964df509bd7e5ad902237ab845e079a",
+    "semantic_hash": "7964df509bd7e5ad902237ab845e079a"
+  },
+  "packages/webmcp-staged/src/react.ts": {
+    "mtime": 1788116748.3818164,
+    "seen": 1788238766.530408,
+    "ast_hash": "140e3c934e3ca01c8f8eb5aa4398fc3b",
+    "semantic_hash": "140e3c934e3ca01c8f8eb5aa4398fc3b"
+  },
+  "packages/webmcp-staged/src/webmcp-types.ts": {
+    "mtime": 1788116567.980293,
+    "seen": 1788238766.5304105,
+    "ast_hash": "548569c2dfe83af289083ea9c338bee8",
+    "semantic_hash": "548569c2dfe83af289083ea9c338bee8"
+  },
+  "packages/webmcp-staged/tsconfig.json": {
+    "mtime": 1788116549.2256043,
+    "seen": 1788238766.5304155,
+    "ast_hash": "4bec04027edad0eccc5f788ba4f9d86d",
+    "semantic_hash": "4bec04027edad0eccc5f788ba4f9d86d"
+  },
+  "packages/webmcp-staged/tsup.config.ts": {
+    "mtime": 1788116542.6221604,
+    "seen": 1788238766.5304182,
+    "ast_hash": "86ce493c11ae15d0e5dfde1d34054ef8",
+    "semantic_hash": "86ce493c11ae15d0e5dfde1d34054ef8"
+  },
+  "apps/airlock/index.html": {
+    "mtime": 1788117068.1181827,
+    "seen": 1788238766.5304208,
+    "ast_hash": "9951386781c2dec41a9d0dfa70316b1b",
+    "semantic_hash": "9951386781c2dec41a9d0dfa70316b1b"
+  },
+  "packages/webmcp-staged/README.md": {
+    "mtime": 1788116784.9817193,
+    "seen": 1788238766.5304234,
+    "ast_hash": "9366d9fb169544a91173e148661e16cb",
+    "semantic_hash": "9366d9fb169544a91173e148661e16cb"
+  }
+}

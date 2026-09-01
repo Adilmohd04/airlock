@@ -1,0 +1,54 @@
+{
+  "name": "webmcp-staged",
+  "version": "0.1.0",
+  "description": "Register WebMCP tools with staged human approval (propose -> review -> commit). A tiny, framework-light primitive for the agent-native web.",
+  "keywords": [
+    "webmcp",
+    "mcp",
+    "ai-agents",
+    "model-context-protocol",
+    "human-in-the-loop",
+    "react"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3",
+    "react": "^18.3.1",
+    "@types/react": "^18.3.12",
+    "vitest": "1.6.1",
+    "fast-check": "3.23.2"
+  }
+}

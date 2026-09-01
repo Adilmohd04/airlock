@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# graphify cache (the graph itself is kept, the cache is regenerable)
+graphify-out/cache/
+
+# editor / OS
+.DS_Store
+Thumbs.db
+*.local
+
+# env — never commit
+.env
+.env.*
+!.env.example

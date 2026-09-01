@@ -1,0 +1,813 @@
+employee_id,name,department,level,location,gender,years_tenure,manager_id,base_salary,bonus_target_pct,equity_units,market_median,last_raise,performance
+E1000,Priya Ali,Data,L4,London,non-binary,5.2,M125,113000,0.12,5424,134500,2024-10,meets
+E1001,Jon Ali,Data,L4,New York,undisclosed,6.7,M108,160500,0.12,5000,153500,2025-01,meets
+E1002,Tom Ivanova,Product,L7,San Francisco,non-binary,4.1,M109,312500,0.12,11931,315000,2025-04,meets
+E1003,Yuki Cohen,Legal,L3,San Francisco,non-binary,0.7,M114,128000,0.12,1337,139500,2025-04,exceeds
+E1004,Mira Kapoor,Legal,L5,Berlin,female,5.9,M104,156500,0.12,4296,158500,2024-10,meets
+E1005,Nia Nguyen,Design,L3,San Francisco,female,0,M125,123500,0.12,2725,124000,2025-04,exceeds
+E1006,Ana Mensah,Marketing,L3,New York,female,4.4,M107,96000,0.12,2192,100500,2025-01,exceeds
+E1007,Sam Novak,Customer Success,L7,Bangalore,male,0.7,M136,89000,0.12,3633,86500,2024-10,meets
+E1008,Lena Rossi,Data,L6,Austin,male,2.4,M127,226500,0.12,8261,225000,2024-07,meets
+E1009,Ada Costa,Product,L3,Remote US,male,1,M101,123500,0.12,3222,121500,2024-10,meets
+E1010,Omar Rossi,Marketing,L7,Remote US,female,3.4,M117,234000,0.12,2871,217500,2024-10,exceeds
+E1011,Raj Okafor,Legal,L5,London,non-binary,5.1,M136,161500,0.12,4752,168500,2025-04,meets
+E1012,Kai Zhang,Customer Success,L3,London,male,2.2,M121,67000,0.12,3068,75000,2024-07,meets
+E1013,Ivan Zhang,Customer Success,L7,London,non-binary,3.3,M127,167000,0.12,8951,175000,2024-07,meets
+E1014,Nia Costa,People,L4,Remote US,non-binary,1.3,M117,93500,0.12,4222,97000,2025-01,meets
+E1015,Priya Ivanova,Customer Success,L4,New York,male,1,M119,102000,0.12,3236,95000,2025-07,below
+E1016,Wei Kapoor,Finance,L4,San Francisco,female,1.2,M118,122500,0.12,3395,125000,2025-01,exceeds
+E1017,Omar Bauer,Product,L2,Austin,non-binary,0.4,M121,84500,0.12,3126,95000,2024-07,below
+E1018,Ella Haddad,Finance,L7,Bangalore,undisclosed,0.1,M115,103500,0.12,9543,110500,2024-10,meets
+E1019,Ivan Haddad,Marketing,L6,Bangalore,male,0,M113,67000,0.12,4451,78000,2025-01,meets
+E1020,Leo Okafor,Engineering,L4,New York,non-binary,3.5,M123,133500,0.12,5052,160000,2025-01,meets
+E1021,Omar Rossi,Data,L5,Berlin,non-binary,2.5,M117,147000,0.12,8070,162000,2025-04,meets
+E1022,Omar Costa,Product,L7,San Francisco,undisclosed,2.7,M106,335000,0.12,6134,315000,2025-07,exceeds
+E1023,Omar Yamada,Finance,L6,Berlin,female,6.3,M108,163000,0.12,1728,162000,2025-04,exceeds
+E1024,Sana Nguyen,Engineering,L7,London,male,3.8,M107,329500,0.12,2306,294500,2025-01,meets
+E1025,Jon Ivanova,Product,L5,Austin,male,2.1,M127,159000,0.12,6045,169000,2024-07,exceeds
+E1026,Lena Lindqvist,Product,L2,New York,undisclosed,3.2,M101,115000,0.12,1492,105000,2024-07,meets
+E1027,Yuki Rossi,Legal,L6,San Francisco,undisclosed,0.7,M115,261000,0.12,6581,251000,2025-01,meets
+E1028,Leo Ali,Marketing,L3,Berlin,non-binary,2.9,M113,78500,0.12,3677,83000,2025-07,meets
+E1029,Mira Rossi,Legal,L2,Bangalore,female,3.4,M139,48000,0.12,2767,47000,2024-10,meets
+E1030,Yuki Rossi,Engineering,L5,Remote US,non-binary,3.4,M138,201500,0.12,5792,190000,2025-07,meets
+E1031,Yuki Park,Legal,L7,New York,female,1.1,M127,288000,0.12,4716,315500,2024-10,meets
+E1032,Ivan Kapoor,Marketing,L5,Austin,non-binary,0,M134,131500,0.12,3358,129500,2025-04,meets
+E1033,Leo Silva,Customer Success,L5,Bangalore,male,0.6,M112,47500,0.12,2099,52500,2025-07,meets
+E1034,Ivan Larsen,Finance,L5,Berlin,male,2.5,M121,119000,0.12,4272,128000,2025-07,meets
+E1035,Priya Park,People,L2,New York,non-binary,3.3,M138,65000,0.12,1200,75500,2024-07,exceeds
+E1036,Raj Lindqvist,Finance,L5,London,non-binary,3.7,M119,131000,0.12,4217,136000,2025-07,meets
+E1037,Kai Larsen,Data,L7,Bangalore,undisclosed,1.1,M115,133000,0.12,11559,139500,2025-04,meets
+E1038,Jon Lindqvist,Legal,L3,London,male,3.2,M136,110000,0.12,3766,118500,2024-07,exceeds
+E1039,Ella Lindqvist,Product,L4,Bangalore,female,0.2,M100,53500,0.12,1973,63000,2024-07,exceeds
+E1040,Ella Rossi,Customer Success,L3,Remote US,non-binary,0.9,M130,80500,0.12,2788,79500,2025-04,meets
+E1041,Leo Ali,Engineering,L7,Remote US,non-binary,3.2,M127,305500,0.12,0,312000,2024-10,meets
+E1042,Wei Lindqvist,Sales,L3,New York,non-binary,3.4,M109,85500,0.35,4656,105000,2024-10,exceeds
+E1043,Lena Cohen,People,L3,New York,non-binary,1.9,M135,87500,0.12,3003,94500,2025-01,meets
+E1044,Leo Costa,Finance,L7,Austin,non-binary,4.9,M131,249500,0.12,8013,231000,2025-04,meets
+E1045,Priya Ali,Legal,L7,Austin,non-binary,1.4,M139,223500,0.12,6062,286500,2025-07,below
+E1046,Omar Fischer,Engineering,L7,Berlin,female,0.7,M105,254500,0.12,7762,277000,2025-07,meets
+E1047,Wei Nguyen,Marketing,L2,Austin,non-binary,1,M138,80000,0.12,3122,73000,2024-07,exceeds
+E1048,Priya Okafor,Design,L2,New York,undisclosed,0.9,M101,95000,0.12,2175,96500,2025-01,meets
+E1049,Kai Cohen,Finance,L4,Berlin,non-binary,4.8,M110,107000,0.12,4011,100000,2025-07,meets
+E1050,Priya Larsen,Marketing,L4,Berlin,undisclosed,0.6,M114,104000,0.12,4263,92000,2024-10,meets
+E1051,Mira Park,Sales,L3,Bangalore,female,4.7,M137,41500,0.35,1433,45500,2025-04,exceeds
+E1052,Omar Kapoor,Finance,L5,San Francisco,male,5.3,M116,170500,0.12,5235,160000,2024-10,below
+E1053,Ivan Okafor,Engineering,L5,London,female,0,M139,170000,0.12,4556,179500,2025-04,meets
+E1054,Wei Reyes,Legal,L4,London,male,2,M138,139500,0.12,3727,132000,2024-10,meets
+E1055,Tom Kapoor,Legal,L3,London,male,1.5,M118,122000,0.12,5857,118500,2024-07,below
+E1056,Omar Ivanova,Marketing,L3,New York,undisclosed,4.4,M124,96500,0.12,2431,100500,2025-01,exceeds
+E1057,Noa Nguyen,Finance,L7,San Francisco,female,5.7,M112,227500,0.12,5663,262500,2025-07,meets
+E1058,Ivan Novak,Product,L4,San Francisco,female,1.2,M103,159000,0.12,2756,150000,2024-07,meets
+E1059,Mira Nguyen,Engineering,L6,New York,non-binary,3.3,M111,229500,0.12,3801,259500,2025-04,meets
+E1060,Ben Bauer,Engineering,L3,London,non-binary,4.2,M109,144500,0.12,4455,126000,2024-10,meets
+E1061,Nia Lindqvist,Marketing,L6,Remote US,male,3.8,M132,177000,0.12,5434,167500,2024-07,meets
+E1062,Ivan Bauer,Product,L4,Berlin,non-binary,3.7,M119,107500,0.12,2614,120000,2025-04,meets
+E1063,Leo Larsen,Data,L3,Austin,male,5.2,M122,123500,0.12,3040,125000,2025-04,below
+E1064,Raj Kapoor,Legal,L7,Berlin,male,4.4,M122,287500,0.12,7359,260500,2025-07,exceeds
+E1065,Ivan Park,Finance,L4,Berlin,male,1.8,M112,99500,0.12,2909,100000,2024-07,below
+E1066,Tom Mensah,Data,L5,New York,non-binary,3.5,M112,179000,0.12,6163,196000,2025-01,exceeds
+E1067,Sana Ali,Product,L2,Bangalore,female,2.9,M129,49500,0.12,991,45500,2025-04,meets
+E1068,Ana Bauer,Data,L7,Remote US,non-binary,4.8,M104,295000,0.12,5482,298500,2025-04,meets
+E1069,Sam Okafor,Engineering,L6,Austin,female,1.5,M110,247500,0.12,6281,235000,2025-04,meets
+E1070,Ana Novak,Legal,L4,Berlin,female,4,M111,115500,0.12,4373,124000,2024-07,below
+E1071,Lena Fischer,Sales,L2,San Francisco,undisclosed,3.9,M127,86500,0.35,1925,86500,2025-04,below
+E1072,Yuki Silva,Finance,L5,Austin,male,0.9,M102,145000,0.12,4878,141000,2024-07,exceeds
+E1073,Ella Ali,Sales,L7,Austin,male,4.8,M106,221000,0.35,7929,222000,2025-07,meets
+E1074,Nia Fischer,Data,L7,San Francisco,male,4.6,M133,321000,0.12,8762,332000,2024-10,meets
+E1075,Tom Silva,Finance,L6,Berlin,non-binary,3.8,M101,159000,0.12,6757,162000,2025-04,meets
+E1076,Nia Ali,Marketing,L5,Remote US,male,0.9,M133,125500,0.12,4602,132500,2025-07,below
+E1077,Wei Reyes,Engineering,L6,Berlin,male,2.4,M100,228500,0.12,4126,214000,2025-04,exceeds
+E1078,Jon Ivanova,Engineering,L3,Austin,undisclosed,2.9,M118,125500,0.12,3058,130500,2025-04,below
+E1079,Nia Novak,Design,L2,New York,undisclosed,4.9,M102,103000,0.12,3040,96500,2025-07,exceeds
+E1080,Lena Larsen,Product,L2,San Francisco,male,3.8,M101,102500,0.12,1802,108000,2025-07,meets
+E1081,Ella Bauer,Customer Success,L7,Remote US,male,4.6,M113,187500,0.12,6766,185000,2025-07,meets
+E1082,Sana Okafor,Data,L7,Remote US,undisclosed,1.3,M124,326500,0.12,8406,298500,2025-04,meets
+E1083,Sana Ali,Marketing,L7,Berlin,undisclosed,1.1,M113,195000,0.12,5711,193000,2025-07,meets
+E1084,Leo Zhang,Sales,L4,New York,female,5.9,M113,119500,0.35,3734,116500,2024-07,exceeds
+E1085,Priya Bauer,Product,L4,Berlin,female,2.8,M117,114000,0.12,1575,120000,2025-07,exceeds
+E1086,Priya Fischer,People,L2,London,female,3,M129,61500,0.12,2767,66000,2024-10,exceeds
+E1087,Ana Nguyen,Product,L3,Bangalore,undisclosed,1.9,M125,58000,0.12,3545,56500,2024-07,exceeds
+E1088,Leo Lindqvist,Finance,L4,Berlin,male,6,M106,97500,0.12,1378,100000,2024-10,below
+E1089,Wei Yamada,Legal,L7,New York,non-binary,7,M124,342000,0.12,4043,315500,2025-04,meets
+E1090,Leo Fischer,Engineering,L6,London,female,0.9,M132,214000,0.12,8097,227000,2024-10,exceeds
+E1091,Raj Larsen,Marketing,L5,New York,non-binary,2.9,M104,132500,0.12,2699,143000,2024-10,exceeds
+E1092,Leo Okafor,Product,L3,London,undisclosed,0.8,M125,113000,0.12,2312,115000,2024-10,meets
+E1093,Ana Yamada,People,L6,London,undisclosed,2.9,M105,140000,0.12,3285,148500,2024-07,below
+E1094,Ana Kapoor,Sales,L4,New York,male,0,M103,112500,0.35,3082,116500,2025-01,meets
+E1095,Raj Kapoor,Product,L4,Bangalore,male,0.7,M130,63500,0.12,4381,63000,2024-10,below
+E1096,Yuki Costa,Engineering,L7,San Francisco,female,0,M101,316000,0.12,11902,346500,2025-07,meets
+E1097,Ada Okafor,Product,L7,Austin,female,4.6,M122,279000,0.12,6234,277000,2024-10,below
+E1098,Ada Okafor,Product,L4,San Francisco,male,6.2,M121,144500,0.12,4622,150000,2025-01,meets
+E1099,Nia Ivanova,Marketing,L2,San Francisco,non-binary,3.7,M111,77500,0.12,1151,83000,2024-07,below
+E1100,Jon Costa,Marketing,L4,Bangalore,non-binary,3.7,M126,48000,0.12,3253,48500,2024-07,exceeds
+E1101,Sam Costa,Product,L3,San Francisco,female,0,M106,127000,0.12,2987,135000,2025-01,below
+E1102,Ivan Novak,People,L2,Bangalore,male,1.4,M125,48000,0.12,3428,45000,2025-04,meets
+E1103,Mira Nguyen,People,L7,Austin,female,6.4,M116,185000,0.12,3515,199500,2024-10,exceeds
+E1104,Ben Bauer,People,L5,Remote US,female,1.7,M114,114500,0.12,4002,124500,2025-01,meets
+E1105,Mira Okafor,Sales,L6,Remote US,non-binary,5.3,M106,161500,0.35,6066,175000,2025-04,meets
+E1106,Mira Silva,Legal,L3,Austin,undisclosed,3,M127,108500,0.12,5461,123000,2024-07,meets
+E1107,Priya Rossi,Sales,L3,London,non-binary,2.1,M113,88500,0.35,2787,92000,2024-10,meets
+E1108,Ella Okafor,Finance,L7,Remote US,non-binary,2.5,M128,228000,0.12,2649,236500,2024-10,meets
+E1109,Tom Cohen,Marketing,L6,Bangalore,undisclosed,2.2,M119,66500,0.12,5848,78000,2025-07,exceeds
+E1110,Sam Larsen,Finance,L5,London,female,1.5,M120,130000,0.12,5273,136000,2025-04,meets
+E1111,Omar Nguyen,People,L4,San Francisco,female,4.7,M101,111500,0.12,2891,108000,2025-01,meets
+E1112,Wei Zhang,Design,L6,Austin,undisclosed,3.8,M119,202000,0.12,9223,196500,2024-07,exceeds
+E1113,Ivan Bauer,Customer Success,L4,Remote US,male,1.6,M106,78500,0.12,3691,88000,2025-07,below
+E1114,Jon Costa,Sales,L7,Bangalore,non-binary,1.6,M138,106500,0.35,9165,106000,2025-01,exceeds
+E1115,Omar Bauer,Finance,L7,Bangalore,male,0.1,M109,112000,0.12,7334,110500,2024-07,exceeds
+E1116,Raj Lindqvist,Legal,L4,Bangalore,non-binary,2,M111,61500,0.12,3597,65000,2024-10,meets
+E1117,Ana Larsen,Design,L5,London,female,2.6,M105,143000,0.12,5601,150000,2024-10,meets
+E1118,Yuki Zhang,Customer Success,L5,Berlin,undisclosed,4.6,M125,99500,0.12,5036,100500,2025-04,meets
+E1119,Noa Lindqvist,Product,L6,London,undisclosed,0.1,M104,215000,0.12,6427,206500,2025-04,exceeds
+E1120,Ana Park,Legal,L3,New York,female,1.8,M113,137000,0.12,2016,135500,2025-04,exceeds
+E1121,Mira Park,Product,L7,Austin,non-binary,1,M133,289500,0.12,8088,277000,2025-01,exceeds
+E1122,Ana Cohen,Finance,L7,London,female,0,M128,200000,0.12,6363,223000,2025-07,exceeds
+E1123,Raj Fischer,Marketing,L2,Remote US,female,4.4,M127,77500,0.12,1669,74500,2025-04,exceeds
+E1124,Tom Haddad,Engineering,L7,Remote US,undisclosed,3.2,M119,358000,0.12,11904,312000,2025-04,meets
+E1125,Priya Mensah,Design,L7,Bangalore,undisclosed,2.8,M119,123000,0.12,9874,121500,2024-10,exceeds
+E1126,Omar Mensah,Marketing,L5,Berlin,non-binary,1.2,M129,117000,0.12,5060,118000,2025-01,meets
+E1127,Jon Reyes,Legal,L4,London,undisclosed,0,M110,137500,0.12,1258,132000,2025-01,below
+E1128,Tom Ivanova,Design,L2,London,undisclosed,0.9,M126,94500,0.12,1414,84500,2024-07,meets
+E1129,Wei Okafor,Sales,L7,Austin,undisclosed,1.7,M114,208500,0.35,4705,222000,2024-07,meets
+E1130,Kai Bauer,Sales,L7,London,male,1.2,M119,232500,0.35,5140,214000,2024-10,exceeds
+E1131,Kai Silva,Finance,L6,Austin,non-binary,6.3,M115,157500,0.12,5972,178000,2025-07,meets
+E1132,Nia Okafor,Finance,L3,Bangalore,non-binary,0.7,M128,43500,0.12,1441,47500,2025-01,exceeds
+E1133,Mira Cohen,Sales,L6,San Francisco,male,2,M101,209000,0.35,2776,194500,2025-07,meets
+E1134,Noa Silva,People,L3,Berlin,female,3.5,M115,69000,0.12,1733,78000,2025-07,exceeds
+E1135,Mira Okafor,Engineering,L7,Austin,non-binary,3.9,M103,274500,0.12,5833,305000,2024-07,meets
+E1136,Tom Silva,Engineering,L2,Remote US,undisclosed,2.3,M107,109000,0.12,3847,107000,2025-04,exceeds
+E1137,Lena Kapoor,Design,L7,Bangalore,undisclosed,3.7,M126,123000,0.12,6360,121500,2024-10,meets
+E1138,Ella Cohen,Product,L2,Remote US,undisclosed,2,M112,95500,0.12,3137,97000,2025-01,exceeds
+E1139,Nia Nguyen,Customer Success,L2,Bangalore,non-binary,4.5,M109,45500,0.12,1787,45000,2024-10,meets
+E1140,Ella Zhang,Design,L4,Austin,male,1.8,M133,129000,0.12,4496,121500,2025-01,below
+E1141,Kai Larsen,Design,L7,San Francisco,undisclosed,2.5,M111,310000,0.12,7659,290000,2025-01,exceeds
+E1142,Yuki Okafor,Legal,L5,Berlin,non-binary,4.4,M126,139500,0.12,4795,158500,2024-07,meets
+E1143,Ada Ali,People,L6,Remote US,non-binary,2,M135,140500,0.12,4812,157500,2024-07,exceeds
+E1144,Noa Okafor,Customer Success,L2,Austin,undisclosed,6.2,M102,68000,0.12,2623,62000,2024-10,meets
+E1145,Raj Costa,Engineering,L4,Berlin,undisclosed,3,M101,127000,0.12,2546,132000,2024-10,meets
+E1146,Tom Silva,Customer Success,L2,London,undisclosed,1.7,M111,56500,0.12,1698,60000,2025-04,meets
+E1147,Nia Novak,Finance,L5,Remote US,undisclosed,0,M111,138000,0.12,5225,144000,2025-07,below
+E1148,Lena Silva,Engineering,L6,San Francisco,male,2.9,M135,281000,0.12,7878,267500,2025-01,meets
+E1149,Mira Novak,Marketing,L7,New York,non-binary,6.4,M116,191000,0.12,4786,234500,2024-07,exceeds
+E1150,Ivan Haddad,Customer Success,L2,Bangalore,non-binary,0.6,M116,41000,0.12,2263,45000,2025-01,exceeds
+E1151,Sana Nguyen,Engineering,L6,London,female,0,M111,210500,0.12,4661,227000,2024-07,below
+E1152,Noa Costa,Engineering,L6,New York,non-binary,4.6,M137,253500,0.12,9196,259500,2024-10,exceeds
+E1153,Lena Bauer,Sales,L7,San Francisco,male,3.9,M135,244000,0.35,6849,252000,2025-01,meets
+E1154,Ana Bauer,Product,L2,Bangalore,female,2.3,M105,46000,0.12,2405,45500,2025-01,exceeds
+E1155,Ivan Nguyen,Data,L2,New York,non-binary,2.6,M123,106500,0.12,2801,110500,2025-01,meets
+E1156,Sana Reyes,Engineering,L2,London,undisclosed,1.1,M110,101000,0.12,2119,101000,2024-10,meets
+E1157,Ana Kapoor,Legal,L5,San Francisco,undisclosed,0,M104,203500,0.12,3309,198500,2024-10,exceeds
+E1158,Omar Ivanova,Engineering,L5,Berlin,female,3.7,M107,150000,0.12,5140,169000,2025-04,exceeds
+E1159,Ella Nguyen,Product,L2,Remote US,male,4.6,M130,97500,0.12,2060,97000,2025-04,meets
+E1160,Jon Yamada,People,L2,New York,male,4.1,M122,82000,0.12,2144,75500,2025-07,below
+E1161,Lena Park,Marketing,L5,Bangalore,non-binary,1.2,M102,48500,0.12,5994,62000,2025-04,meets
+E1162,Omar Larsen,Engineering,L4,Remote US,non-binary,1,M130,142500,0.12,4190,148500,2025-07,meets
+E1163,Wei Lindqvist,Data,L7,Berlin,female,2,M111,267000,0.12,8981,265500,2024-07,exceeds
+E1164,Mira Costa,Legal,L5,Austin,female,2.6,M110,162000,0.12,4657,174500,2025-07,below
+E1165,Wei Larsen,Design,L5,San Francisco,male,1.7,M108,185500,0.12,3610,176500,2025-04,meets
+E1166,Ben Larsen,Marketing,L7,New York,male,1.7,M134,217500,0.12,6118,234500,2025-04,exceeds
+E1167,Ana Fischer,Product,L4,Austin,undisclosed,1.4,M123,139000,0.12,3359,132000,2025-07,below
+E1168,Omar Lindqvist,Legal,L6,Bangalore,female,2.4,M120,96000,0.12,5629,105500,2025-07,meets
+E1169,Sam Zhang,Product,L2,San Francisco,male,0.8,M122,111000,0.12,2001,108000,2024-07,meets
+E1170,Leo Okafor,Marketing,L7,San Francisco,undisclosed,3.8,M110,238500,0.12,4398,241500,2024-10,exceeds
+E1171,Sam Zhang,Sales,L3,Austin,male,3.5,M136,94000,0.35,2878,95000,2024-10,exceeds
+E1172,Mira Novak,Design,L7,Bangalore,non-binary,6.2,M128,112000,0.12,3232,121500,2024-07,exceeds
+E1173,Ben Park,Sales,L6,Bangalore,female,1.7,M126,67500,0.35,5543,81500,2025-07,exceeds
+E1174,Noa Park,Data,L7,Bangalore,male,4.2,M131,138500,0.12,6470,139500,2025-07,below
+E1175,Lena Mensah,People,L5,London,male,5.2,M135,124500,0.12,2918,117500,2025-01,meets
+E1176,Ada Zhang,Finance,L2,London,undisclosed,3.2,M130,79000,0.12,3006,76500,2025-01,meets
+E1177,Nia Ali,Engineering,L6,London,undisclosed,3.1,M126,223500,0.12,7973,227000,2025-01,exceeds
+E1178,Sana Larsen,Data,L5,Bangalore,undisclosed,2.2,M139,84000,0.12,4748,85000,2024-10,exceeds
+E1179,Ben Lindqvist,Data,L6,San Francisco,male,0,M133,267500,0.12,8531,256000,2024-10,meets
+E1180,Ben Costa,Product,L6,Austin,female,1,M111,216500,0.12,6406,214000,2025-07,meets
+E1181,Tom Haddad,Marketing,L5,Berlin,male,3.6,M111,118000,0.12,3249,118000,2025-07,exceeds
+E1182,Kai Cohen,Finance,L7,San Francisco,undisclosed,2.9,M135,248000,0.12,6983,262500,2024-07,meets
+E1183,Priya Nguyen,Engineering,L5,Bangalore,male,4.7,M105,86000,0.12,5753,88500,2024-10,exceeds
+E1184,Lena Bauer,Customer Success,L2,Austin,female,3.2,M131,57000,0.12,1039,62000,2024-10,meets
+E1185,Jon Rossi,Finance,L3,San Francisco,female,2.7,M124,117000,0.12,2439,112500,2024-07,exceeds
+E1186,Ana Kapoor,Product,L6,Remote US,female,2.3,M105,182000,0.12,7456,218500,2025-07,exceeds
+E1187,Sana Ivanova,Customer Success,L6,Berlin,undisclosed,1.4,M139,137000,0.12,2901,127000,2025-04,below
+E1188,Ben Yamada,Product,L6,Berlin,undisclosed,1.6,M122,195000,0.12,4821,194500,2024-07,meets
+E1189,Nia Novak,People,L4,Berlin,non-binary,0,M123,87000,0.12,3749,86500,2025-01,meets
+E1190,Raj Rossi,Finance,L7,Bangalore,non-binary,3,M119,94500,0.12,5696,110500,2024-07,exceeds
+E1191,Noa Ivanova,Data,L2,San Francisco,non-binary,0,M126,110000,0.12,2227,114000,2025-07,meets
+E1192,Wei Mensah,Product,L2,London,female,0,M101,94000,0.12,2151,92000,2024-07,exceeds
+E1193,Lena Cohen,People,L3,London,male,6.4,M116,82000,0.12,3539,82500,2025-07,meets
+E1194,Jon Cohen,Customer Success,L4,London,male,2.8,M118,79000,0.12,4016,83500,2025-07,meets
+E1195,Ada Rossi,Sales,L5,London,male,3.7,M101,142500,0.35,4097,130500,2025-07,exceeds
+E1196,Ivan Reyes,Customer Success,L3,Remote US,undisclosed,8.9,M118,83000,0.12,1835,79500,2024-07,meets
+E1197,Jon Lindqvist,Design,L3,Austin,non-binary,1.7,M110,117000,0.12,2945,109500,2024-10,exceeds
+E1198,Lena Rossi,Marketing,L2,Bangalore,undisclosed,1.4,M138,43000,0.12,2343,45000,2025-01,meets
+E1199,Ana Bauer,Product,L6,New York,male,4.4,M115,232500,0.12,8273,235500,2024-07,exceeds
+E1200,Priya Reyes,Data,L6,Berlin,undisclosed,5.3,M104,229000,0.12,6386,205000,2024-10,exceeds
+E1201,Ella Rossi,People,L7,Remote US,male,3.7,M122,205000,0.12,8011,204000,2025-04,below
+E1202,Priya Ali,People,L7,Austin,male,1.6,M120,209000,0.12,9188,199500,2024-10,below
+E1203,Ella Larsen,Sales,L6,London,non-binary,3.8,M120,157000,0.35,4300,165000,2025-04,meets
+E1204,Ada Bauer,Design,L7,Bangalore,undisclosed,3.3,M127,137000,0.12,4713,121500,2025-07,meets
+E1205,Ella Kapoor,Legal,L2,San Francisco,non-binary,4.4,M127,108500,0.12,2145,111500,2024-07,meets
+E1206,Mira Silva,Data,L2,New York,undisclosed,2.4,M104,109500,0.12,3327,110500,2025-07,meets
+E1207,Ada Cohen,Finance,L2,San Francisco,non-binary,3.5,M111,83500,0.12,1914,90000,2024-10,meets
+E1208,Yuki Yamada,Finance,L6,Austin,female,2.5,M117,169000,0.12,7050,178000,2025-07,exceeds
+E1209,Raj Reyes,Data,L3,New York,male,3.7,M111,145500,0.12,1278,138000,2024-10,meets
+E1210,Leo Yamada,Customer Success,L5,Remote US,male,5.2,M139,104000,0.12,3821,113000,2024-07,meets
+E1211,Sana Haddad,Engineering,L6,Bangalore,undisclosed,2.1,M111,114500,0.12,7301,112500,2025-04,exceeds
+E1212,Ana Okafor,Product,L4,Bangalore,undisclosed,1.7,M126,69000,0.12,3024,63000,2024-10,meets
+E1213,Ana Kapoor,People,L2,Austin,female,3.9,M108,65000,0.12,2788,68500,2024-07,meets
+E1214,Lena Nguyen,Product,L2,Bangalore,female,4.6,M126,46500,0.12,2275,45500,2025-07,meets
+E1215,Ben Reyes,Design,L5,London,non-binary,1.2,M121,128500,0.12,3402,150000,2025-01,meets
+E1216,Ella Rossi,People,L7,London,male,4.2,M105,192500,0.12,5551,193000,2024-10,exceeds
+E1217,Tom Lindqvist,Finance,L5,Bangalore,non-binary,2.9,M115,59000,0.12,4420,67000,2025-01,exceeds
+E1218,Raj Fischer,Finance,L3,Bangalore,non-binary,3.9,M116,48000,0.12,3269,47500,2025-07,meets
+E1219,Ben Ivanova,Customer Success,L3,Remote US,undisclosed,0.6,M138,81500,0.12,3078,79500,2024-07,exceeds
+E1220,Leo Silva,Engineering,L3,Austin,undisclosed,0.1,M120,162000,0.12,4661,130500,2025-07,exceeds
+E1221,Leo Nguyen,Marketing,L3,Berlin,undisclosed,0.7,M112,85000,0.12,3276,83000,2025-04,meets
+E1222,Nia Cohen,Data,L3,Remote US,non-binary,1.9,M113,100000,0.12,2697,128000,2025-04,exceeds
+E1223,Ella Rossi,Data,L6,Remote US,undisclosed,4.9,M125,218000,0.12,6710,230500,2024-10,exceeds
+E1224,Priya Zhang,Product,L7,Bangalore,male,2.2,M133,126500,0.12,9945,132500,2025-04,meets
+E1225,Leo Mensah,Finance,L3,Remote US,undisclosed,0,M109,100000,0.12,3023,101500,2024-10,meets
+E1226,Noa Ali,Engineering,L5,Berlin,non-binary,0.9,M110,169000,0.12,7126,169000,2025-01,meets
+E1227,Priya Lindqvist,Finance,L5,San Francisco,undisclosed,3.7,M120,164000,0.12,2772,160000,2025-04,meets
+E1228,Omar Larsen,Product,L2,Berlin,undisclosed,1.3,M104,88000,0.12,2897,86500,2024-07,below
+E1229,Tom Novak,Marketing,L7,Remote US,undisclosed,2.5,M134,206500,0.12,7802,217500,2024-10,meets
+E1230,Omar Mensah,Finance,L4,San Francisco,female,0,M139,129500,0.12,2987,125000,2025-01,exceeds
+E1231,Yuki Bauer,Sales,L4,Remote US,female,2.1,M109,120500,0.35,3386,108000,2025-01,exceeds
+E1232,Ada Haddad,Data,L4,Bangalore,undisclosed,2,M115,70000,0.12,4743,66500,2024-07,meets
+E1233,Ada Silva,Design,L6,Remote US,male,2.2,M135,171000,0.12,4262,201000,2025-01,meets
+E1234,Jon Costa,Data,L2,Remote US,male,4.6,M102,108000,0.12,1310,102500,2025-04,meets
+E1235,Nia Cohen,Customer Success,L6,London,undisclosed,1.8,M110,147500,0.12,6915,135000,2025-04,meets
+E1236,Sana Zhang,Legal,L5,Remote US,male,2.9,M112,212000,0.12,2723,178500,2024-10,meets
+E1237,Yuki Mensah,Product,L3,London,undisclosed,0.7,M138,115500,0.12,4027,115000,2025-01,meets
+E1238,Omar Kapoor,Engineering,L4,Bangalore,non-binary,0,M114,70500,0.12,3923,69500,2025-07,meets
+E1239,Ana Cohen,Design,L5,New York,female,4.9,M108,142500,0.12,2846,171500,2024-07,below
+E1240,Priya Fischer,Engineering,L6,Bangalore,female,2.4,M118,97500,0.12,7595,112500,2025-01,meets
+E1241,Nia Costa,Marketing,L3,Berlin,undisclosed,5.7,M124,83000,0.12,1807,83000,2025-01,meets
+E1242,Noa Cohen,Product,L4,Remote US,non-binary,3.3,M135,136000,0.12,3140,135000,2024-07,below
+E1243,Yuki Lindqvist,Product,L5,Berlin,male,1.8,M106,157500,0.12,4742,153500,2025-04,exceeds
+E1244,Lena Zhang,Design,L6,Remote US,male,3.6,M102,187500,0.12,6175,201000,2024-07,exceeds
+E1245,Yuki Ivanova,Marketing,L6,Austin,undisclosed,2,M133,156500,0.12,4751,164000,2025-04,below
+E1246,Priya Lindqvist,Customer Success,L6,New York,male,2.5,M118,164000,0.12,6951,154000,2025-04,below
+E1247,Ivan Okafor,Marketing,L2,Bangalore,female,5.2,M118,49000,0.12,2145,45000,2024-07,below
+E1248,Ivan Lindqvist,Engineering,L2,San Francisco,female,5.2,M115,116000,0.12,2242,119000,2025-07,below
+E1249,Mira Nguyen,Design,L2,Remote US,non-binary,2.5,M101,98500,0.12,2221,89500,2025-01,meets
+E1250,Sam Novak,Customer Success,L3,Remote US,male,2.3,M114,80500,0.12,4277,79500,2025-01,meets
+E1251,Raj Lindqvist,Engineering,L7,San Francisco,male,4.4,M134,327000,0.12,5968,346500,2024-10,exceeds
+E1252,Sam Cohen,Marketing,L7,Bangalore,male,1,M132,107000,0.12,6902,101500,2024-07,meets
+E1253,Nia Lindqvist,Sales,L4,New York,male,3,M118,112500,0.35,4170,116500,2025-07,exceeds
+E1254,Wei Zhang,Legal,L7,San Francisco,male,0.8,M130,268500,0.12,7722,325500,2025-01,below
+E1255,Sam Reyes,Product,L5,London,female,2.6,M113,156000,0.12,4047,163000,2024-10,meets
+E1256,Mira Nguyen,Customer Success,L5,Austin,female,5.8,M116,113500,0.12,3475,110500,2024-10,exceeds
+E1257,Sam Cohen,Design,L5,Berlin,undisclosed,4.4,M125,131500,0.12,2605,141500,2025-01,meets
+E1258,Yuki Nguyen,Engineering,L4,London,male,2.3,M105,142000,0.12,5286,140500,2025-04,exceeds
+E1259,Mira Park,Customer Success,L6,New York,undisclosed,5.6,M130,158500,0.12,3903,154000,2024-10,meets
+E1260,Omar Rossi,Engineering,L5,San Francisco,non-binary,1.8,M127,228000,0.12,5858,211000,2024-10,meets
+E1261,Ivan Fischer,Sales,L2,Remote US,female,4.9,M126,81500,0.35,3657,78000,2024-07,meets
+E1262,Lena Lindqvist,Engineering,L6,Remote US,undisclosed,1.5,M129,221500,0.12,6065,240500,2025-01,below
+E1263,Ivan Kapoor,Sales,L7,Austin,undisclosed,2.2,M120,236500,0.35,7645,222000,2025-04,meets
+E1264,Ana Mensah,Data,L7,Austin,female,0,M116,313000,0.12,5202,292000,2025-04,meets
+E1265,Ben Fischer,Design,L3,San Francisco,non-binary,5,M139,112000,0.12,2627,124000,2024-07,exceeds
+E1266,Ivan Haddad,Finance,L5,New York,undisclosed,2.5,M128,151500,0.12,3322,155000,2025-07,exceeds
+E1267,Sana Lindqvist,Customer Success,L7,London,undisclosed,2.3,M124,177000,0.12,7021,175000,2025-07,meets
+E1268,Priya Zhang,Customer Success,L4,San Francisco,female,3.6,M135,97500,0.12,3771,98000,2024-10,meets
+E1269,Sana Silva,Data,L7,Berlin,non-binary,2.3,M100,292000,0.12,11858,265500,2024-07,exceeds
+E1270,Leo Reyes,Data,L7,Austin,undisclosed,1.9,M101,321000,0.12,8392,292000,2024-07,exceeds
+E1271,Mira Kapoor,Customer Success,L4,Bangalore,male,3.4,M132,46500,0.12,4667,45000,2025-04,exceeds
+E1272,Raj Zhang,Engineering,L6,San Francisco,non-binary,3.5,M104,267500,0.12,5199,267500,2024-10,meets
+E1273,Ivan Fischer,Design,L5,San Francisco,non-binary,0,M121,164500,0.12,5178,176500,2025-04,below
+E1274,Raj Lindqvist,Sales,L5,Remote US,undisclosed,1.3,M130,150000,0.35,3854,138000,2025-01,meets
+E1275,Noa Ivanova,People,L4,Bangalore,undisclosed,3.7,M127,50000,0.12,3038,45500,2024-07,exceeds
+E1276,Sam Zhang,Design,L7,Austin,undisclosed,0,M122,298000,0.12,4738,255000,2025-04,below
+E1277,Yuki Ivanova,Legal,L2,Berlin,female,2.3,M126,89500,0.12,2153,89500,2025-01,below
+E1278,Ana Ivanova,Design,L2,Austin,male,3.5,M128,89500,0.12,2887,87500,2025-04,meets
+E1279,Ella Park,Product,L5,Bangalore,non-binary,0,M127,88500,0.12,3644,80500,2025-04,exceeds
+E1280,Raj Zhang,Sales,L6,Bangalore,male,1.4,M135,85000,0.35,5127,81500,2025-01,exceeds
+E1281,Yuki Rossi,People,L6,San Francisco,non-binary,1.7,M130,175000,0.12,4834,175000,2025-01,exceeds
+E1282,Omar Bauer,Product,L6,Remote US,female,1.9,M139,206500,0.12,7190,218500,2025-01,meets
+E1283,Mira Ivanova,People,L3,New York,female,3.8,M102,94500,0.12,2669,94500,2025-01,meets
+E1284,Ben Fischer,Sales,L5,Bangalore,male,2.7,M133,62000,0.35,2248,64500,2025-01,exceeds
+E1285,Leo Silva,Data,L2,Remote US,non-binary,4.3,M102,95000,0.12,2412,102500,2024-10,exceeds
+E1286,Raj Kapoor,Data,L6,Bangalore,undisclosed,3,M115,110500,0.12,8731,107500,2024-07,meets
+E1287,Mira Park,Sales,L4,San Francisco,male,0.8,M122,132000,0.35,3199,120000,2025-01,meets
+E1288,Ben Rossi,Sales,L3,San Francisco,female,0.4,M129,101500,0.35,3396,108000,2024-10,meets
+E1289,Kai Ali,People,L2,New York,non-binary,5.3,M139,78000,0.12,2424,75500,2025-01,below
+E1290,Priya Rossi,Finance,L5,San Francisco,female,2,M132,165000,0.12,2070,160000,2025-01,below
+E1291,Ada Larsen,Product,L2,Berlin,non-binary,4.1,M120,90500,0.12,1139,86500,2024-10,exceeds
+E1292,Priya Park,Data,L5,Berlin,male,0.1,M128,166500,0.12,6720,162000,2024-07,below
+E1293,Ivan Ivanova,Sales,L4,Bangalore,non-binary,1.5,M136,54000,0.35,3415,50500,2025-07,meets
+E1294,Jon Yamada,Legal,L2,New York,undisclosed,4,M111,107000,0.12,2613,108500,2024-10,meets
+E1295,Kai Park,Finance,L4,London,female,2.8,M111,110000,0.12,1381,106500,2025-04,exceeds
+E1296,Tom Silva,People,L4,London,male,2.7,M110,90500,0.12,2453,92000,2025-01,exceeds
+E1297,Mira Haddad,Legal,L7,Remote US,undisclosed,1.6,M129,271500,0.12,6770,293000,2025-01,exceeds
+E1298,Omar Mensah,Finance,L5,Bangalore,male,3.2,M128,64500,0.12,3131,67000,2025-04,exceeds
+E1299,Sam Costa,Customer Success,L4,Remote US,male,0,M135,83000,0.12,4014,88000,2025-07,exceeds
+E1300,Wei Yamada,Marketing,L7,Berlin,male,5.7,M103,189500,0.12,5732,193000,2025-01,exceeds
+E1301,Kai Bauer,Sales,L4,Austin,female,0,M109,93500,0.35,3528,105500,2025-04,meets
+E1302,Omar Yamada,Data,L5,London,male,1.1,M119,180000,0.12,7428,172000,2024-10,below
+E1303,Tom Rossi,Design,L5,Austin,undisclosed,1.3,M108,165500,0.12,3915,155500,2024-10,below
+E1304,Raj Lindqvist,People,L7,Austin,non-binary,1.9,M119,209000,0.12,8148,199500,2025-04,meets
+E1305,Kai Costa,Design,L5,London,female,3.4,M107,141500,0.12,4407,150000,2025-01,meets
+E1306,Kai Costa,Sales,L7,Austin,male,0,M106,199000,0.35,8085,222000,2024-07,exceeds
+E1307,Priya Okafor,People,L5,San Francisco,non-binary,4.4,M131,130000,0.12,4318,138000,2024-07,exceeds
+E1308,Ivan Ali,Data,L6,New York,undisclosed,5.5,M128,257500,0.12,3947,248500,2024-07,meets
+E1309,Raj Okafor,Engineering,L4,San Francisco,non-binary,4.5,M134,156000,0.12,3766,165000,2024-07,below
+E1310,Ben Cohen,Legal,L4,Bangalore,female,6.2,M129,62500,0.12,3954,65000,2025-01,meets
+E1311,Ella Fischer,Legal,L2,San Francisco,non-binary,5.6,M103,110000,0.12,3093,111500,2025-04,meets
+E1312,Priya Ali,People,L2,Berlin,male,0.8,M119,62000,0.12,1486,62000,2024-10,meets
+E1313,Ben Fischer,Sales,L5,Bangalore,male,1.6,M121,67000,0.35,3860,64500,2025-01,meets
+E1314,Leo Reyes,Legal,L6,London,undisclosed,0,M118,198500,0.12,6136,213500,2024-07,exceeds
+E1315,Ivan Bauer,Marketing,L3,Austin,male,2.5,M139,95500,0.12,4098,91000,2025-01,below
+E1316,Kai Park,Legal,L2,New York,undisclosed,5,M102,110000,0.12,2840,108500,2025-04,exceeds
+E1317,Ella Yamada,Marketing,L4,Berlin,undisclosed,2.7,M116,91500,0.12,3234,92000,2025-07,exceeds
+E1318,Raj Haddad,People,L2,London,female,1.5,M122,67500,0.12,2919,66000,2024-10,meets
+E1319,Priya Costa,Legal,L6,Remote US,male,3.7,M113,203000,0.12,3593,226000,2025-07,below
+E1320,Ana Okafor,Customer Success,L3,Bangalore,male,0.5,M124,40500,0.12,1692,45000,2024-07,meets
+E1321,Sam Fischer,Legal,L4,London,female,0,M118,113000,0.12,3331,132000,2025-01,exceeds
+E1322,Priya Costa,Sales,L4,Berlin,non-binary,5.4,M111,96500,0.35,1745,96000,2025-04,meets
+E1323,Sana Zhang,Marketing,L6,Bangalore,female,0.1,M117,81500,0.12,5270,78000,2024-10,exceeds
+E1324,Yuki Okafor,Product,L6,London,male,0.7,M117,211000,0.12,6134,206500,2025-01,exceeds
+E1325,Yuki Ali,Engineering,L5,London,undisclosed,2.8,M107,185500,0.12,4074,179500,2025-01,below
+E1326,Omar Yamada,Finance,L4,Bangalore,non-binary,4.1,M116,49000,0.12,4751,52500,2024-10,exceeds
+E1327,Priya Lindqvist,Finance,L5,San Francisco,male,3.8,M107,151000,0.12,4664,160000,2025-01,meets
+E1328,Noa Haddad,Customer Success,L2,New York,female,2.3,M118,70000,0.12,501,68500,2024-07,meets
+E1329,Sana Nguyen,Engineering,L2,Berlin,female,0.6,M120,101000,0.12,1908,95000,2024-07,meets
+E1330,Leo Rossi,Marketing,L2,Remote US,non-binary,1.9,M127,70500,0.12,1881,74500,2025-07,meets
+E1331,Lena Kapoor,Design,L7,New York,female,2.4,M115,290000,0.12,9156,281000,2025-04,exceeds
+E1332,Priya Park,Legal,L2,New York,male,4.4,M117,111500,0.12,2830,108500,2025-01,below
+E1333,Ben Bauer,Marketing,L6,London,non-binary,3.7,M102,111000,0.12,4762,158500,2024-07,meets
+E1334,Sana Ivanova,Marketing,L3,Berlin,non-binary,5.3,M119,83500,0.12,3306,83000,2025-07,exceeds
+E1335,Mira Zhang,Engineering,L6,London,undisclosed,3,M137,236000,0.12,1027,227000,2025-07,exceeds
+E1336,Wei Nguyen,Engineering,L6,New York,female,0.1,M126,259000,0.12,7384,259500,2025-01,meets
+E1337,Priya Haddad,Engineering,L2,London,undisclosed,3.6,M108,108500,0.12,3019,101000,2025-07,meets
+E1338,Sana Haddad,Sales,L4,New York,non-binary,4.8,M116,99000,0.35,2792,116500,2025-01,exceeds
+E1339,Sana Fischer,Marketing,L5,New York,undisclosed,5.5,M123,125500,0.12,4362,143000,2025-04,meets
+E1340,Tom Haddad,Design,L2,Remote US,undisclosed,3.5,M120,96500,0.12,2201,89500,2024-07,meets
+E1341,Mira Cohen,Customer Success,L2,Bangalore,non-binary,5.4,M128,42000,0.12,778,45000,2025-01,exceeds
+E1342,Yuki Fischer,Data,L5,London,non-binary,2.9,M130,142000,0.12,3069,172000,2025-07,meets
+E1343,Tom Haddad,Finance,L6,Austin,undisclosed,5,M128,195000,0.12,7046,178000,2024-07,meets
+E1344,Lena Nguyen,Marketing,L6,New York,male,2.6,M120,175500,0.12,5173,180500,2024-10,exceeds
+E1345,Ana Ali,People,L2,San Francisco,non-binary,2,M134,73500,0.12,2128,78000,2024-10,meets
+E1346,Leo Rossi,Engineering,L2,San Francisco,female,3.8,M105,112500,0.12,3852,119000,2024-10,meets
+E1347,Ella Lindqvist,Engineering,L7,Austin,non-binary,3.2,M136,275000,0.12,4719,305000,2025-04,meets
+E1348,Noa Bauer,Legal,L5,Berlin,non-binary,1.8,M111,147500,0.12,2867,158500,2025-07,exceeds
+E1349,Lena Park,Engineering,L7,Bangalore,male,2.8,M104,132500,0.12,5861,145500,2024-10,below
+E1350,Yuki Park,Product,L4,Austin,female,2.3,M104,132000,0.12,2601,132000,2025-04,exceeds
+E1351,Yuki Silva,Design,L4,Berlin,female,3.4,M126,99000,0.12,3438,110500,2025-04,meets
+E1352,Yuki Kapoor,Design,L3,Remote US,non-binary,2.7,M137,98500,0.12,3980,112000,2024-10,below
+E1353,Leo Okafor,Customer Success,L2,Bangalore,non-binary,1.7,M119,40500,0.12,2058,45000,2025-01,exceeds
+E1354,Sana Fischer,Marketing,L6,Remote US,non-binary,0,M138,161000,0.12,2899,167500,2024-10,below
+E1355,Sana Novak,Customer Success,L4,Berlin,female,2.9,M106,73000,0.12,2793,78500,2024-10,meets
+E1356,Sana Yamada,Customer Success,L4,London,non-binary,4.8,M108,81500,0.12,3662,83500,2025-04,below
+E1357,Tom Larsen,People,L7,New York,male,0.9,M109,177500,0.12,1290,220000,2025-07,meets
+E1358,Sam Reyes,Marketing,L2,Berlin,non-binary,2.6,M138,64500,0.12,1506,66000,2024-07,exceeds
+E1359,Sam Yamada,Design,L4,Austin,male,3.2,M124,124500,0.12,4702,121500,2024-10,below
+E1360,Tom Costa,Marketing,L2,Bangalore,female,0.4,M138,40000,0.12,2282,45000,2025-04,exceeds
+E1361,Ben Zhang,Design,L6,New York,male,0.4,M101,200500,0.12,6266,217000,2025-07,meets
+E1362,Tom Kapoor,People,L3,Berlin,female,2.3,M112,83500,0.12,3266,78000,2025-01,meets
+E1363,Ana Reyes,Finance,L4,San Francisco,non-binary,0,M109,127000,0.12,2988,125000,2025-01,exceeds
+E1364,Jon Ivanova,Marketing,L5,New York,undisclosed,3.5,M112,147500,0.12,2659,143000,2025-04,meets
+E1365,Priya Park,Finance,L2,Austin,female,3.8,M102,78000,0.12,2076,79000,2024-07,meets
+E1366,Mira Ali,Data,L7,Bangalore,non-binary,2.2,M132,136000,0.12,12098,139500,2024-10,meets
+E1367,Ana Park,Engineering,L6,San Francisco,undisclosed,2.9,M103,323500,0.12,8291,267500,2024-07,exceeds
+E1368,Wei Reyes,Data,L3,Remote US,non-binary,5,M126,122500,0.12,3603,128000,2025-07,exceeds
+E1369,Ivan Rossi,Customer Success,L5,Berlin,non-binary,0.2,M113,98000,0.12,3107,100500,2024-07,meets
+E1370,Jon Lindqvist,Product,L6,Bangalore,female,1,M138,114000,0.12,4283,102000,2024-10,exceeds
+E1371,Leo Lindqvist,Legal,L4,Berlin,non-binary,3.6,M110,105500,0.12,3239,124000,2024-10,meets
+E1372,Ana Zhang,Customer Success,L6,Remote US,female,1.8,M121,140500,0.12,5342,143000,2024-07,below
+E1373,Kai Park,Marketing,L3,San Francisco,male,3.5,M114,107500,0.12,3779,103500,2025-01,exceeds
+E1374,Nia Haddad,Legal,L3,Remote US,male,3.7,M127,133500,0.12,1346,125500,2024-10,meets
+E1375,Kai Zhang,Design,L6,Bangalore,undisclosed,0,M106,92000,0.12,8721,94000,2024-07,exceeds
+E1376,Yuki Lindqvist,Sales,L6,London,non-binary,4.2,M132,140500,0.35,2341,165000,2024-07,exceeds
+E1377,Wei Park,Product,L4,Bangalore,undisclosed,0,M111,64500,0.12,2722,63000,2024-10,exceeds
+E1378,Yuki Yamada,Customer Success,L4,Remote US,female,1.6,M126,78500,0.12,2764,88000,2025-04,exceeds
+E1379,Kai Rossi,Engineering,L2,London,undisclosed,3.3,M104,101500,0.12,3674,101000,2025-07,exceeds
+E1380,Kai Park,People,L4,Berlin,non-binary,5.6,M114,77500,0.12,1937,86500,2025-07,exceeds
+E1381,Ben Zhang,Engineering,L6,San Francisco,undisclosed,0,M121,266000,0.12,7559,267500,2024-07,meets
+E1382,Wei Haddad,Finance,L2,Bangalore,female,2.2,M121,46000,0.12,2330,45000,2025-07,meets
+E1383,Sam Novak,Marketing,L3,Austin,male,0,M130,102000,0.12,2133,91000,2025-07,meets
+E1384,Tom Bauer,Sales,L7,Austin,female,2.1,M107,224000,0.35,9146,222000,2025-01,exceeds
+E1385,Ada Nguyen,Product,L6,Remote US,non-binary,0,M109,239500,0.12,5502,218500,2024-07,meets
+E1386,Kai Yamada,Customer Success,L3,Remote US,male,5.3,M138,85500,0.12,3015,79500,2025-04,below
+E1387,Lena Mensah,Legal,L7,Austin,non-binary,2.6,M127,265000,0.12,10127,286500,2025-04,meets
+E1388,Lena Ivanova,Finance,L3,San Francisco,female,0,M101,114000,0.12,2793,112500,2025-07,meets
+E1389,Jon Mensah,Sales,L5,Bangalore,female,4.9,M102,65500,0.35,4907,64500,2024-10,meets
+E1390,Jon Haddad,Engineering,L7,Remote US,non-binary,2.7,M110,323500,0.12,10988,312000,2024-07,exceeds
+E1391,Tom Okafor,Sales,L7,New York,male,3.1,M119,242000,0.35,6556,244500,2024-10,meets
+E1392,Lena Okafor,Customer Success,L6,Remote US,undisclosed,0.7,M106,153500,0.12,3631,143000,2025-04,below
+E1393,Yuki Cohen,Customer Success,L6,Berlin,male,3.4,M122,119500,0.12,3300,127000,2025-01,exceeds
+E1394,Priya Lindqvist,Legal,L2,Bangalore,non-binary,2.5,M110,52500,0.12,3452,47000,2025-07,meets
+E1395,Leo Costa,Design,L7,London,female,5.1,M102,247500,0.12,7185,246500,2025-04,meets
+E1396,Sana Cohen,Data,L6,Bangalore,female,3.6,M132,112000,0.12,6011,107500,2024-10,exceeds
+E1397,Noa Nguyen,Finance,L5,Berlin,female,0,M107,125500,0.12,4088,128000,2024-10,exceeds
+E1398,Sana Cohen,Design,L7,Remote US,non-binary,3.5,M125,249500,0.12,4724,261000,2025-07,meets
+E1399,Jon Novak,Data,L4,Austin,non-binary,2.5,M121,143500,0.12,1652,139000,2024-10,meets
+E1400,Sana Yamada,Engineering,L5,Bangalore,non-binary,0,M125,90500,0.12,6339,88500,2025-01,meets
+E1401,Noa Larsen,Sales,L2,San Francisco,undisclosed,1.8,M100,83000,0.35,2182,86500,2025-04,exceeds
+E1402,Priya Reyes,Customer Success,L6,Bangalore,non-binary,1,M130,61500,0.12,5895,66500,2025-01,meets
+E1403,Noa Fischer,Finance,L6,London,male,2,M115,173000,0.12,6839,172000,2024-07,exceeds
+E1404,Yuki Okafor,Legal,L4,New York,non-binary,5,M107,154000,0.12,5799,150500,2025-04,exceeds
+E1405,Ada Cohen,Engineering,L5,Bangalore,undisclosed,0.6,M110,84500,0.12,5077,88500,2025-04,below
+E1406,Wei Kapoor,Marketing,L7,Remote US,male,5.3,M123,206000,0.12,7047,217500,2025-07,meets
+E1407,Ana Cohen,Customer Success,L6,Remote US,female,3.6,M132,118000,0.12,4827,143000,2025-07,meets
+E1408,Ada Ivanova,Product,L3,London,male,1.6,M100,91000,0.12,3144,115000,2024-10,exceeds
+E1409,Yuki Costa,Sales,L7,London,non-binary,4.8,M122,194000,0.35,6733,214000,2024-10,meets
+E1410,Lena Nguyen,Sales,L4,London,non-binary,5.2,M129,113500,0.35,4127,102000,2024-10,meets
+E1411,Sana Zhang,Data,L5,London,female,2.7,M105,158500,0.12,6394,172000,2025-04,meets
+E1412,Ella Yamada,Design,L2,Bangalore,female,1.7,M137,41500,0.12,2046,45000,2025-01,meets
+E1413,Ana Silva,Product,L2,San Francisco,female,1.7,M103,107000,0.12,1136,108000,2025-01,below
+E1414,Ivan Larsen,Finance,L3,Berlin,undisclosed,5.8,M126,85500,0.12,3737,90000,2025-04,meets
+E1415,Jon Okafor,Finance,L3,London,non-binary,0,M131,85000,0.12,2016,95500,2024-10,exceeds
+E1416,Ella Rossi,Customer Success,L5,Austin,male,3.1,M117,120000,0.12,3636,110500,2025-04,meets
+E1417,Sam Larsen,People,L2,Austin,non-binary,1.6,M125,55500,0.12,1732,68500,2025-07,below
+E1418,Raj Haddad,Legal,L5,Remote US,male,3.1,M121,206000,0.12,3727,178500,2025-04,meets
+E1419,Raj Yamada,Sales,L7,London,non-binary,1.9,M122,209500,0.35,7089,214000,2025-01,meets
+E1420,Wei Larsen,People,L2,Berlin,female,6,M119,61000,0.12,1038,62000,2024-10,below
+E1421,Raj Novak,People,L7,Remote US,female,5.3,M128,188000,0.12,6922,204000,2024-10,exceeds
+E1422,Wei Lindqvist,Data,L2,Austin,undisclosed,0,M106,95000,0.12,1438,100000,2025-01,exceeds
+E1423,Ada Bauer,Product,L6,London,male,7.6,M137,205500,0.12,2820,206500,2025-07,below
+E1424,Kai Costa,Sales,L5,New York,male,1.8,M129,135500,0.35,4373,149000,2024-10,meets
+E1425,Ada Lindqvist,Data,L4,Berlin,female,1.2,M118,114000,0.12,4494,126500,2025-01,exceeds
+E1426,Leo Yamada,Customer Success,L6,Bangalore,female,0,M129,62500,0.12,5457,66500,2024-07,meets
+E1427,Leo Larsen,Legal,L5,San Francisco,non-binary,3,M125,194500,0.12,5129,198500,2025-04,meets
+E1428,Omar Reyes,Marketing,L2,San Francisco,female,0.6,M111,76500,0.12,2550,83000,2025-01,meets
+E1429,Sana Novak,Data,L2,New York,female,1.6,M128,96000,0.12,3485,110500,2025-01,below
+E1430,Leo Reyes,People,L5,Remote US,male,5.5,M111,113000,0.12,4103,124500,2024-10,below
+E1431,Nia Zhang,Engineering,L4,New York,non-binary,3,M131,158500,0.12,3330,160000,2024-10,exceeds
+E1432,Raj Bauer,Customer Success,L2,Bangalore,undisclosed,2.2,M117,46000,0.12,1642,45000,2025-07,below
+E1433,Tom Park,Finance,L6,Bangalore,non-binary,0,M138,92500,0.12,4493,85000,2024-07,meets
+E1434,Yuki Lindqvist,Data,L3,New York,male,2,M117,140500,0.12,2084,138000,2025-07,meets
+E1435,Ada Novak,People,L2,San Francisco,female,4,M128,77000,0.12,1315,78000,2024-07,exceeds
+E1436,Wei Kapoor,People,L5,New York,female,5.2,M117,139500,0.12,4583,134000,2024-07,exceeds
+E1437,Ada Silva,Customer Success,L5,Austin,non-binary,0,M100,99000,0.12,3656,110500,2025-01,exceeds
+E1438,Sana Mensah,Marketing,L5,San Francisco,non-binary,3.2,M112,139500,0.12,5670,147000,2025-07,exceeds
+E1439,Noa Nguyen,Design,L2,Bangalore,non-binary,2.4,M106,40000,0.12,2441,45000,2025-04,exceeds
+E1440,Noa Nguyen,Marketing,L2,Remote US,male,4.1,M138,75500,0.12,1615,74500,2025-07,meets
+E1441,Ana Costa,Marketing,L3,Bangalore,male,0,M117,48500,0.12,3201,45000,2024-07,meets
+E1442,Leo Ivanova,Data,L4,Bangalore,male,2.9,M116,64000,0.12,3266,66500,2025-01,meets
+E1443,Yuki Nguyen,Sales,L4,Remote US,non-binary,4.6,M135,114000,0.35,3409,108000,2025-04,below
+E1444,Ella Larsen,Customer Success,L6,Austin,male,2.3,M102,119000,0.12,5554,139500,2024-07,below
+E1445,Priya Fischer,Engineering,L4,Berlin,non-binary,5.1,M110,150500,0.12,5062,132000,2024-07,meets
+E1446,Sana Novak,Marketing,L5,New York,undisclosed,4.9,M104,140500,0.12,4720,143000,2025-07,meets
+E1447,Mira Costa,Sales,L7,London,female,0,M135,204000,0.35,4623,214000,2025-01,exceeds
+E1448,Nia Novak,People,L4,San Francisco,male,3.5,M123,111000,0.12,1840,108000,2025-07,meets
+E1449,Ben Lindqvist,Sales,L2,Austin,female,3.3,M133,74500,0.35,710,76000,2024-07,below
+E1450,Priya Lindqvist,Design,L4,Bangalore,undisclosed,4,M104,60500,0.12,3490,58000,2024-07,meets
+E1451,Noa Ivanova,Customer Success,L4,San Francisco,undisclosed,3.6,M125,106500,0.12,1399,98000,2024-07,meets
+E1452,Lena Ivanova,Legal,L2,London,non-binary,2.4,M119,81500,0.12,3278,95000,2024-07,meets
+E1453,Noa Park,Customer Success,L2,Berlin,undisclosed,5.4,M116,52000,0.12,1360,56500,2024-10,exceeds
+E1454,Jon Haddad,Product,L6,Austin,undisclosed,7.2,M126,211500,0.12,3664,214000,2024-10,below
+E1455,Kai Haddad,Marketing,L6,New York,non-binary,5.1,M115,179000,0.12,3077,180500,2025-01,exceeds
+E1456,Ana Zhang,Product,L5,Berlin,non-binary,2.6,M109,152000,0.12,3025,153500,2025-01,meets
+E1457,Ella Kapoor,People,L3,San Francisco,female,3.1,M116,96000,0.12,4146,97000,2024-10,exceeds
+E1458,Omar Larsen,Design,L6,Remote US,female,2,M109,207500,0.12,6219,201000,2025-07,exceeds
+E1459,Ana Ali,People,L6,Berlin,undisclosed,4.4,M112,161500,0.12,5556,140000,2025-01,meets
+E1460,Sana Yamada,Engineering,L4,London,female,3.3,M101,118500,0.12,4428,140500,2024-10,exceeds
+E1461,Ada Silva,Customer Success,L7,Berlin,male,2.6,M100,170500,0.12,6528,164500,2024-07,exceeds
+E1462,Nia Rossi,Sales,L3,San Francisco,undisclosed,3.3,M134,98000,0.35,2352,108000,2025-01,exceeds
+E1463,Mira Lindqvist,Engineering,L5,Austin,undisclosed,2.4,M120,166500,0.12,4544,186000,2024-07,meets
+E1464,Lena Haddad,Data,L4,Berlin,non-binary,1.1,M138,122500,0.12,2301,126500,2025-04,exceeds
+E1465,Leo Rossi,Product,L2,Austin,male,4,M127,92000,0.12,2549,95000,2025-01,meets
+E1466,Mira Cohen,Product,L6,Berlin,male,2.8,M120,188000,0.12,5394,194500,2024-07,meets
+E1467,Noa Reyes,Data,L6,Remote US,male,2.6,M125,234000,0.12,5883,230500,2025-04,exceeds
+E1468,Sam Cohen,Data,L2,London,male,2.7,M123,109000,0.12,3404,96500,2025-07,meets
+E1469,Wei Haddad,Design,L2,San Francisco,male,3.6,M113,94500,0.12,3189,99500,2025-04,below
+E1470,Priya Reyes,Marketing,L6,Remote US,non-binary,0.5,M132,195500,0.12,6768,167500,2024-10,exceeds
+E1471,Omar Yamada,People,L6,London,non-binary,1.7,M114,133000,0.12,6481,148500,2025-01,meets
+E1472,Sana Mensah,Marketing,L6,Remote US,non-binary,4.1,M134,158000,0.12,3257,167500,2024-10,meets
+E1473,Sana Ivanova,People,L4,San Francisco,female,0.2,M114,100000,0.12,2265,108000,2025-04,meets
+E1474,Sam Zhang,Customer Success,L5,Berlin,non-binary,1,M107,87000,0.12,3984,100500,2024-07,exceeds
+E1475,Mira Zhang,Design,L2,Remote US,undisclosed,2.5,M112,90000,0.12,2905,89500,2024-07,exceeds
+E1476,Kai Fischer,People,L3,Austin,female,5.5,M111,90000,0.12,3112,85500,2025-04,meets
+E1477,Priya Yamada,Product,L7,Austin,female,6.5,M135,286000,0.12,11537,277000,2025-01,exceeds
+E1478,Nia Kapoor,Product,L3,Austin,male,0,M110,116500,0.12,5264,119000,2025-01,meets
+E1479,Tom Zhang,Legal,L6,San Francisco,male,1.9,M129,270000,0.12,6847,251000,2024-07,meets
+E1480,Omar Novak,Data,L4,Bangalore,male,3.4,M108,66500,0.12,3037,66500,2024-07,exceeds
+E1481,Mira Bauer,Product,L2,New York,male,3.4,M105,97500,0.12,2990,105000,2025-04,exceeds
+E1482,Tom Reyes,Finance,L2,Remote US,female,0,M138,84000,0.12,3037,81000,2025-04,meets
+E1483,Ben Novak,Product,L2,Berlin,female,0.7,M113,85000,0.12,3738,86500,2024-07,exceeds
+E1484,Ben Ivanova,People,L5,New York,non-binary,2.1,M134,134500,0.12,5102,134000,2025-04,meets
+E1485,Priya Larsen,Marketing,L5,New York,male,4.1,M103,153500,0.12,4684,143000,2025-07,meets
+E1486,Nia Okafor,Engineering,L4,Remote US,undisclosed,0.5,M129,142500,0.12,5017,148500,2024-10,exceeds
+E1487,Wei Yamada,Data,L6,Bangalore,undisclosed,0,M114,110500,0.12,8840,107500,2025-04,exceeds
+E1488,Sana Fischer,Design,L5,Remote US,non-binary,2.5,M121,155500,0.12,4037,159000,2024-07,meets
+E1489,Ana Lindqvist,Data,L3,London,non-binary,5.9,M131,97000,0.12,2060,121000,2025-04,meets
+E1490,Raj Cohen,Engineering,L3,Austin,male,3.7,M113,143500,0.12,3699,130500,2025-01,meets
+E1491,Priya Reyes,Customer Success,L3,London,female,2.6,M123,75000,0.12,2038,75000,2024-07,meets
+E1492,Raj Zhang,Product,L6,Berlin,female,1.4,M122,179500,0.12,3749,194500,2025-07,meets
+E1493,Ella Lindqvist,Customer Success,L7,Remote US,female,7.2,M125,188000,0.12,5747,185000,2025-04,meets
+E1494,Lena Cohen,Finance,L4,New York,undisclosed,1.1,M131,112500,0.12,3374,121500,2025-04,meets
+E1495,Sam Larsen,Product,L6,San Francisco,female,2.2,M137,237000,0.12,4742,243000,2024-07,exceeds
+E1496,Mira Rossi,Finance,L7,San Francisco,undisclosed,0.8,M114,257000,0.12,9182,262500,2025-04,meets
+E1497,Leo Reyes,People,L2,Austin,female,3.2,M106,65000,0.12,1737,68500,2025-01,meets
+E1498,Priya Reyes,Engineering,L6,Austin,non-binary,5.7,M125,227000,0.12,4633,235000,2024-10,exceeds
+E1499,Sam Park,Customer Success,L4,San Francisco,undisclosed,3,M102,108000,0.12,1847,98000,2025-04,meets
+E1500,Leo Bauer,Product,L5,Bangalore,undisclosed,1.9,M138,82000,0.12,5108,80500,2024-07,below
+E1501,Lena Lindqvist,Marketing,L5,London,undisclosed,2.9,M112,130500,0.12,3055,125000,2025-01,below
+E1502,Ivan Haddad,Engineering,L6,Austin,non-binary,1.9,M127,241500,0.12,6670,235000,2024-10,meets
+E1503,Lena Yamada,People,L6,Berlin,female,3.4,M106,149500,0.12,5486,140000,2025-07,meets
+E1504,Priya Larsen,Engineering,L7,London,non-binary,0,M125,281500,0.12,8071,294500,2024-10,below
+E1505,Wei Lindqvist,Product,L3,London,male,2.8,M122,121000,0.12,2905,115000,2024-07,exceeds
+E1506,Tom Cohen,Marketing,L3,Austin,male,1.6,M114,86500,0.12,2927,91000,2024-07,exceeds
+E1507,Noa Mensah,Design,L7,San Francisco,undisclosed,6.4,M111,252000,0.12,5565,290000,2024-07,meets
+E1508,Ben Costa,Finance,L7,Austin,undisclosed,2.4,M135,240500,0.12,6970,231000,2025-04,below
+E1509,Nia Park,Engineering,L7,Remote US,male,2.7,M134,313500,0.12,9802,312000,2025-04,meets
+E1510,Jon Cohen,Engineering,L7,Bangalore,male,3.8,M110,144000,0.12,9466,145500,2025-01,meets
+E1511,Ella Zhang,Customer Success,L3,London,female,1.5,M122,76500,0.12,2657,75000,2024-07,exceeds
+E1512,Sana Novak,Data,L4,Austin,female,6.5,M119,155000,0.12,4388,139000,2025-07,meets
+E1513,Yuki Ali,Design,L7,Remote US,non-binary,1.6,M118,266500,0.12,4983,261000,2025-01,meets
+E1514,Ella Haddad,Engineering,L5,Berlin,male,3.2,M122,193500,0.12,4250,169000,2024-07,meets
+E1515,Priya Okafor,People,L3,Berlin,male,4.5,M139,77000,0.12,1957,78000,2025-01,exceeds
+E1516,Ivan Reyes,Marketing,L5,Bangalore,undisclosed,0.5,M101,56000,0.12,1658,62000,2025-01,meets
+E1517,Ella Ivanova,Customer Success,L4,Austin,undisclosed,1.9,M119,84000,0.12,3028,86000,2024-07,meets
+E1518,Wei Reyes,Product,L7,Berlin,male,3.4,M125,253000,0.12,7872,252000,2024-07,meets
+E1519,Kai Novak,Finance,L4,London,male,2.6,M115,113000,0.12,2471,106500,2024-07,exceeds
+E1520,Sam Bauer,People,L7,Remote US,non-binary,2.8,M111,193500,0.12,6502,204000,2025-04,below
+E1521,Yuki Bauer,Product,L4,London,undisclosed,1.4,M114,124000,0.12,3150,127500,2024-10,exceeds
+E1522,Kai Lindqvist,Design,L2,Austin,female,3.3,M108,84000,0.12,2680,87500,2024-10,meets
+E1523,Jon Ivanova,Marketing,L7,Remote US,undisclosed,4,M131,244500,0.12,4884,217500,2025-01,below
+E1524,Wei Novak,People,L2,Austin,female,4.4,M139,64000,0.12,2252,68500,2025-01,below
+E1525,Ella Novak,Legal,L7,San Francisco,undisclosed,4,M136,310500,0.12,7677,325500,2025-04,meets
+E1526,Mira Kapoor,Marketing,L6,New York,undisclosed,2.4,M137,198500,0.12,5423,180500,2025-01,meets
+E1527,Nia Reyes,Legal,L7,San Francisco,female,4.1,M127,326500,0.12,3849,325500,2025-07,exceeds
+E1528,Mira Reyes,Data,L3,New York,undisclosed,2.2,M117,150000,0.12,2764,138000,2025-07,meets
+E1529,Lena Costa,Legal,L2,San Francisco,non-binary,2.3,M109,95000,0.12,3575,111500,2025-07,exceeds
+E1530,Lena Lindqvist,Legal,L3,Remote US,female,0,M110,98500,0.12,2812,125500,2025-07,meets
+E1531,Sana Fischer,Marketing,L3,Remote US,female,2.6,M127,83500,0.12,3020,93000,2024-10,exceeds
+E1532,Lena Fischer,People,L6,Austin,non-binary,2,M101,160500,0.12,3379,154000,2025-07,exceeds
+E1533,Mira Kapoor,Customer Success,L3,Remote US,undisclosed,5.9,M106,72500,0.12,3202,79500,2024-07,exceeds
+E1534,Lena Mensah,Design,L5,Berlin,non-binary,3.4,M113,138500,0.12,5419,141500,2025-04,meets
+E1535,Nia Larsen,Sales,L6,Bangalore,male,1.7,M108,81000,0.35,6179,81500,2024-07,meets
+E1536,Omar Novak,Customer Success,L3,Berlin,female,6.9,M114,73000,0.12,1704,70500,2024-10,exceeds
+E1537,Jon Zhang,Sales,L7,Berlin,female,1.5,M101,192500,0.35,7033,201500,2024-10,exceeds
+E1538,Ella Novak,Marketing,L7,New York,non-binary,0.3,M115,235500,0.12,6582,234500,2025-07,meets
+E1539,Ella Haddad,People,L3,Berlin,undisclosed,0,M132,86500,0.12,2509,78000,2024-07,meets
+E1540,Ada Reyes,Sales,L6,London,male,3.5,M113,150500,0.35,8309,165000,2025-01,meets
+E1541,Ivan Costa,Data,L7,San Francisco,male,4.8,M139,352500,0.12,11215,332000,2025-07,meets
+E1542,Ada Silva,Sales,L7,San Francisco,female,2.9,M136,231500,0.35,7139,252000,2024-10,below
+E1543,Ella Mensah,Customer Success,L4,San Francisco,non-binary,0.7,M137,89000,0.12,2727,98000,2024-10,exceeds
+E1544,Ben Yamada,Design,L2,San Francisco,undisclosed,4.3,M137,90000,0.12,2379,99500,2025-07,below
+E1545,Ben Fischer,Product,L4,Remote US,undisclosed,3.3,M104,141000,0.12,4521,135000,2025-04,exceeds
+E1546,Kai Cohen,Engineering,L5,Bangalore,non-binary,3.3,M111,95000,0.12,5665,88500,2024-07,below
+E1547,Sam Bauer,Data,L2,London,non-binary,2.3,M138,100000,0.12,2665,96500,2025-04,below
+E1548,Leo Lindqvist,People,L2,London,undisclosed,4.3,M111,71000,0.12,2763,66000,2025-04,meets
+E1549,Ana Novak,Marketing,L6,Bangalore,male,3.1,M105,68500,0.12,6270,78000,2025-07,meets
+E1550,Lena Silva,Design,L6,Remote US,undisclosed,4.5,M119,205000,0.12,1851,201000,2025-07,exceeds
+E1551,Leo Fischer,Finance,L6,London,undisclosed,0,M106,175500,0.12,3855,172000,2025-01,below
+E1552,Nia Reyes,Data,L4,San Francisco,non-binary,3.1,M135,174000,0.12,3635,158000,2024-10,meets
+E1553,Omar Rossi,Customer Success,L5,San Francisco,male,0,M102,123000,0.12,5927,125500,2024-10,meets
+E1554,Jon Lindqvist,Sales,L7,Remote US,female,1.9,M129,225000,0.35,5486,227000,2025-07,meets
+E1555,Sam Silva,Marketing,L4,Bangalore,female,5.4,M116,47500,0.12,3244,48500,2024-07,exceeds
+E1556,Ana Fischer,Finance,L5,Bangalore,undisclosed,5.2,M119,65000,0.12,4093,67000,2024-10,meets
+E1557,Sana Okafor,Legal,L3,Remote US,male,4.5,M138,123000,0.12,1956,125500,2025-01,exceeds
+E1558,Sam Haddad,Design,L3,Bangalore,male,3.4,M105,48000,0.12,3454,52000,2025-01,meets
+E1559,Nia Ivanova,Marketing,L2,New York,male,0.7,M129,85000,0.12,2820,80500,2025-01,meets
+E1560,Sana Fischer,People,L2,San Francisco,female,3.2,M127,85000,0.12,1987,78000,2025-01,exceeds
+E1561,Tom Reyes,Data,L5,New York,male,2.7,M110,206500,0.12,4190,196000,2025-07,meets
+E1562,Noa Lindqvist,Engineering,L4,Berlin,undisclosed,0.3,M108,128000,0.12,5087,132000,2024-10,below
+E1563,Leo Zhang,Sales,L2,Remote US,female,1.8,M138,83000,0.35,3032,78000,2025-04,below
+E1564,Ben Costa,People,L5,London,female,2.2,M122,111000,0.12,6308,117500,2025-01,meets
+E1565,Sam Ivanova,Customer Success,L3,Remote US,undisclosed,2.6,M136,77500,0.12,2032,79500,2025-04,meets
+E1566,Ana Larsen,Finance,L6,San Francisco,non-binary,0.1,M123,207500,0.12,5949,202500,2025-04,exceeds
+E1567,Mira Zhang,Customer Success,L7,New York,non-binary,0.6,M124,175500,0.12,7306,199500,2025-01,meets
+E1568,Omar Mensah,Engineering,L5,Bangalore,female,1.6,M110,89500,0.12,8113,88500,2025-01,below
+E1569,Priya Yamada,Product,L5,London,non-binary,6.2,M123,155000,0.12,3537,163000,2025-07,meets
+E1570,Nia Silva,Marketing,L6,San Francisco,non-binary,2.3,M134,208000,0.12,4246,186500,2025-01,meets
+E1571,Noa Kapoor,People,L2,Remote US,undisclosed,0,M113,77000,0.12,3587,70000,2024-07,exceeds
+E1572,Leo Silva,Marketing,L5,London,male,4.4,M102,118000,0.12,2812,125000,2025-04,meets
+E1573,Leo Kapoor,Customer Success,L7,Austin,female,2.3,M139,155500,0.12,5809,181000,2024-07,meets
+E1574,Mira Ivanova,Engineering,L7,San Francisco,female,2.3,M103,330000,0.12,7191,346500,2024-10,meets
+E1575,Sana Bauer,Customer Success,L4,London,male,2.1,M115,89000,0.12,2869,83500,2024-10,below
+E1576,Sana Rossi,Legal,L6,Berlin,undisclosed,0.8,M125,199500,0.12,4769,201000,2025-04,meets
+E1577,Raj Bauer,People,L2,Remote US,non-binary,1.1,M123,70500,0.12,3096,70000,2025-04,meets
+E1578,Jon Costa,Finance,L2,New York,non-binary,2.2,M121,82000,0.12,2553,87500,2024-07,meets
+E1579,Ella Kapoor,Sales,L4,Berlin,non-binary,0,M117,89500,0.35,2110,96000,2024-10,exceeds
+E1580,Kai Reyes,Sales,L7,Bangalore,undisclosed,0.3,M129,108000,0.35,8703,106000,2025-01,exceeds
+E1581,Kai Silva,Sales,L2,Bangalore,non-binary,1.8,M112,43500,0.35,2911,45000,2025-04,meets
+E1582,Wei Haddad,People,L6,Austin,female,0.3,M102,140000,0.12,3197,154000,2025-01,exceeds
+E1583,Sam Ali,Engineering,L3,Berlin,female,8.3,M131,119000,0.12,5476,119000,2025-07,meets
+E1584,Tom Okafor,Customer Success,L7,Berlin,female,3.5,M101,150000,0.12,3474,164500,2025-04,meets
+E1585,Ana Rossi,Finance,L7,Berlin,undisclosed,1.9,M130,234500,0.12,10936,210000,2025-01,meets
+E1586,Yuki Haddad,Customer Success,L6,Remote US,female,3.5,M132,130000,0.12,5504,143000,2025-07,below
+E1587,Jon Park,Sales,L2,Remote US,undisclosed,1.6,M122,75000,0.35,1569,78000,2025-04,meets
+E1588,Ben Rossi,Product,L5,New York,female,0.3,M115,160000,0.12,3372,186000,2025-01,below
+E1589,Omar Mensah,Product,L2,San Francisco,non-binary,1.5,M135,120000,0.12,1867,108000,2025-01,exceeds
+E1590,Kai Zhang,Customer Success,L4,Remote US,non-binary,1.4,M130,89500,0.12,2504,88000,2025-01,meets
+E1591,Lena Costa,Customer Success,L6,Remote US,undisclosed,0,M133,145000,0.12,5086,143000,2025-01,exceeds
+E1592,Nia Okafor,Data,L4,Austin,undisclosed,0.4,M113,132000,0.12,3040,139000,2025-04,below
+E1593,Ivan Zhang,Marketing,L7,Remote US,male,6.6,M126,210500,0.12,7182,217500,2024-10,meets
+E1594,Leo Nguyen,Marketing,L6,New York,female,4.2,M124,153000,0.12,4878,180500,2025-04,below
+E1595,Nia Kapoor,Customer Success,L4,Berlin,undisclosed,2.8,M106,76000,0.12,3936,78500,2025-07,meets
+E1596,Raj Kapoor,Engineering,L6,Berlin,non-binary,0,M119,201000,0.12,6317,214000,2025-04,exceeds
+E1597,Ana Haddad,Sales,L7,Berlin,male,2.8,M101,226500,0.35,6754,201500,2025-04,meets
+E1598,Sam Larsen,Design,L7,Austin,female,2.2,M126,279000,0.12,4708,255000,2025-04,meets
+E1599,Noa Zhang,Engineering,L3,Bangalore,undisclosed,4.1,M112,59500,0.12,3333,62500,2025-01,exceeds
+E1600,Ella Larsen,Design,L5,San Francisco,female,1.8,M105,198500,0.12,3161,176500,2024-07,meets
+E1601,Kai Zhang,Design,L6,San Francisco,female,4.1,M124,218000,0.12,6467,223500,2025-07,exceeds
+E1602,Ella Mensah,Engineering,L2,New York,male,2.7,M107,116000,0.12,2257,115000,2025-01,exceeds
+E1603,Noa Ivanova,Engineering,L3,Berlin,female,2.7,M112,107500,0.12,2249,119000,2025-01,meets
+E1604,Sana Nguyen,Design,L2,Austin,male,4,M139,96000,0.12,3743,87500,2025-01,meets
+E1605,Priya Zhang,Engineering,L5,London,undisclosed,1,M113,159000,0.12,8313,179500,2024-07,exceeds
+E1606,Ana Zhang,Data,L2,New York,female,0,M122,111500,0.12,3851,110500,2025-04,exceeds
+E1607,Ana Cohen,Sales,L3,Remote US,male,2.1,M122,109000,0.35,2716,97000,2024-10,meets
+E1608,Tom Bauer,Sales,L2,Remote US,female,5.4,M129,72000,0.35,2378,78000,2025-01,below
+E1609,Raj Larsen,Legal,L7,Bangalore,female,4,M135,118000,0.12,7474,136500,2024-10,exceeds
+E1610,Ana Fischer,Customer Success,L3,New York,female,5.1,M129,87000,0.12,2381,85500,2024-07,exceeds
+E1611,Ada Yamada,Design,L2,Berlin,undisclosed,0.8,M118,80500,0.12,2992,79500,2025-07,exceeds
+E1612,Ella Haddad,Customer Success,L4,San Francisco,female,3.8,M119,85000,0.12,2911,98000,2024-07,meets
+E1613,Priya Silva,Product,L5,San Francisco,female,0.2,M116,177500,0.12,4894,192000,2025-01,exceeds
+E1614,Noa Nguyen,Sales,L2,Remote US,male,2.4,M109,72000,0.35,1022,78000,2024-10,meets
+E1615,Leo Ivanova,Marketing,L4,Austin,non-binary,4.8,M136,96000,0.12,3557,101000,2025-07,meets
+E1616,Noa Zhang,Engineering,L2,Bangalore,female,0.5,M102,40500,0.12,3890,50000,2025-01,exceeds
+E1617,Ivan Novak,Design,L7,Bangalore,female,2.4,M104,112500,0.12,8538,121500,2025-07,below
+E1618,Sana Okafor,Customer Success,L5,Austin,male,1.3,M108,109500,0.12,3312,110500,2024-10,below
+E1619,Kai Lindqvist,Product,L3,Remote US,female,3.4,M128,112000,0.12,3284,121500,2024-07,meets
+E1620,Omar Ali,Design,L2,London,undisclosed,3.2,M133,87500,0.12,2259,84500,2024-10,exceeds
+E1621,Jon Silva,Sales,L3,Bangalore,female,3.7,M100,46000,0.35,3415,45500,2025-01,meets
+E1622,Ana Okafor,Finance,L3,Bangalore,undisclosed,0,M108,50000,0.12,1704,47500,2024-10,exceeds
+E1623,Priya Okafor,Engineering,L4,Bangalore,undisclosed,1.7,M127,71000,0.12,4836,69500,2024-07,below
+E1624,Noa Costa,Engineering,L6,Berlin,female,0.1,M118,217000,0.12,7409,214000,2024-10,exceeds
+E1625,Yuki Haddad,Customer Success,L3,San Francisco,female,1.7,M117,93500,0.12,2924,88000,2025-04,meets
+E1626,Tom Ali,Finance,L6,Remote US,non-binary,0.1,M105,158500,0.12,7023,182500,2024-10,meets
+E1627,Wei Mensah,Design,L3,Bangalore,undisclosed,2.8,M118,52500,0.12,1897,52000,2025-04,meets
+E1628,Lena Silva,Legal,L6,New York,non-binary,2.6,M132,244500,0.12,8116,243500,2024-07,meets
+E1629,Sam Silva,Product,L7,London,non-binary,4.6,M104,265500,0.12,7325,268000,2025-04,meets
+E1630,Priya Costa,Finance,L6,Austin,male,3.4,M105,194500,0.12,5996,178000,2024-07,exceeds
+E1631,Wei Cohen,Finance,L4,San Francisco,male,2.4,M137,126000,0.12,2206,125000,2025-01,meets
+E1632,Ella Haddad,Marketing,L7,New York,undisclosed,0.9,M106,249500,0.12,2713,234500,2024-07,exceeds
+E1633,Ella Yamada,Data,L2,Austin,male,4.5,M135,103000,0.12,3417,100000,2025-01,meets
+E1634,Priya Yamada,Design,L6,London,undisclosed,5.4,M134,163000,0.12,4768,190000,2025-01,meets
+E1635,Omar Silva,Engineering,L6,Austin,male,3.6,M126,227000,0.12,7334,235000,2025-01,meets
+E1636,Tom Costa,People,L4,London,non-binary,4.4,M111,88000,0.12,2960,92000,2025-07,exceeds
+E1637,Yuki Reyes,Data,L3,London,female,5.9,M111,102000,0.12,4287,121000,2024-07,below
+E1638,Priya Park,People,L4,New York,female,0.4,M123,94500,0.12,3587,105000,2024-10,meets
+E1639,Noa Yamada,Legal,L2,Bangalore,female,2.5,M131,44500,0.12,3108,47000,2024-10,meets
+E1640,Tom Haddad,Sales,L4,Austin,undisclosed,4.4,M136,99500,0.35,1710,105500,2024-10,exceeds
+E1641,Kai Novak,Design,L3,Bangalore,female,5.9,M113,49000,0.12,3430,52000,2025-04,exceeds
+E1642,Noa Larsen,Marketing,L2,Remote US,female,1.5,M129,74500,0.12,2724,74500,2024-10,exceeds
+E1643,Kai Cohen,Customer Success,L7,Remote US,undisclosed,2.7,M114,178000,0.12,3049,185000,2025-07,meets
+E1644,Priya Novak,Finance,L2,New York,male,0,M104,83500,0.12,2887,87500,2025-04,meets
+E1645,Omar Cohen,Legal,L6,Austin,female,2.4,M139,220500,0.12,5396,221000,2024-10,exceeds
+E1646,Ivan Ali,Product,L7,Berlin,female,1.1,M105,228500,0.12,4584,252000,2025-04,exceeds
+E1647,Tom Okafor,Customer Success,L2,Austin,female,5.6,M116,56500,0.12,2407,62000,2024-07,meets
+E1648,Yuki Kapoor,People,L3,Austin,female,1.1,M134,97000,0.12,3981,85500,2024-07,exceeds
+E1649,Lena Kapoor,Finance,L6,Berlin,undisclosed,1.7,M100,163500,0.12,4889,162000,2025-01,meets
+E1650,Ben Lindqvist,Legal,L3,Bangalore,non-binary,2.3,M135,62500,0.12,3369,58500,2025-01,meets
+E1651,Jon Costa,Sales,L4,London,non-binary,5.2,M131,102500,0.35,2461,102000,2025-01,below
+E1652,Ben Bauer,Data,L7,San Francisco,non-binary,5.3,M104,319000,0.12,8182,332000,2025-01,meets
+E1653,Mira Okafor,Customer Success,L5,Bangalore,non-binary,3.8,M103,57000,0.12,5740,52500,2025-07,meets
+E1654,Ella Fischer,Legal,L3,San Francisco,undisclosed,5.6,M123,148000,0.12,3325,139500,2025-04,exceeds
+E1655,Omar Lindqvist,Design,L7,Austin,male,3.6,M106,261000,0.12,9647,255000,2024-07,meets
+E1656,Jon Park,People,L6,London,non-binary,3.1,M111,146500,0.12,3338,148500,2024-10,below
+E1657,Kai Silva,Finance,L4,Remote US,female,2.3,M129,108000,0.12,1984,112500,2025-04,meets
+E1658,Sam Ivanova,People,L5,Berlin,undisclosed,2.6,M128,105500,0.12,3127,110500,2025-01,meets
+E1659,Ada Kapoor,Legal,L2,Bangalore,female,3.8,M119,48500,0.12,1461,47000,2025-04,meets
+E1660,Ella Haddad,Design,L5,Berlin,male,1,M105,144000,0.12,3664,141500,2025-07,exceeds
+E1661,Leo Mensah,Engineering,L5,New York,undisclosed,2.8,M112,192000,0.12,4404,205000,2025-07,meets
+E1662,Kai Yamada,Legal,L3,San Francisco,male,4,M137,147000,0.12,4536,139500,2025-07,meets
+E1663,Ben Cohen,Marketing,L3,Austin,male,1.1,M132,91500,0.12,2522,91000,2024-10,meets
+E1664,Wei Larsen,Engineering,L2,San Francisco,undisclosed,2.6,M120,121000,0.12,3875,119000,2024-07,below
+E1665,Wei Yamada,Customer Success,L3,San Francisco,undisclosed,0.8,M118,88500,0.12,3714,88000,2024-07,below
+E1666,Raj Park,Sales,L2,London,female,4.9,M100,70000,0.35,2885,73500,2024-10,below
+E1667,Ella Reyes,Finance,L6,Bangalore,female,0.5,M129,83500,0.12,5885,85000,2025-01,below
+E1668,Sam Nguyen,Marketing,L4,London,non-binary,0.9,M130,89500,0.12,3172,98000,2025-04,below
+E1669,Priya Fischer,Design,L5,New York,undisclosed,2.7,M124,176000,0.12,5113,171500,2025-07,exceeds
+E1670,Raj Novak,Data,L2,London,non-binary,3.9,M135,96500,0.12,2651,96500,2025-01,exceeds
+E1671,Nia Larsen,Data,L5,Bangalore,undisclosed,5.2,M102,78500,0.12,4673,85000,2024-07,meets
+E1672,Nia Rossi,People,L4,Remote US,male,3.2,M121,94500,0.12,3034,97000,2025-04,meets
+E1673,Wei Nguyen,Finance,L5,Remote US,female,5.3,M129,128500,0.12,638,144000,2025-07,meets
+E1674,Sana Novak,Finance,L2,Bangalore,undisclosed,4.6,M108,47500,0.12,3304,45000,2024-07,below
+E1675,Wei Bauer,Design,L5,Remote US,male,4,M105,151000,0.12,3235,159000,2025-07,exceeds
+E1676,Ana Ivanova,Product,L6,New York,female,0,M110,206500,0.12,5659,235500,2024-10,below
+E1677,Mira Rossi,Customer Success,L2,Austin,female,2.8,M105,62500,0.12,539,62000,2025-01,below
+E1678,Ada Costa,Sales,L4,Austin,male,0,M125,94000,0.35,1860,105500,2024-07,meets
+E1679,Ben Reyes,Data,L4,Bangalore,male,1.4,M107,73000,0.12,2355,66500,2024-07,below
+E1680,Ben Park,Engineering,L6,London,non-binary,5,M137,220500,0.12,4045,227000,2024-07,exceeds
+E1681,Raj Lindqvist,Marketing,L5,Austin,male,5.2,M101,137000,0.12,4400,129500,2024-07,meets
+E1682,Raj Okafor,Sales,L6,San Francisco,male,0,M109,188500,0.35,5675,194500,2025-07,exceeds
+E1683,Ben Kapoor,Engineering,L3,Austin,undisclosed,4.8,M114,141000,0.12,4010,130500,2025-07,meets
+E1684,Omar Novak,Product,L4,Austin,non-binary,0,M139,113500,0.12,3569,132000,2024-10,below
+E1685,Tom Zhang,Design,L4,Austin,female,0.9,M130,129000,0.12,3814,121500,2025-07,meets
+E1686,Noa Silva,Data,L3,Bangalore,non-binary,5.2,M104,54000,0.12,2127,59500,2025-04,meets
+E1687,Sana Costa,Sales,L7,London,undisclosed,5.7,M104,197000,0.35,5637,214000,2025-07,meets
+E1688,Omar Kapoor,Marketing,L7,Bangalore,non-binary,2.2,M120,89000,0.12,3549,101500,2025-07,exceeds
+E1689,Tom Reyes,Data,L5,San Francisco,male,0.7,M139,212500,0.12,8251,202000,2024-10,meets
+E1690,Lena Park,Design,L7,Bangalore,non-binary,8.2,M132,120000,0.12,5152,121500,2025-07,meets
+E1691,Mira Ivanova,Engineering,L7,New York,male,0.9,M129,308000,0.12,7659,336000,2025-01,meets
+E1692,Mira Ali,People,L4,Berlin,male,1.9,M115,93000,0.12,3970,86500,2025-07,below
+E1693,Nia Bauer,Design,L5,London,male,3.2,M136,165000,0.12,6039,150000,2025-01,meets
+E1694,Yuki Mensah,People,L6,Bangalore,non-binary,3.8,M101,76000,0.12,6397,73500,2025-07,below
+E1695,Wei Yamada,Marketing,L5,New York,male,4,M119,148500,0.12,2971,143000,2025-07,meets
+E1696,Ella Fischer,Engineering,L4,New York,female,0,M111,155500,0.12,4284,160000,2025-01,below
+E1697,Ana Novak,People,L7,Bangalore,female,0,M121,79500,0.12,9922,95500,2025-04,meets
+E1698,Raj Kapoor,Data,L5,San Francisco,non-binary,2.8,M134,229500,0.12,2102,202000,2025-04,below
+E1699,Leo Ivanova,Finance,L5,Remote US,male,1.1,M127,143000,0.12,4317,144000,2024-07,exceeds
+E1700,Lena Cohen,Engineering,L2,San Francisco,male,0.5,M111,139000,0.12,2500,119000,2025-01,exceeds
+E1701,Ella Larsen,People,L4,Bangalore,undisclosed,4,M106,41500,0.12,3707,45500,2024-10,meets
+E1702,Ella Reyes,Legal,L4,San Francisco,male,5.8,M116,171000,0.12,4197,155000,2024-07,below
+E1703,Ana Silva,Engineering,L3,Austin,undisclosed,0.6,M115,133000,0.12,3633,130500,2025-01,exceeds
+E1704,Kai Bauer,Legal,L7,Austin,female,4.6,M107,245000,0.12,7426,286500,2025-07,meets
+E1705,Wei Okafor,Engineering,L7,San Francisco,non-binary,3.8,M122,283000,0.12,6074,346500,2025-04,meets
+E1706,Kai Fischer,Design,L6,London,non-binary,5.1,M103,202500,0.12,5099,190000,2025-07,meets
+E1707,Sam Ivanova,Legal,L2,Berlin,undisclosed,2.3,M137,84500,0.12,2201,89500,2024-10,exceeds
+E1708,Mira Fischer,Legal,L2,Berlin,undisclosed,2.5,M139,94000,0.12,1884,89500,2025-04,meets
+E1709,Kai Kapoor,Engineering,L4,Austin,non-binary,0.6,M138,164000,0.12,2079,145000,2025-07,exceeds
+E1710,Jon Cohen,People,L2,London,female,1.1,M120,57000,0.12,2879,66000,2024-10,exceeds
+E1711,Noa Fischer,Product,L7,New York,undisclosed,1.6,M110,298500,0.12,9096,305500,2024-10,meets
+E1712,Ana Haddad,Customer Success,L6,Berlin,male,1.6,M125,110000,0.12,6830,127000,2025-07,meets
+E1713,Omar Rossi,Marketing,L4,Remote US,male,5.8,M106,105000,0.12,2845,103500,2025-01,meets
+E1714,Nia Cohen,Customer Success,L4,New York,male,2.6,M115,91000,0.12,3291,95000,2024-07,meets
+E1715,Ana Silva,Data,L6,New York,undisclosed,3.2,M119,256000,0.12,5386,248500,2025-01,meets
+E1716,Sana Ali,People,L2,New York,male,1.8,M109,77500,0.12,1761,75500,2024-07,exceeds
+E1717,Nia Bauer,Sales,L4,New York,female,5.6,M103,120000,0.35,2565,116500,2025-07,meets
+E1718,Noa Ali,Sales,L2,Bangalore,non-binary,4.8,M126,45500,0.35,2979,45000,2025-01,exceeds
+E1719,Nia Mensah,Data,L2,London,male,3,M102,92000,0.12,2509,96500,2025-07,exceeds
+E1720,Sam Costa,Sales,L4,Remote US,female,3.5,M101,99000,0.35,2898,108000,2025-04,meets
+E1721,Yuki Fischer,Sales,L2,New York,undisclosed,2.8,M104,86000,0.35,2837,84000,2025-01,meets
+E1722,Raj Fischer,Sales,L3,New York,female,0.8,M117,115000,0.35,2760,105000,2025-01,meets
+E1723,Wei Nguyen,Legal,L4,San Francisco,male,3.6,M104,160000,0.12,3791,155000,2025-01,meets
+E1724,Jon Bauer,Marketing,L4,Austin,male,4.6,M124,103500,0.12,2105,101000,2025-01,meets
+E1725,Mira Novak,Customer Success,L6,Austin,female,0,M112,146500,0.12,4840,139500,2025-07,exceeds
+E1726,Priya Rossi,Design,L6,Austin,male,0,M136,183000,0.12,8082,196500,2024-07,exceeds
+E1727,Priya Haddad,Engineering,L6,New York,non-binary,0.3,M131,274500,0.12,7756,259500,2025-07,exceeds
+E1728,Ella Kapoor,Marketing,L5,San Francisco,non-binary,3,M132,157000,0.12,4610,147000,2024-07,meets
+E1729,Jon Yamada,Sales,L2,London,female,2.2,M116,75000,0.35,2453,73500,2024-10,meets
+E1730,Tom Yamada,Customer Success,L2,Remote US,female,1.4,M134,57500,0.12,2362,63500,2024-07,below
+E1731,Priya Okafor,Sales,L2,Austin,male,0,M118,75500,0.35,3173,76000,2025-01,meets
+E1732,Sana Mensah,Engineering,L3,Remote US,undisclosed,2.3,M115,129000,0.12,2921,133500,2024-07,below
+E1733,Ivan Cohen,Data,L4,Bangalore,male,1.8,M100,65500,0.12,3147,66500,2024-07,exceeds
+E1734,Nia Bauer,Sales,L5,Remote US,female,3.8,M127,136000,0.35,5222,138000,2025-04,meets
+E1735,Kai Park,Legal,L2,Berlin,non-binary,0,M126,85000,0.12,2815,89500,2024-07,exceeds
+E1736,Leo Nguyen,Legal,L5,Bangalore,female,0,M127,77000,0.12,3769,83500,2024-07,below
+E1737,Sana Nguyen,People,L2,London,undisclosed,5.8,M135,61000,0.12,1833,66000,2025-04,meets
+E1738,Sam Ali,Sales,L7,Bangalore,male,0.4,M120,96500,0.35,9112,106000,2024-07,exceeds
+E1739,Ana Cohen,Engineering,L7,Remote US,non-binary,4.4,M101,289500,0.12,6327,312000,2024-10,meets
+E1740,Leo Cohen,Product,L3,New York,male,0,M114,120000,0.12,4612,131000,2024-07,meets
+E1741,Yuki Fischer,Data,L5,Bangalore,male,5.6,M123,89500,0.12,4326,85000,2025-01,exceeds
+E1742,Ada Ivanova,Sales,L3,Austin,female,0.9,M127,88000,0.35,661,95000,2024-10,exceeds
+E1743,Wei Fischer,Data,L7,Berlin,undisclosed,1.5,M124,256500,0.12,6817,265500,2024-10,exceeds
+E1744,Nia Okafor,Sales,L5,Remote US,undisclosed,1.1,M119,145500,0.35,6057,138000,2025-04,below
+E1745,Kai Rossi,Legal,L6,New York,male,5.1,M125,244000,0.12,4222,243500,2024-10,exceeds
+E1746,Tom Mensah,Design,L2,San Francisco,undisclosed,0,M139,78500,0.12,2240,99500,2025-07,exceeds
+E1747,Sana Mensah,Product,L5,Berlin,female,6.1,M108,149000,0.12,5346,153500,2025-01,below
+E1748,Priya Fischer,Finance,L6,Berlin,female,0,M120,194500,0.12,4438,162000,2025-04,exceeds
+E1749,Ivan Cohen,Legal,L4,Bangalore,male,1.7,M109,63000,0.12,4753,65000,2024-10,exceeds
+E1750,Wei Haddad,Customer Success,L6,San Francisco,female,3.4,M110,182500,0.12,4979,159000,2024-10,exceeds
+E1751,Omar Costa,Customer Success,L5,Bangalore,female,3.2,M116,53000,0.12,2121,52500,2024-10,exceeds
+E1752,Omar Yamada,Sales,L6,Remote US,male,3.3,M131,190000,0.35,6188,175000,2024-10,meets
+E1753,Noa Bauer,People,L7,San Francisco,female,4.7,M105,208000,0.12,5705,227000,2025-04,exceeds
+E1754,Ella Nguyen,Customer Success,L3,Bangalore,female,3.8,M100,47000,0.12,2990,45000,2024-07,meets
+E1755,Ella Costa,Sales,L5,New York,undisclosed,3,M113,151500,0.35,3021,149000,2025-07,meets
+E1756,Wei Novak,People,L6,Austin,undisclosed,2.3,M103,134000,0.12,5536,154000,2025-07,exceeds
+E1757,Ben Cohen,Design,L6,Berlin,undisclosed,0.8,M133,179000,0.12,4548,179000,2025-04,exceeds
+E1758,Noa Nguyen,Legal,L3,San Francisco,undisclosed,3.9,M102,133500,0.12,3436,139500,2025-04,below
+E1759,Ana Bauer,Engineering,L6,Austin,undisclosed,5.4,M127,232000,0.12,5039,235000,2025-01,exceeds
+E1760,Ben Nguyen,Customer Success,L4,Bangalore,male,5.6,M128,43500,0.12,2116,45000,2025-04,meets
+E1761,Leo Okafor,Product,L5,Austin,non-binary,2.7,M101,169000,0.12,5164,169000,2024-07,below
+E1762,Leo Yamada,People,L7,New York,undisclosed,1.7,M121,198000,0.12,7404,220000,2024-07,exceeds
+E1763,Nia Yamada,Finance,L7,Remote US,male,1.9,M130,233500,0.12,4039,236500,2025-07,meets
+E1764,Tom Silva,Legal,L6,New York,male,2.4,M127,268000,0.12,4889,243500,2024-07,meets
+E1765,Ella Mensah,Legal,L2,Austin,male,1.3,M116,85500,0.12,3440,98000,2025-04,exceeds
+E1766,Priya Nguyen,Engineering,L2,Remote US,non-binary,1.5,M133,102000,0.12,2963,107000,2024-07,meets
+E1767,Wei Lindqvist,Data,L6,New York,non-binary,0,M106,230000,0.12,4975,248500,2025-04,meets
+E1768,Ivan Zhang,Finance,L2,San Francisco,non-binary,4.8,M103,95000,0.12,3496,90000,2024-10,meets
+E1769,Omar Okafor,Sales,L5,Bangalore,male,1.6,M121,69000,0.35,3420,64500,2024-10,below
+E1770,Priya Silva,Finance,L3,Bangalore,undisclosed,2.9,M138,45000,0.12,2260,47500,2025-07,exceeds
+E1771,Ella Zhang,Legal,L3,New York,male,3.2,M108,135500,0.12,1742,135500,2025-01,below
+E1772,Noa Lindqvist,Engineering,L7,London,non-binary,3.6,M130,286000,0.12,9681,294500,2025-07,meets
+E1773,Ella Silva,Design,L4,London,non-binary,3.1,M112,124500,0.12,2298,117500,2024-07,below
+E1774,Nia Zhang,Sales,L6,Austin,non-binary,0.8,M129,177500,0.35,4664,171000,2025-04,exceeds
+E1775,Omar Ivanova,Product,L2,Remote US,undisclosed,0.2,M104,96000,0.12,2767,97000,2025-07,meets
+E1776,Nia Lindqvist,People,L3,Austin,female,6.1,M131,94000,0.12,2542,85500,2025-07,below
+E1777,Noa Mensah,Engineering,L5,Austin,non-binary,2.7,M134,182000,0.12,3515,186000,2025-01,meets
+E1778,Noa Lindqvist,Product,L2,New York,female,2.8,M120,102500,0.12,2806,105000,2024-10,exceeds
+E1779,Jon Zhang,Finance,L7,New York,undisclosed,0.8,M103,263000,0.12,9287,254500,2024-07,below
+E1780,Ana Larsen,Customer Success,L6,Bangalore,female,0,M128,64000,0.12,3008,66500,2025-07,exceeds
+E1781,Jon Ali,Customer Success,L2,Remote US,non-binary,1.7,M130,67000,0.12,3222,63500,2024-10,below
+E1782,Wei Okafor,Customer Success,L3,San Francisco,non-binary,5.8,M137,82500,0.12,1340,88000,2025-04,meets
+E1783,Noa Novak,Engineering,L4,Remote US,male,3.2,M107,138000,0.12,5270,148500,2024-07,below
+E1784,Lena Kapoor,Sales,L3,Austin,male,2.2,M103,87000,0.35,3328,95000,2025-01,below
+E1785,Noa Rossi,Design,L4,Remote US,undisclosed,5.1,M134,126500,0.12,4515,124000,2024-07,exceeds
+E1786,Ivan Mensah,Product,L7,London,female,5.1,M137,272000,0.12,5886,268000,2025-01,meets
+E1787,Kai Silva,Legal,L2,New York,female,5.7,M130,119000,0.12,3358,108500,2024-10,meets
+E1788,Ben Park,Data,L2,London,undisclosed,0,M139,106000,0.12,3086,96500,2025-04,meets
+E1789,Nia Silva,Marketing,L2,Austin,undisclosed,1.3,M103,74500,0.12,2136,73000,2025-01,meets
+E1790,Ana Bauer,Legal,L2,New York,undisclosed,7.1,M111,100500,0.12,3095,108500,2025-04,meets
+E1791,Ella Rossi,Legal,L5,London,non-binary,0,M127,139500,0.12,6809,168500,2025-01,exceeds
+E1792,Leo Silva,Finance,L2,Bangalore,male,4.8,M102,48500,0.12,2823,45000,2025-04,meets
+E1793,Leo Haddad,Design,L2,London,male,2.6,M128,85000,0.12,2473,84500,2025-07,exceeds
+E1794,Sana Bauer,Legal,L4,Bangalore,non-binary,4.9,M125,69000,0.12,2458,65000,2025-07,meets
+E1795,Leo Ali,Product,L6,Remote US,non-binary,5.9,M107,234000,0.12,5621,218500,2025-01,meets
+E1796,Kai Kapoor,Design,L3,Austin,male,3.6,M128,113500,0.12,3361,109500,2024-10,meets
+E1797,Nia Costa,Data,L5,San Francisco,male,3.2,M130,199500,0.12,5933,202000,2025-04,exceeds
+E1798,Priya Fischer,Data,L5,Bangalore,female,3.6,M104,86500,0.12,5170,85000,2025-07,meets
+E1799,Lena Park,Finance,L2,San Francisco,male,5.5,M132,96000,0.12,2118,90000,2024-10,meets
+E1800,Sana Costa,Marketing,L6,New York,undisclosed,1.2,M139,170500,0.12,7710,180500,2025-07,exceeds
+E1801,Ella Silva,Customer Success,L4,New York,undisclosed,3.1,M129,90500,0.12,3735,95000,2025-04,meets
+E1802,Raj Ali,Product,L7,New York,non-binary,3.7,M132,285000,0.12,4076,305500,2025-01,meets
+E1803,Tom Haddad,Product,L2,Remote US,non-binary,7.4,M100,101000,0.12,2055,97000,2024-07,meets
+E1804,Sam Nguyen,Finance,L6,San Francisco,male,4.1,M116,180500,0.12,6021,202500,2024-10,meets
+E1805,Kai Haddad,Finance,L2,Austin,non-binary,5.4,M102,83000,0.12,1163,79000,2025-01,below
+E1806,Jon Silva,Sales,L3,Berlin,male,1.5,M131,95000,0.35,1921,86500,2025-01,meets
+E1807,Jon Novak,Customer Success,L4,New York,undisclosed,5.1,M124,93000,0.12,3791,95000,2025-01,below
+E1808,Omar Ali,Design,L5,New York,non-binary,2.8,M139,158500,0.12,4150,171500,2025-07,meets
+E1809,Ivan Okafor,People,L3,Remote US,male,3.4,M120,81500,0.12,4541,87500,2025-04,exceeds
+E1810,Omar Novak,Design,L5,London,undisclosed,5.2,M120,148000,0.12,6979,150000,2024-10,meets
+E1811,Noa Costa,Design,L6,Berlin,male,0.8,M102,175500,0.12,7025,179000,2024-10,below

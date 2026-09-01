@@ -1,0 +1,262 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #0a0c10;
+  color: #e6e9ef;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Thin, unobtrusive scrollbars for the data-dense panels. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a3140 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #2a3140;
+  border-radius: 999px;
+}
+
+@layer components {
+  /* The motif: anything the agent has staged a change against gets a calm
+     amber edge + faint outward glow while it waits for a human. */
+  .agent-pending {
+    box-shadow:
+      inset 2px 0 0 0 theme("colors.pending"),
+      -2px 0 14px -4px rgb(245 166 35 / 0.3);
+  }
+  /* One green flash when an approved change lands, then it settles. */
+  .agent-committed {
+    animation: theme("animation.commit-flash");
+  }
+
+  /* Indeterminate top bar for in-place refreshes (no layout shift). */
+  .refresh-bar {
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      theme("colors.airlock.400"),
+      transparent
+    );
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: refresh-sweep 1s linear infinite;
+  }
+  @keyframes refresh-sweep {
+    from {
+      background-position: -40% 0;
+    }
+    to {
+      background-position: 140% 0;
+    }
+  }
+
+  /* Skeleton shimmer for the cold-start / first-query grid. */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      theme("colors.ink.800") 0%,
+      theme("colors.ink.700") 50%,
+      theme("colors.ink.800") 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-pan 1.4s ease-in-out infinite;
+    border-radius: 4px;
+  }
+  @keyframes skeleton-pan {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-md border border-ink-700
+      bg-ink-850 px-2 py-1 font-mono text-xs text-slate-300;
+  }
+  .chip-agent {
+    @apply border-airlock-700/60 bg-airlock-700/10 text-airlock-300;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5
+      text-sm font-medium transition-colors disabled:opacity-40
+      disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply bg-airlock-500 text-ink-950 hover:bg-airlock-400;
+  }
+  .btn-ghost {
+    @apply border border-ink-700 text-slate-300 hover:bg-ink-800 hover:text-white;
+  }
+  .btn-approve {
+    @apply bg-commit/90 text-ink-950 hover:bg-commit;
+  }
+  .btn-reject {
+    @apply border border-danger/40 text-danger hover:bg-danger/10;
+  }
+
+  .panel-title {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500;
+  }
+}
+
+/* Agent-authored report rendering (untrusted markdown, sanitized). */
+.airlock-prose {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #d5dae3;
+}
+.airlock-prose h1,
+.airlock-prose h2,
+.airlock-prose h3 {
+  color: #fff;
+  font-weight: 600;
+  margin: 1.4em 0 0.5em;
+  line-height: 1.3;
+}
+.airlock-prose h1 {
+  font-size: 1.5em;
+}
+.airlock-prose h2 {
+  font-size: 1.2em;
+}
+.airlock-prose h3 {
+  font-size: 1.05em;
+}
+.airlock-prose p {
+  margin: 0.7em 0;
+}
+.airlock-prose ul,
+.airlock-prose ol {
+  margin: 0.7em 0;
+  padding-left: 1.4em;
+}
+.airlock-prose li {
+  margin: 0.3em 0;
+}
+.airlock-prose code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: #161b24;
+  border: 1px solid #1e2430;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.airlock-prose pre {
+  background: #12161f;
+  border: 1px solid #1e2430;
+  border-radius: 8px;
+  padding: 0.9em 1em;
+  overflow-x: auto;
+  margin: 0.9em 0;
+}
+.airlock-prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+.airlock-prose blockquote {
+  border-left: 2px solid #2a3140;
+  margin: 0.9em 0;
+  padding-left: 1em;
+  color: #9aa4b2;
+}
+.airlock-prose table {
+  border-collapse: collapse;
+  margin: 0.9em 0;
+  font-size: 0.92em;
+}
+.airlock-prose th,
+.airlock-prose td {
+  border: 1px solid #1e2430;
+  padding: 0.4em 0.7em;
+  text-align: left;
+}
+.airlock-prose th {
+  background: #12161f;
+}
+.airlock-prose a {
+  color: #3dd7c4;
+  text-decoration: underline;
+}
+
+/* Keyboard focus: one teal ring on every interactive element. Mouse focus
+   (:focus without :focus-visible) stays quiet. The `:enabled` doubles
+   specificity so it beats the `focus:outline-none` Tailwind puts on fields. */
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid theme("colors.airlock.400");
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+input:enabled:focus-visible,
+textarea:enabled:focus-visible,
+select:enabled:focus-visible {
+  outline: 2px solid theme("colors.airlock.400");
+  outline-offset: 1px;
+}
+
+/* Mobile-narrow fallback — this is a dense two-rail workspace; below ~720px
+   there is no honest layout, so we say so rather than break. */
+.airlock-mobile-gate {
+  display: none;
+}
+@media (max-width: 719px) {
+  .airlock-mobile-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    padding: 2rem;
+    text-align: center;
+    background: #0a0c10;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  /* Settle the motif's living states instead of freezing them mid-frame. */
+  .animate-pending-pulse {
+    opacity: 1 !important;
+  }
+  .refresh-bar {
+    background: theme("colors.airlock.700");
+  }
+  .skeleton {
+    background: theme("colors.ink.800");
+  }
+}

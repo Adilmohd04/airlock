@@ -1,0 +1,41 @@
+manager_id,manager_name,org,span_of_control,budget_band,is_backfilling
+M125,Mira Park,Product,3,D,no
+M108,Wei Lindqvist,Legal,11,D,no
+M109,Ben Ali,People,8,D,yes
+M114,Nia Ivanova,Product,6,A,yes
+M104,Ana Kapoor,Customer Success,3,A,yes
+M107,Noa Novak,People,7,C,no
+M136,Tom Nguyen,Product,6,D,no
+M127,Priya Novak,Marketing,9,B,no
+M101,Tom Zhang,Product,6,D,yes
+M117,Noa Novak,Customer Success,4,C,no
+M121,Tom Haddad,Marketing,3,C,no
+M119,Raj Ali,Customer Success,9,A,no
+M118,Sam Costa,Legal,4,B,yes
+M115,Jon Haddad,Marketing,8,C,yes
+M113,Ivan Ivanova,Customer Success,5,C,no
+M123,Sana Nguyen,Design,8,C,no
+M106,Wei Okafor,Finance,9,B,yes
+M139,Kai Okafor,Data,6,C,yes
+M138,Leo Bauer,Design,6,C,yes
+M134,Ivan Fischer,Design,6,D,yes
+M112,Omar Park,Data,9,D,no
+M100,Leo Park,Engineering,10,A,no
+M130,Nia Haddad,Engineering,5,B,no
+M135,Noa Novak,Legal,6,C,yes
+M131,Mira Park,Product,10,D,no
+M105,Priya Ivanova,People,6,D,yes
+M110,Yuki Mensah,Product,11,B,no
+M137,Yuki Ivanova,Customer Success,4,A,no
+M116,Raj Bauer,Data,5,C,no
+M124,Omar Lindqvist,Product,3,C,no
+M103,Leo Fischer,Legal,3,C,yes
+M111,Raj Novak,Customer Success,10,C,yes
+M132,Lena Novak,Design,8,A,yes
+M122,Raj Park,Sales,9,B,no
+M129,Nia Ivanova,Customer Success,8,C,no
+M102,Ivan Yamada,Customer Success,3,C,no
+M133,Raj Kapoor,Legal,10,B,no
+M126,Priya Kapoor,Customer Success,11,D,no
+M128,Ben Reyes,Customer Success,8,D,yes
+M120,Mira Rossi,Finance,4,D,no

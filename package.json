@@ -1,0 +1,22 @@
+{
+  "name": "airlock-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Airlock - an agent-native data workspace where the agent analyzes private data that never leaves your browser. Built for the WebMCP Challenge.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace apps/airlock",
+    "build": "npm run build --workspace packages/webmcp-staged && npm run build --workspace apps/airlock",
+    "build:pkg": "npm run build --workspace packages/webmcp-staged",
+    "build:app": "npm run build --workspace apps/airlock",
+    "preview": "npm run preview --workspace apps/airlock",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

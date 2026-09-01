@@ -1,0 +1,58 @@
+# Netlify configuration for Airlock
+# Agent-native data workspace with DuckDB-WASM running client-side
+
+[build]
+  # Build from the monorepo root
+  command = "npm install && npm run build"
+  publish = "apps/airlock/dist"
+
+[context.production]
+  # Production context
+  environment = { NODE_ENV = "production" }
+
+[context.deploy-preview]
+  # Deploy previews for PR validation
+  environment = { NODE_ENV = "production" }
+
+[context.branch-deploy]
+  # Branch deployments for feature testing
+  environment = { NODE_ENV = "production" }
+
+# Redirect all non-file requests to index.html for SPA routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Cache headers for long-lived hashed assets (JS, CSS, WASM)
+# Vite outputs hashed filenames: index-[hash].js, duckdb-[hash].wasm, etc.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
+
+# Cache headers for demo data CSVs (also hashed by Vite)
+[[headers]]
+  for = "/demo/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Ensure index.html is never cached (falls back for routing)
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
+    Content-Type = "text/html; charset=UTF-8"
+
+# Catch-all for any .html files
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
+    Content-Type = "text/html; charset=UTF-8"

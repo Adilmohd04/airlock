@@ -1,0 +1,39 @@
+# Netlify _headers configuration for Airlock
+# Configures COOP/COEP headers for SharedArrayBuffer + WASM support
+# and MIME types for assets
+
+# All hashed JS/CSS/WASM assets in /assets/*
+# Vite output: index-[hash].js, duckdb-[hash].wasm, duckdb-[hash].worker.js
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+# Explicitly set WASM MIME type (Netlify auto-detects but being explicit helps)
+/assets/*.wasm
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=31536000, immutable
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+# Web workers (used by DuckDB-WASM)
+/assets/*.worker.js
+  Content-Type: application/javascript; charset=UTF-8
+  Cache-Control: public, max-age=31536000, immutable
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: cross-origin
+
+# Demo data (bundled CSVs)
+/demo/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Root HTML and any other .html files
+# Must NOT be cached so SPA routing and deployments work correctly
+/*
+  Cache-Control: public, max-age=0, must-revalidate
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin

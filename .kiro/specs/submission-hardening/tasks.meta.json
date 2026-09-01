@@ -1,0 +1,314 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add the placeholder-PNG generator script": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175059
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256191525
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256420979
+      }
+    ],
+    "1.2 Generate and commit the six placeholder screenshots": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175134
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256431009
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256719154
+      }
+    ],
+    "1.3 Add the zero-egress capture convention to the capture guide": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175204
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257519173
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257719972
+      }
+    ],
+    "1.4 Verify README gallery integrity (fix captions in place if needed)": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175274
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257519938
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257718570
+      }
+    ],
+    "2. Checkpoint - Workstream A verification": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175342
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788258032342
+      }
+    ],
+    "3.1 Add Vitest + fast-check and per-workspace test scripts/configs": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175418
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256192421
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256422383
+      }
+    ],
+    "3.3 Implement the SQL-guard property test suite": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175476
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256432611
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256714294
+      }
+    ],
+    "3.5 Implement the commit-gate property test suite": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175561
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256433360
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256716010
+      }
+    ],
+    "3.8 Implement the egress-classifier property test": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175633
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256732294
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257498204
+      }
+    ],
+    "4. Checkpoint - Workstream B verification": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175704
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788258033296
+      }
+    ],
+    "5.1 Add loading/error state and setters to uiStore": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175780
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256193870
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256423555
+      }
+    ],
+    "5.3 Create the LoadingIndicator component": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175846
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256434751
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256718490
+      }
+    ],
+    "5.5 Add load wrappers in loadFile.ts and repoint FileDrop": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175926
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257521168
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257717637
+      }
+    ],
+    "5.6 Render the indicator and error in the app shell": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256175998
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257727222
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257899864
+      }
+    ],
+    "6.1 Lazy-import the DuckDB-WASM glue in duckdb.ts": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256176069
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256194886
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256424625
+      }
+    ],
+    "6.2 Add manualChunks to the Vite build config": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256176144
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256435913
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256717005
+      }
+    ],
+    "8. Final checkpoint - full submission-hardening verification": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256176210
+      },
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788258035609
+      }
+    ],
+    "6. Workstream C — code-splitting the DuckDB engine": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788256717064
+      }
+    ],
+    "3. Workstream B — stand up the Vitest test runner": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257498304
+      }
+    ],
+    "1. Workstream A — README integrity + capture setup": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257720049
+      }
+    ],
+    "5. Workstream C — cold-start loading state": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788257899923
+      }
+    ],
+    "7. Checkpoint - Workstream C verification": [
+      {
+        "executionId": "a7473465-667c-4071-b604-61c74c33c8eb",
+        "chatSessionId": "sess_a0897c02-3a6a-4304-ac45-2e40f58d27d5",
+        "timestamp": 1788258034835
+      }
+    ]
+  }
+}
