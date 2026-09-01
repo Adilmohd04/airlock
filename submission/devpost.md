@@ -141,7 +141,7 @@ Staged approval is the mechanism. These are what make someone open it a second t
 
 ## What's Next
 
-**Real data in, real data out.** Analysts don't live in single CSVs. Excel and Parquet import, clipboard paste, a local folder via the File System Access API, and export to `.xlsx` — all through the same human-gated export path, all with self-hosted parsers so egress stays at zero.
+**Excel import, once it can be done safely.** Airlock already reads Parquet, TSV, JSON and pasted clipboard data — Parquet at zero dependency cost, because DuckDB-WASM's reader is natively linked. `.xlsx` was built and then deliberately cut: the only viable npm parser (SheetJS 0.18.5) carries two unpatched high-severity advisories, one of them prototype pollution, in exactly the code path that parses untrusted user files. Shipping a known-vulnerable parser inside a tool whose whole promise is "this is the safe place for your sensitive data" wasn't a trade worth making for one file format. `npm audit` reports zero vulnerabilities. Excel returns when there's a parser we'd defend.
 
 **Share the analysis, never the data.** A recipe plus a cited report is a complete, reproducible piece of work that contains no rows. Send a colleague the method and let them run it against their own copy. That's a fundamentally different sharing model than emailing a spreadsheet, and it falls out of what's already built.
 
