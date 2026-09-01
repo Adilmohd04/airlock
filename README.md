@@ -155,29 +155,29 @@ apps/airlock/
                               bytes for persistence, format dispatch for import.
     pii.ts                    Pre-flight heuristic that suggests likely-PII columns on load.
     uiStore.ts                Tab + console + activity-panel + load/error UI state.
-    useDataset.ts              React hooks over the stores.
-    loadFile.ts                Thin client-side file-load helpers (file, paste, picker, demo).
+    useDataset.ts             React hooks over the stores.
+    loadFile.ts               Thin client-side file-load helpers (file, paste, picker, demo).
   src/agent/
     tools.tsx                 The whole WebMCP surface: 8 read tools + 12 staged actions.
-    activity.ts                The transparency ledger (every read/propose/commit/reject/denied).
-    citations.ts               [cite:<id>] marker parsing + resolution against the ledger.
-    reviewController.ts        Bridges the Approve button and commit_* to one commit path.
-    reports.ts                  Insight-report store (agent-drafted markdown findings).
-    previews.tsx / previewTypes.ts   Typed diff previews rendered in the review queue.
-    hooks.ts                    React hooks for reports.
+    activity.ts               The transparency ledger (every read/propose/commit/reject/denied).
+    citations.ts              [cite:<id>] marker parsing + resolution against the ledger.
+    reviewController.ts       Bridges the Approve button and commit_* to one commit path.
+    reports.ts                Insight-report store (agent-drafted markdown findings).
+    previews.tsx / previewTypes.ts Typed diff previews rendered in the review queue.
+    hooks.ts                  React hooks for reports.
   src/lib/
-    egress.ts                   Wraps fetch / XMLHttpRequest / sendBeacon / WebSocket and counts
-                                every byte the page tries to send. Backs the Seal indicator.
-    persistence.ts               IndexedDB session store: save/list/switch/delete, autosave,
-                                one-time boot restore.
-    recipes.ts                   Recipe schema, serialize/parse, plan + replay through the
-                                review queue.
-    csv.ts                       rowsToCsv + downloadText (used by export_view).
-    importFormats.ts             Format detection by extension/MIME + delimiter sniffing.
-    markdown.tsx                 marked + DOMPurify, twice — once for the base report, again
-                                (widened allowlist) after citation chips are injected.
-    format.ts                    Number / byte / relative-time formatting.
-  src/components/              React UI. TopBar (+ SessionMenu, SealStatus, WebMCPStatus),
+    egress.ts                 Wraps fetch / XMLHttpRequest / sendBeacon / WebSocket and counts
+                              every byte the page tries to send. Backs the Seal indicator.
+    persistence.ts            IndexedDB session store: save/list/switch/delete, autosave,
+                              one-time boot restore.
+    recipes.ts                Recipe schema, serialize/parse, plan + replay through the
+                              review queue.
+    csv.ts                    rowsToCsv + downloadText (used by export_view).
+    importFormats.ts          Format detection by extension/MIME + delimiter sniffing.
+    markdown.tsx              marked + DOMPurify, twice — once for the base report, again
+                              (widened allowlist) after citation chips are injected.
+    format.ts                 Number / byte / relative-time formatting.
+  src/components/             React UI. TopBar (+ SessionMenu, SealStatus, WebMCPStatus),
                               LeftRail (DatasetSwitcher, ColumnList with the redact control,
                               FileDrop), CenterTabs, RecipePanel, DataGrid, FilterBar,
                               ChartPanel, ReportPanel, RightRail (ReviewPanel + ProposalCard,

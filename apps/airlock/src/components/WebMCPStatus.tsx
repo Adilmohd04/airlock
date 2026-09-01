@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { isWebMCPAvailable } from "webmcp-staged";
 
 const READ_TOOLS = 8;
-const STAGED_ACTIONS = 11;
+const STAGED_ACTIONS = 12;
 
 /**
  * Shows whether a WebMCP host is present and how the tool surface splits

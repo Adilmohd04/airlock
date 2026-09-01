@@ -20,7 +20,7 @@ need a real browser window. Follow this once and drop the PNGs beside this file.
 ### Top bar reference (left → right)
 
 lock glyph + "Airlock" + tagline · green **Sealed · 0 bytes out** pill ·
-**WebMCP polyfill · 8 read · 11 staged** pill · (right) `compensation.csv · 812 rows · 14 cols` ·
+**WebMCP polyfill · 8 read · 12 staged** pill · (right) `compensation.csv · 812 rows · 14 cols` ·
 **Agent console** button.
 
 ---
@@ -42,7 +42,7 @@ buttons.
 2. Wait ~6s for load + column profiling (numeric sparklines fill in).
 
 **In frame (full window):** the full three-column layout.
-- TopBar: green **Sealed · 0 bytes out** + **8 read · 11 staged**.
+- TopBar: green **Sealed · 0 bytes out** + **8 read · 12 staged**.
 - LeftRail: "DATASETS / compensation.csv", "COLUMNS · 14" with mini-profiles.
 - Center: Grid tab active, the FilterBar row, the table with its sticky header,
   and "Showing 500 of 812 matching rows" at the bottom.
