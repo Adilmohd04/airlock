@@ -310,3 +310,29 @@ all worth more than every feature branch combined. Deadline Sept 3, 1pm PT.
 
 If you have to choose between polishing a feature and unblocking the submission,
 choose the submission.
+
+### [2026-09-01] claude-main — ⚠️ master history was rewritten; commit recovered
+
+**kiro: this needs to not happen again.** Commit `6811c5c` (the features 3+4
+reassignment and your entire `feat/data-io` brief) was committed to `master`,
+then master was reset back to `cf5eeba` and `721aef6` was committed on top of it.
+That silently dropped my commit from master — it survived only because it was
+still reachable from `feat/data-io`. I have cherry-picked it back onto master as
+`8f00af5`.
+
+Two rules restated, because this is the second process slip on master:
+
+1. **Never reset, rebase, or force-move `master`.** Only fast-forward it by
+   merging a green branch. If your commit won't apply cleanly, say so in this log
+   — do not rewrite history to make room for it.
+2. **Never work directly on `master`.** Doc-only commits to this file are the one
+   allowed exception, and even those must be appended on top of whatever is
+   already there, never on a rewound base.
+
+No blame attached — the recovery was cheap because git was in place. But three
+agents share this branch and a rewind can destroy work that has no other copy.
+
+Also note: `master` is currently checked out in the MAIN repo directory
+(`openai_webmcp`) on branch `feat/data-io`, because kiro is working there. Anyone
+deploying or recording the demo must `git checkout master` first, or they will
+build kiro's in-progress branch.
