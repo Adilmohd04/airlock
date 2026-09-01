@@ -2,6 +2,7 @@ import { useActiveDataset } from "../engine/useDataset";
 import { uiStore, useUI } from "../engine/uiStore";
 import { SealStatus } from "./SealStatus";
 import { WebMCPStatus } from "./WebMCPStatus";
+import { SessionMenu } from "./SessionMenu";
 import { MobileGate } from "./MobileGate";
 import { num } from "../lib/format";
 
@@ -40,6 +41,7 @@ export function TopBar() {
             {state.columns.length + state.derived.length} cols
           </span>
         )}
+        <SessionMenu />
         <button
           type="button"
           className="btn btn-ghost !px-2 !py-1 text-xs"

@@ -118,6 +118,30 @@ unfrozen for those two branches only — but keep `master` shippable at all time
 Everyone: submission artifacts (deploy, screenshots, video, form) outrank every
 feature. If you have to choose, choose the submission.
 
+### [2026-09-01] claude-main — feat/recipes landed on its branch (not merged)
+
+Feature 2 (Recipes) is green on `feat/recipes`: `npm run build`,
+`npm run typecheck --workspace apps/airlock`, `npm test` all pass.
+
+New files only:
+- `apps/airlock/src/lib/recipes.ts` — schema (`{ version: 1, ... }`), serialize,
+  parse+validate, `planReplay`, `replayRecipe`.
+- `apps/airlock/src/components/RecipePanel.tsx` — the Export / Import / Replay bar.
+- `apps/airlock/src/lib/recipes.test.ts` — 25 pure-logic tests. Co-located, NOT
+  under `__tests__/` so it stays out of kiro's Vitest-trust-suite tree. Move it
+  if that's a problem, kiro.
+
+One edit outside my files — **`apps/airlock/src/App.tsx`**: 2 lines, mounts
+`<RecipePanel />` between `<CenterTabs />` and the tab content.
+**claude-engine / persistence-agent:** heads-up, `feat/persistence` will likely
+also touch `App.tsx` (SessionMenu). Small conflict, I'll resolve it at merge.
+
+Zero edits to `datasetStore.ts` / `workspaceStore.ts` / `tools.tsx` /
+`reviewController.ts` / `ReviewPanel` / `ProposalCard`. Replay stages each step
+as a normal pending Proposal in `defaultProposalStore` (sequential, one per
+step) — the existing review queue and commit handlers apply them unchanged after
+the human approves. A recipe never mutates on its own.
+
 ### [2026-09-01] claude-main — feat/recipes is green (commit 155f275)
 
 Feature 2 done, committed to `feat/recipes`, NOT merged. build + typecheck +
@@ -142,6 +166,48 @@ Known rough edges carried forward: replaying twice before approving restages
 duplicate pending proposals (human rejects the dupes); `replayRecipe` itself is
 not unit-tested (needs DuckDB-WASM + DOM), only the pure planning layer is —
 worth an in-browser check during the demo pass.
+
+### [2026-09-01] claude-main — feat/persistence landed on its branch (store touchpoints inside)
+
+Feature 1 (Persistence) is green on `feat/persistence`: `npm run build`,
+`npm run typecheck --workspace apps/airlock`, `npm test` all pass. Not merged.
+
+New files (mine): `apps/airlock/src/lib/persistence.ts`,
+`apps/airlock/src/components/SessionMenu.tsx`.
+
+**claude-engine — I edited five of your files. All additive, no existing
+behavior changed. Please reconcile when features 3/4 merge:**
+
+- `engine/datasetStore.ts`: added `export interface DatasetViewSnapshot` and two
+  methods on `DatasetStore` — `serialize(): DatasetViewSnapshot` and
+  `async hydrate(v)`. Nothing else moved.
+- `engine/workspaceStore.ts`: added `DatasetSnapshot` / `WorkspaceSnapshot`
+  interfaces; a private `sources: Map<id, {kind,text}>` populated by **one line
+  each** in `loadFile`, `loadDemo`, `commitJoin` and cleared by one line in
+  `removeDataset`; new methods `getSource()`, `serialize()`, `hydrate()`; and
+  `import { rowsToCsv } from "../lib/csv"` (used only to snapshot a materialized
+  join). The base table is still immutable and no mutator logic changed.
+- `agent/activity.ts`: added `hydrate(entries)` (preserves ids + timestamps).
+- `agent/reports.ts`: added `hydrate(reports)`.
+- `components/TopBar.tsx`: import + `<SessionMenu />` in the right-hand action
+  cluster (before the Agent console button). This is the only mount point; it is
+  always visible so sessions are reachable from the EmptyState too.
+
+Design decision (justified in `persistence.ts` header): persist the **original
+source bytes** per dataset (CSV/JSON text, or a CSV dump for joins) in IndexedDB
+and rebuild the DuckDB table on load by replaying `registerCsv`/`registerJson` —
+deterministic by construction, no Parquet/Arrow writer needed, no second data
+format. View layer (filters/derived/renames/charts/flags) is small JSON on top.
+Storage: hand-rolled IndexedDB wrapper, no `idb` dep, **zero network** — the
+Seal still reads 0. Private-window / quota / blocked-storage all degrade to a
+no-op with a "Not saved" pill; the app boots and works regardless.
+
+kiro: `feat/data-io` adds real parquet/xlsx import through
+`engine/loadFile.ts` — persistence captures bytes in `workspaceStore.loadFile`
+*after* the table is registered, keyed off the same `File`, so xlsx/parquet
+loads will persist as long as `sources.set(...)` still sees the raw text/bytes.
+If you change `loadFile` to not hold the raw bytes, ping me — I need *something*
+replayable (raw bytes or a re-runnable spec) per dataset.
 
 ### [2026-09-01] claude-main — feat/persistence is green (commit cc7e911)
 

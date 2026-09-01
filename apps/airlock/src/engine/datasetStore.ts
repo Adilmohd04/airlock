@@ -103,6 +103,20 @@ export interface DatasetState {
   error: string | null;
 }
 
+/**
+ * The view-level state that `lib/persistence.ts` writes to IndexedDB. Deliberately
+ * a subset of `DatasetState`: the base table is rebuilt from the saved source
+ * bytes, everything here is layered back on top (see `buildViewSql`).
+ */
+export interface DatasetViewSnapshot {
+  renames: Record<string, string>;
+  filters: FilterClause[];
+  derived: DerivedColumn[];
+  flags: FlagSet[];
+  charts: ChartSpec[];
+  focusedColumn: string | null;
+}
+
 type Listener = () => void;
 
 export interface CreateDatasetOptions {
@@ -474,6 +488,37 @@ export class DatasetStore {
   /** Row keys (JSON of the row) flagged by any active flag set — for grid tinting. */
   get flaggedExpressions(): string[] {
     return this.state.flags.map((f) => f.expression);
+  }
+
+  // --- Persistence (lib/persistence.ts) ------------------------------------
+
+  /** Snapshot the view layer for IndexedDB. Plain data, already serializable. */
+  serialize(): DatasetViewSnapshot {
+    const { renames, filters, derived, flags, charts, focusedColumn } = this.state;
+    return { renames, filters, derived, flags, charts, focusedColumn };
+  }
+
+  /**
+   * Re-apply a saved view layer onto a freshly-rebuilt base table. Called right
+   * after `onLoaded()` on session restore, so the grid ends up identical to the
+   * state the user left. `refreshView` re-runs every query and recounts flags.
+   */
+  async hydrate(v: DatasetViewSnapshot): Promise<void> {
+    this.set({
+      renames: v.renames ?? {},
+      filters: v.filters ?? [],
+      derived: v.derived ?? [],
+      flags: v.flags ?? [],
+      charts: v.charts ?? [],
+      focusedColumn: v.focusedColumn ?? null,
+    });
+    // A bad restored expression surfaces in `state.error`; it must not abort the
+    // whole session restore, so don't rethrow here.
+    try {
+      await this.refreshView();
+    } catch {
+      /* error is already on state.error via refreshView */
+    }
   }
 
   /** Drop the underlying table (used when a dataset is removed). */

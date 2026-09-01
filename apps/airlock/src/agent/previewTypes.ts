@@ -4,6 +4,8 @@
  * paragraph of prose. The shape IS the review experience.
  */
 
+import type { CitationStats } from "./citations";
+
 export type ToolPreview =
   | {
       kind: "add_filter";
@@ -58,4 +60,12 @@ export type ToolPreview =
       columns: string[];
       appliedTransforms: string[];
     }
-  | { kind: "write_report"; title: string; markdown: string; words: number };
+  | {
+      kind: "write_report";
+      title: string;
+      markdown: string;
+      words: number;
+      /** Cited-vs-uncited claim counts, computed at propose time — the
+       *  evidence-quality summary the human sees before approving. */
+      citations: CitationStats;
+    };
