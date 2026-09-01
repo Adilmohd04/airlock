@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { useReports } from "../agent/hooks";
+import { useActivity, useReports } from "../agent/hooks";
 import { reportStore } from "../agent/reports";
+import { citationStats } from "../agent/citations";
 import { Markdown } from "../lib/markdown";
 import { downloadText } from "../lib/csv";
 import { relativeTime } from "../lib/format";
 
 export function ReportPanel() {
   const reports = useReports();
+  const entries = useActivity();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = reports.find((r) => r.id === selectedId) ?? reports[0] ?? null;
+  const citations = selected ? citationStats(selected.markdown, entries) : null;
 
   if (reports.length === 0) {
     return (
@@ -73,6 +76,25 @@ export function ReportPanel() {
               </button>
             </div>
           </div>
+          {citations && (citations.citedClaims > 0 || citations.uncitedClaims > 0) && (
+            <div className="border-b border-ink-800 px-6 py-2 text-[11px] text-slate-500">
+              <span className="text-commit">{citations.citedClaims} cited</span>
+              {" · "}
+              <span className={citations.uncitedClaims > 0 ? "text-pending" : ""}>
+                {citations.uncitedClaims} uncited
+              </span>
+              {citations.brokenCitations > 0 && (
+                <>
+                  {" · "}
+                  <span className="text-danger">
+                    {citations.brokenCitations} broken citation
+                    {citations.brokenCitations === 1 ? "" : "s"}
+                  </span>
+                </>
+              )}
+              <span className="ml-2 text-slate-600">— click a chip to see its query + result</span>
+            </div>
+          )}
           <div className="mx-auto max-w-2xl px-6 py-6">
             <Markdown source={selected.markdown} />
           </div>

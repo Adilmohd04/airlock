@@ -35,6 +35,7 @@ import {
 } from "../engine/duckdb";
 import { rowsToCsv, downloadText } from "../lib/csv";
 import { activityLog } from "./activity";
+import { citationStats, extractCitations } from "./citations";
 import { reportStore } from "./reports";
 import { registerCommit } from "./reviewController";
 import { uiStore } from "../engine/uiStore";
@@ -338,7 +339,7 @@ export function useAirlockTools(): void {
         {
           name: "get_activity_log",
           description:
-            "Return the transparency ledger: every tool call this session, what it did, and a summary of the data returned to the agent.",
+            "Return the transparency ledger: every tool call this session, what it did, and a summary of the data returned to the agent. Each entry's `id` is what a write_report [cite:<id>] marker points at — cite the read entry that produced each number.",
           annotations: { readOnlyHint: true },
           execute: () =>
             read("get_activity_log", {}, async () => {
@@ -830,7 +831,9 @@ export function useAirlockTools(): void {
     stage<{ title: string; markdown: string }>({
       name: "write_report",
       description:
-        "Write an insight report — a markdown findings document about the data — for the human to review, keep and export. Use headings, short paragraphs and bullet points. Cite concrete numbers you obtained from read tools.",
+        "Write an insight report — a markdown findings document about the data — for the human to review, keep and export. Use headings, short paragraphs and bullet points. " +
+        "Cite every concrete number with a [cite:<id>] marker, where <id> is the `id` field of the get_activity_log / read-tool entry that produced it " +
+        "(e.g. \"paid 8% below market [cite:3fa85f64-...]\"). Uncited numeric claims are shown to the human as unverified before they approve.",
       inputSchema: {
         type: "object",
         properties: {
@@ -841,9 +844,25 @@ export function useAirlockTools(): void {
       },
       prepare: async ({ title, markdown }) => {
         const words = markdown.trim().split(/\s+/).filter(Boolean).length;
+        const entries = activityLog.list();
+        const citations = citationStats(markdown, entries);
+        // Broken citations don't block the proposal — the human still needs
+        // to see the report to judge it — but they must leave a trail, same
+        // as any other refused/suspect input (non-negotiable #5).
+        if (citations.brokenCitations > 0) {
+          const broken = extractCitations(markdown, entries).filter((c) => !c.valid);
+          activityLog.add({
+            kind: "denied",
+            tool: "propose_write_report",
+            args: { title },
+            summary: `${citations.brokenCitations} citation(s) reference a missing or non-read ledger entry: ${broken.map((c) => c.id).join(", ")}`,
+          });
+        }
         return {
-          summary: `Insight report: "${title}" (${words} words)`,
-          preview: { kind: "write_report", title, markdown, words },
+          summary:
+            `Insight report: "${title}" (${words} words, ${citations.citedClaims} cited / ${citations.uncitedClaims} uncited claim(s)` +
+            `${citations.brokenCitations ? `, ${citations.brokenCitations} broken citation(s)` : ""})`,
+          preview: { kind: "write_report", title, markdown, words, citations },
         };
       },
       commit: async ({ title, markdown }) => {
