@@ -16,14 +16,61 @@ import {
   assertIdentifier,
   registerCsv,
   registerJson,
+  registerParquet,
   runQuery,
   runStatement,
 } from "./duckdb";
-import { rowsToCsv } from "../lib/csv";
+import { gridToCsv, parseDelimited, rowsToCsv } from "../lib/csv";
+import { detectFormat, sniffDelimiter } from "../lib/importFormats";
 
 export interface DatasetHandle {
   id: string;
   store: DatasetStore;
+}
+
+/**
+ * The replayable origin of a dataset's base table, kept in memory so
+ * `lib/persistence.ts` can rebuild the table on reload through the exact same
+ * import path. Text formats carry their text; the binary format (`.parquet`)
+ * carries raw bytes — `file.text()` would corrupt those. Never leaves the tab.
+ */
+export type DatasetSource =
+  | { kind: "csv" | "json"; text: string }
+  | { kind: "parquet"; bytes: Uint8Array };
+
+export type DatasetSourceKind = DatasetSource["kind"];
+
+/**
+ * A `DatasetSource` flattened to plain, IndexedDB-storable fields (text xor
+ * bytes). `lib/persistence.ts` spreads this into a blob record on save and calls
+ * `unpackSource` on restore, so the source (de)serialization lives next to the
+ * type it round-trips.
+ */
+export interface PackedSource {
+  kind: DatasetSourceKind;
+  text?: string;
+  bytes?: Uint8Array;
+}
+
+export function packSource(src: DatasetSource): PackedSource {
+  switch (src.kind) {
+    case "csv":
+    case "json":
+      return { kind: src.kind, text: src.text };
+    case "parquet":
+      return { kind: "parquet", bytes: src.bytes };
+  }
+}
+
+/** Inverse of `packSource`. Returns null for a record too incomplete to rebuild. */
+export function unpackSource(p: PackedSource): DatasetSource | null {
+  if (p.kind === "csv" || p.kind === "json") {
+    return typeof p.text === "string" ? { kind: p.kind, text: p.text } : null;
+  }
+  if (p.kind === "parquet") {
+    return p.bytes ? { kind: "parquet", bytes: p.bytes } : null;
+  }
+  return null;
 }
 
 /** One dataset as written to IndexedDB by `lib/persistence.ts`. */
@@ -33,8 +80,8 @@ export interface DatasetSnapshot {
   source: "file" | "demo" | "join";
   /** Preserved verbatim so chart SQL that names the real table still resolves. */
   tableName: string;
-  /** How to rebuild the base table from the saved source bytes. */
-  kind: "csv" | "json";
+  /** How to rebuild the base table from the saved source. */
+  kind: DatasetSourceKind;
   view: DatasetViewSnapshot;
 }
 
@@ -59,12 +106,12 @@ class WorkspaceStore {
   private listeners = new Set<Listener>();
   private activeUnsub: (() => void) | null = null;
   /**
-   * Raw source bytes per dataset, kept so `lib/persistence.ts` can rebuild the
-   * base table on reload from the *exact* bytes the user loaded — the same code
-   * path (`registerCsv` / `registerJson`) runs, so restore is deterministic.
-   * Populated on every load, dropped on `removeDataset`. Never leaves the tab.
+   * The replayable source per dataset (see `DatasetSource`), kept so
+   * `lib/persistence.ts` can rebuild the base table on reload through the same
+   * import path the first load used. Populated on every load, dropped on
+   * `removeDataset`. Never leaves the tab.
    */
-  private sources = new Map<string, { kind: "csv" | "json"; text: string }>();
+  private sources = new Map<string, DatasetSource>();
   private snapshot: WorkspaceState = {
     datasets: [],
     activeId: null,
@@ -175,14 +222,25 @@ class WorkspaceStore {
     this.emit();
   }
 
-  /** Load a user File entirely client-side. */
-  async loadFile(file: File): Promise<DatasetHandle> {
-    const id = rid();
-    const tableName = this.tableNameFor(file.name, id.slice(0, 8));
-    const name = file.name.toLowerCase();
-    const text = await file.text();
+  /**
+   * Build a `DatasetSource` from a user File, registering the base table as a
+   * side effect. Dispatches on the detected format. Throws (before any state
+   * mutation) on an unsupported file or an unparseable one — the caller turns
+   * that into an honest error.
+   */
+  private async importSource(
+    file: File,
+    tableName: string
+  ): Promise<DatasetSource> {
+    const fmt = detectFormat(file.name, file.type);
+    if (!fmt) {
+      throw new Error(
+        `Airlock can't read "${file.name}". Supported: .csv, .tsv, .json, .parquet.`
+      );
+    }
 
-    if (name.endsWith(".json")) {
+    if (fmt === "json") {
+      const text = await file.text();
       let parsed: unknown;
       try {
         parsed = JSON.parse(text);
@@ -191,12 +249,60 @@ class WorkspaceStore {
       }
       const records = Array.isArray(parsed) ? parsed : [parsed];
       await registerJson(tableName, records as Record<string, unknown>[]);
-      // Kept so lib/persistence.ts can rebuild this table on reload.
-      this.sources.set(id, { kind: "json", text });
-    } else {
-      await registerCsv(tableName, text);
-      this.sources.set(id, { kind: "csv", text });
+      return { kind: "json", text };
     }
+
+    if (fmt === "csv" || fmt === "tsv") {
+      const raw = await file.text();
+      // Normalize TSV to comma CSV up front so the persisted source and the
+      // restore path are a single code path.
+      const text =
+        fmt === "tsv" ? gridToCsv(parseDelimited(raw, "\t")) : raw;
+      await registerCsv(tableName, text);
+      return { kind: "csv", text };
+    }
+
+    // parquet: DuckDB's native reader, straight from the raw bytes.
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    try {
+      await registerParquet(tableName, bytes);
+    } catch (e) {
+      throw new Error(
+        `That .parquet file could not be read — it may be corrupt or truncated. (${
+          e instanceof Error ? e.message : String(e)
+        })`
+      );
+    }
+    return { kind: "parquet", bytes };
+  }
+
+  /** Re-register a base table from a saved `DatasetSource` (used by `hydrate`). */
+  private async registerSource(
+    tableName: string,
+    src: DatasetSource
+  ): Promise<void> {
+    switch (src.kind) {
+      case "json":
+        await registerJson(
+          tableName,
+          JSON.parse(src.text) as Record<string, unknown>[]
+        );
+        return;
+      case "csv":
+        await registerCsv(tableName, src.text);
+        return;
+      case "parquet":
+        await registerParquet(tableName, src.bytes);
+        return;
+    }
+  }
+
+  /** Load a user File entirely client-side. */
+  async loadFile(file: File): Promise<DatasetHandle> {
+    const id = rid();
+    const tableName = this.tableNameFor(file.name, id.slice(0, 8));
+    const source = await this.importSource(file, tableName);
+    this.sources.set(id, source);
 
     const store = createDatasetStore({
       id,
@@ -207,6 +313,47 @@ class WorkspaceStore {
     const handle: DatasetHandle = { id, store };
     await this.register(handle, true);
     await store.onLoaded(file.name);
+    return handle;
+  }
+
+  /**
+   * Load clipboard-pasted delimited text. The delimiter is sniffed (TSV out of
+   * a spreadsheet, CSV, semicolon- or pipe-separated) and the text normalized to
+   * comma CSV before it hits DuckDB — so the persisted source is plain CSV and
+   * the restore path needs no special case.
+   */
+  async loadPastedText(
+    text: string,
+    fileName = "pasted-data.csv"
+  ): Promise<DatasetHandle> {
+    const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+    if (!body.trim()) {
+      throw new Error("Nothing to import — the pasted text was empty.");
+    }
+    const guess = sniffDelimiter(body);
+    const grid = parseDelimited(body, guess.delimiter).filter((r) =>
+      r.some((c) => c.trim().length > 0)
+    );
+    if (grid.length < 2) {
+      throw new Error(
+        "Nothing to import — need a header row and at least one data row."
+      );
+    }
+    const csv = gridToCsv(grid);
+    const id = rid();
+    const tableName = this.tableNameFor(fileName, id.slice(0, 8));
+    await registerCsv(tableName, csv);
+    this.sources.set(id, { kind: "csv", text: csv });
+
+    const store = createDatasetStore({
+      id,
+      tableName,
+      fileName,
+      source: "file",
+    });
+    const handle: DatasetHandle = { id, store };
+    await this.register(handle, true);
+    await store.onLoaded(fileName);
     return handle;
   }
 
@@ -349,12 +496,12 @@ class WorkspaceStore {
 
   // --- Persistence (lib/persistence.ts) ------------------------------------
 
-  /** The saved source bytes for one dataset, or undefined if it can't be rebuilt. */
-  getSource(id: string): { kind: "csv" | "json"; text: string } | undefined {
+  /** The replayable source for one dataset, or undefined if it can't be rebuilt. */
+  getSource(id: string): DatasetSource | undefined {
     return this.sources.get(id);
   }
 
-  /** Metadata snapshot for IndexedDB. Bytes are fetched separately via `getSource`. */
+  /** Metadata snapshot for IndexedDB. The source itself is fetched via `getSource`. */
   serialize(): WorkspaceSnapshot {
     return {
       activeId: this.activeId,
@@ -362,12 +509,13 @@ class WorkspaceStore {
         .filter((h) => this.sources.has(h.id))
         .map((h) => {
           const st = h.store.getState();
+          const src = this.sources.get(h.id)!;
           return {
             id: h.id,
             fileName: st.fileName,
             source: st.source,
             tableName: st.tableName,
-            kind: this.sources.get(h.id)!.kind,
+            kind: src.kind,
             view: h.store.serialize(),
           };
         }),
@@ -376,25 +524,18 @@ class WorkspaceStore {
 
   /**
    * Rebuild the workspace from a saved snapshot: re-register each base table
-   * from its bytes, recreate the dataset store, re-profile, then re-apply the
-   * view layer. A dataset that fails to restore is skipped so the rest of the
-   * session still opens. The caller (`lib/persistence.ts`) has already cleared
-   * any existing workspace.
+   * from its source (text for csv/json, raw bytes for parquet), recreate
+   * the dataset store, re-profile, then re-apply the view layer. A dataset that
+   * fails to restore is skipped so the rest of the session still opens. The
+   * caller (`lib/persistence.ts`) has already cleared any existing workspace.
    */
   async hydrate(
-    datasets: (DatasetSnapshot & { text: string })[],
+    datasets: (DatasetSnapshot & { payload: DatasetSource })[],
     activeId: string | null
   ): Promise<void> {
     for (const d of datasets) {
       try {
-        if (d.kind === "json") {
-          await registerJson(
-            d.tableName,
-            JSON.parse(d.text) as Record<string, unknown>[]
-          );
-        } else {
-          await registerCsv(d.tableName, d.text);
-        }
+        await this.registerSource(d.tableName, d.payload);
         const store = createDatasetStore({
           id: d.id,
           tableName: d.tableName,
@@ -403,7 +544,7 @@ class WorkspaceStore {
         });
         const handle: DatasetHandle = { id: d.id, store };
         this.datasets = [...this.datasets, handle];
-        this.sources.set(d.id, { kind: d.kind, text: d.text });
+        this.sources.set(d.id, d.payload);
         await store.onLoaded(d.fileName);
         await store.hydrate(d.view);
       } catch {

@@ -49,7 +49,7 @@ function activeStore(): DatasetStore {
   const s = workspaceStore.getActiveStore();
   if (!s) {
     throw new Error(
-      "No dataset is loaded yet. Ask the user to drop a CSV/JSON file or load the demo dataset, then try again."
+      "No dataset is loaded yet. Ask the user to drop a data file (CSV, TSV, JSON or Parquet) or load the demo dataset, then try again."
     );
   }
   return s;
@@ -139,6 +139,18 @@ function scrubRedactedColumns(
 }
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Export download name: honor an explicit filename, force the .csv extension. */
+function exportFileName(
+  filename: string | undefined,
+  sourceName: string
+): string {
+  const base = (filename || `${sourceName.replace(/\.[^.]+$/, "")}-airlock`).replace(
+    /\.(csv|tsv|json|parquet)$/i,
+    ""
+  );
+  return `${base}.csv`;
+}
 
 // ── the hook ───────────────────────────────────────────────────────────────
 
@@ -962,7 +974,9 @@ export function useAirlockTools(): void {
         "Export the current transformed view of the active dataset (filters + derived columns + renames applied) as a CSV download. This is the one action that moves data out of the browser — into the user's own Downloads folder, on their approval.",
       inputSchema: {
         type: "object",
-        properties: { filename: { type: "string" } },
+        properties: {
+          filename: { type: "string" },
+        },
       },
       prepare: async ({ filename }) => {
         const store = activeStore();
@@ -983,7 +997,7 @@ export function useAirlockTools(): void {
             (redactedOut.length ? ` (${redactedOut.length} redacted column(s) excluded)` : ""),
           preview: {
             kind: "export_view",
-            filename: filename || `${st.fileName.replace(/\.[^.]+$/, "")}-airlock.csv`,
+            filename: exportFileName(filename, st.fileName),
             rows: res.rowCount,
             columns: res.columns,
             appliedTransforms: transforms.length ? transforms : ["(raw view, no transforms)"],
@@ -994,8 +1008,12 @@ export function useAirlockTools(): void {
         const store = activeStore();
         const st = store.getState();
         const res = await runQuery(store.buildAgentViewSql());
-        const name = filename || `${st.fileName.replace(/\.[^.]+$/, "")}-airlock.csv`;
-        downloadText(name, rowsToCsv(res.columns, res.rows), "text/csv;charset=utf-8");
+        const name = exportFileName(filename, st.fileName);
+        downloadText(
+          name,
+          rowsToCsv(res.columns, res.rows),
+          "text/csv;charset=utf-8"
+        );
         return `Exported ${res.rowCount} rows to ${name}.`;
       },
     });

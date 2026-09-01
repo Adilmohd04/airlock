@@ -30,16 +30,22 @@
  *                               reports:  InsightReport[],
  *                               activity: ActivityEntry[] }
  *   blobs     keyPath "key"   { key: `${sessionId}::${tableName}`, sessionId,
- *                               tableName, kind: "csv" | "json", text }
+ *                               tableName, kind, text? | bytes? }
  *              index "bySession" -> sessionId
+ *              (text for csv/json; bytes for the binary format parquet —
+ *               IndexedDB stores a Uint8Array natively)
  *   meta      keyPath "k"     { k: "currentSessionId", v: string }
  */
 
 import React from "react";
 import { defaultProposalStore } from "webmcp-staged";
 import {
+  packSource,
+  unpackSource,
   workspaceStore,
   type DatasetSnapshot,
+  type DatasetSource,
+  type DatasetSourceKind,
   type WorkspaceSnapshot,
 } from "../engine/workspaceStore";
 import { rid } from "../engine/datasetStore";
@@ -75,8 +81,10 @@ interface BlobRecord {
   key: string;
   sessionId: string;
   tableName: string;
-  kind: "csv" | "json";
-  text: string;
+  /** `kind` + (`text` for csv/json | `bytes` for parquet). */
+  kind: DatasetSourceKind;
+  text?: string;
+  bytes?: Uint8Array;
 }
 
 export interface PersistenceState {
@@ -306,8 +314,7 @@ async function doSave(): Promise<void> {
       key: `${sessionId}::${d.tableName}`,
       sessionId,
       tableName: d.tableName,
-      kind: src.kind,
-      text: src.text,
+      ...packSource(src),
     });
   }
 
@@ -387,11 +394,14 @@ async function restoreSession(id: string): Promise<boolean> {
   const byTable = new Map(blobs.map((b) => [b.tableName, b]));
 
   const datasets = rec.workspace.datasets
-    .map((d): (DatasetSnapshot & { text: string }) | null => {
+    .map((d): (DatasetSnapshot & { payload: DatasetSource }) | null => {
       const b = byTable.get(d.tableName);
-      return b ? { ...d, kind: b.kind, text: b.text } : null;
+      const payload = b ? unpackSource(b) : null;
+      return payload ? { ...d, kind: payload.kind, payload } : null;
     })
-    .filter((x): x is DatasetSnapshot & { text: string } => x !== null);
+    .filter(
+      (x): x is DatasetSnapshot & { payload: DatasetSource } => x !== null
+    );
 
   await workspaceStore.hydrate(datasets, rec.workspace.activeId);
   reportStore.hydrate(rec.reports ?? []);

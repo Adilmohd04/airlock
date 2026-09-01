@@ -32,6 +32,67 @@ export async function loadFile(file: File): Promise<void> {
   }
 }
 
+/** Import clipboard-pasted delimited text (TSV/CSV/…), delimiter auto-sniffed. */
+export async function loadPastedText(
+  text: string,
+  fileName = "pasted-data.csv"
+): Promise<void> {
+  uiStore.beginLoad(fileName);
+  try {
+    await workspaceStore.loadPastedText(text, fileName);
+    uiStore.endLoad();
+  } catch (e) {
+    uiStore.failLoad(fileName, errorMessage(e));
+    throw e;
+  }
+}
+
+/**
+ * Pick one local file through the File System Access API when the browser has
+ * it (Chromium), falling back to a transient `<input type=file>` elsewhere. Only
+ * *selects* the file — the caller loads it, sharing the drag-drop load path.
+ * Returns `null` if the user dismissed the picker.
+ */
+export async function pickLocalFile(): Promise<File | null> {
+  type PickerWindow = Window & {
+    showOpenFilePicker?: (o?: unknown) => Promise<{ getFile: () => Promise<File> }[]>;
+  };
+  const w = window as PickerWindow;
+
+  if (typeof w.showOpenFilePicker === "function") {
+    try {
+      const handles = await w.showOpenFilePicker({
+        multiple: false,
+        types: [
+          {
+            description: "Tabular data",
+            accept: {
+              "text/csv": [".csv", ".tsv"],
+              "application/json": [".json"],
+              "application/octet-stream": [".parquet"],
+            },
+          },
+        ],
+      });
+      return handles?.[0] ? await handles[0].getFile() : null;
+    } catch (e) {
+      // AbortError == user cancelled; anything else is a real failure.
+      if (e instanceof DOMException && e.name === "AbortError") return null;
+      throw e;
+    }
+  }
+
+  // Fallback: a transient <input type=file>.
+  return new Promise<File | null>((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".csv,.tsv,.json,.parquet";
+    input.onchange = () => resolve(input.files?.[0] ?? null);
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
+}
+
 /** Load a bundled demo dataset by URL (still entirely client-side). */
 export async function loadDemo(url: string, fileName: string): Promise<void> {
   uiStore.beginLoad(fileName);
