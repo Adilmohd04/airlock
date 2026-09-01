@@ -157,7 +157,7 @@ export function SessionMenu() {
                               {relativeTime(s.updatedAt)}
                             </span>
                           </button>
-                          <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100">
+                          <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
                             <button
                               type="button"
                               className="px-1 text-slate-500 hover:text-slate-200"
@@ -170,6 +170,7 @@ export function SessionMenu() {
                               type="button"
                               className="px-1 text-slate-500 hover:text-danger"
                               title="Delete this session"
+                              aria-label={`Delete session ${s.name}`}
                               onClick={() => void deleteSession(s.id)}
                             >
                               ✕

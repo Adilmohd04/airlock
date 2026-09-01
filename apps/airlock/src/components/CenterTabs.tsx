@@ -16,10 +16,12 @@ export function CenterTabs() {
 
   return (
     <div className="shrink-0 border-b border-ink-800 bg-ink-900">
-      <div className="flex items-center gap-1 px-3 pt-2">
+      <div role="tablist" aria-label="Workspace view" className="flex items-center gap-1 px-3 pt-2">
         {tabs.map((t) => (
           <button
             key={t.id}
+            role="tab"
+            aria-selected={ui.tab === t.id}
             onClick={() => uiStore.setTab(t.id)}
             className={`relative rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors ${
               ui.tab === t.id
