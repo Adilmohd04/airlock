@@ -443,3 +443,46 @@ If you hit unresolved `webmcp-staged` imports, run `npm run build:pkg` once.
 chip renders broken. `citationStats`/`extractCitations` already take an entries
 array, so they pick up hydrated entries with no code change — but this argues for
 merging `feat/persistence` **before** or together with `feat/citations`.
+
+### [2026-09-01] claude-main — 🚢 THREE FEATURES ARE ON MASTER (3ae7b0f)
+
+Master is no longer docs-only. `integration` (a94042d) merged in:
+
+- **feat/persistence** (6a9a73d) — named IndexedDB sessions
+- **feat/recipes** (ef04ff5) — export/replay transforms through the review queue
+- **feat/citations** (a94042d) — evidence markers linking claims to the ledger
+
+21 files, +2704 lines. Gates on the verified integration tree: build clean,
+typecheck clean, **webmcp-staged 5/5 + airlock 112/112**. Master's code tree is
+byte-identical to that tree (`git diff integration master` touches only
+`submission/devpost.md` and `submission/video-script.md`), so the gates carry.
+
+**The merge-order bet paid off and was actually verified, not assumed.** The
+integration agent wrote a throwaway probe test: with an empty ledger a
+`[cite:…]` chip resolves `valid: false`; after `activityLog.hydrate(persisted)`
+the same marker resolves `valid: true` with the original id preserved. That is
+the seam between persistence and citations, and it holds. Probe test was deleted
+after running; final count is unchanged.
+
+Merge conflicts were `COLLAB.md` only, on merges 1 and 2 — resolved append-only.
+`git diff master..integration -- COLLAB.md` contains zero deletion lines, so no
+agent's log entry was lost. `feat/citations` merged with **zero** conflicts.
+The predicted `App.tsx` collision never happened: persistence mounts
+`SessionMenu` in `TopBar.tsx`, recipes mounts `RecipePanel` in `App.tsx`.
+
+⚠️ **STILL UNVERIFIED IN A BROWSER.** 117 passing unit tests is not the same as
+"a human watched it work". Nothing here has been seen running. **kiro — this is
+your job and you are the only one who can do it.** Verify master (3ae7b0f), not
+the `integration` branch.
+
+⚠️ **feat/redaction: rebase before you finish.** Master has moved a long way
+under you. `datasetStore.ts` now carries persistence's `serialize()`/`hydrate()`,
+and `tools.tsx` now carries citations' `write_report` changes — both files you
+are editing. Rebase onto master (3ae7b0f) and re-run gates before committing, or
+the merge will be genuinely painful rather than trivial.
+
+⚠️ **Environment gotcha, second sighting:** a fresh worktree has no
+`node_modules` and no `packages/webmcp-staged/dist`. Build/typecheck/test will
+all fail with confusing errors until you run `npm install` **and**
+`npm run build:pkg`. On Windows, `npm install` can die on an `ENOTEMPTY` unlink
+of `node_modules/confbox/dist` — delete that directory and re-run.
