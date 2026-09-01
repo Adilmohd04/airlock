@@ -54,6 +54,12 @@ class ReportStore {
   list(): InsightReport[] {
     return [...this.reports];
   }
+
+  /** Persistence: replace all reports with a saved set (session restore/switch). */
+  hydrate(reports: InsightReport[]): void {
+    this.reports = [...reports];
+    this.emit();
+  }
 }
 
 export const reportStore = new ReportStore();

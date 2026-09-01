@@ -9,6 +9,7 @@ import {
   createDatasetStore,
   rid,
   type DatasetStore,
+  type DatasetViewSnapshot,
   type Origin,
 } from "./datasetStore";
 import {
@@ -18,10 +19,28 @@ import {
   runQuery,
   runStatement,
 } from "./duckdb";
+import { rowsToCsv } from "../lib/csv";
 
 export interface DatasetHandle {
   id: string;
   store: DatasetStore;
+}
+
+/** One dataset as written to IndexedDB by `lib/persistence.ts`. */
+export interface DatasetSnapshot {
+  id: string;
+  fileName: string;
+  source: "file" | "demo" | "join";
+  /** Preserved verbatim so chart SQL that names the real table still resolves. */
+  tableName: string;
+  /** How to rebuild the base table from the saved source bytes. */
+  kind: "csv" | "json";
+  view: DatasetViewSnapshot;
+}
+
+export interface WorkspaceSnapshot {
+  activeId: string | null;
+  datasets: DatasetSnapshot[];
 }
 
 type Listener = () => void;
@@ -39,6 +58,13 @@ class WorkspaceStore {
   private revision = 0;
   private listeners = new Set<Listener>();
   private activeUnsub: (() => void) | null = null;
+  /**
+   * Raw source bytes per dataset, kept so `lib/persistence.ts` can rebuild the
+   * base table on reload from the *exact* bytes the user loaded — the same code
+   * path (`registerCsv` / `registerJson`) runs, so restore is deterministic.
+   * Populated on every load, dropped on `removeDataset`. Never leaves the tab.
+   */
+  private sources = new Map<string, { kind: "csv" | "json"; text: string }>();
   private snapshot: WorkspaceState = {
     datasets: [],
     activeId: null,
@@ -165,8 +191,11 @@ class WorkspaceStore {
       }
       const records = Array.isArray(parsed) ? parsed : [parsed];
       await registerJson(tableName, records as Record<string, unknown>[]);
+      // Kept so lib/persistence.ts can rebuild this table on reload.
+      this.sources.set(id, { kind: "json", text });
     } else {
       await registerCsv(tableName, text);
+      this.sources.set(id, { kind: "csv", text });
     }
 
     const store = createDatasetStore({
@@ -189,6 +218,7 @@ class WorkspaceStore {
     const id = rid();
     const tableName = this.tableNameFor(fileName, id.slice(0, 8));
     await registerCsv(tableName, text);
+    this.sources.set(id, { kind: "csv", text });
     const store = createDatasetStore({
       id,
       tableName,
@@ -205,6 +235,7 @@ class WorkspaceStore {
     const handle = this.get(id);
     if (!handle) return;
     await handle.store.destroy();
+    this.sources.delete(id);
     this.datasets = this.datasets.filter((d) => d.id !== id);
     if (this.activeId === id) {
       this.activeId = this.datasets[0]?.id ?? null;
@@ -273,6 +304,13 @@ class WorkspaceStore {
     const id = rid();
     const tableName = this.tableNameFor("joined", id.slice(0, 8));
     await runStatement(`CREATE TABLE "${tableName}" AS ${sql}`);
+    // Persist the materialized result as CSV so a reload rebuilds it without the
+    // source datasets having to be re-joined.
+    const dump = await runQuery(`SELECT * FROM "${tableName}"`);
+    this.sources.set(id, {
+      kind: "csv",
+      text: rowsToCsv(dump.columns, dump.rows),
+    });
     const store = createDatasetStore({
       id,
       tableName,
@@ -283,6 +321,79 @@ class WorkspaceStore {
     await this.register(handle, true);
     await store.onLoaded(fileName);
     return handle;
+  }
+
+  // --- Persistence (lib/persistence.ts) ------------------------------------
+
+  /** The saved source bytes for one dataset, or undefined if it can't be rebuilt. */
+  getSource(id: string): { kind: "csv" | "json"; text: string } | undefined {
+    return this.sources.get(id);
+  }
+
+  /** Metadata snapshot for IndexedDB. Bytes are fetched separately via `getSource`. */
+  serialize(): WorkspaceSnapshot {
+    return {
+      activeId: this.activeId,
+      datasets: this.datasets
+        .filter((h) => this.sources.has(h.id))
+        .map((h) => {
+          const st = h.store.getState();
+          return {
+            id: h.id,
+            fileName: st.fileName,
+            source: st.source,
+            tableName: st.tableName,
+            kind: this.sources.get(h.id)!.kind,
+            view: h.store.serialize(),
+          };
+        }),
+    };
+  }
+
+  /**
+   * Rebuild the workspace from a saved snapshot: re-register each base table
+   * from its bytes, recreate the dataset store, re-profile, then re-apply the
+   * view layer. A dataset that fails to restore is skipped so the rest of the
+   * session still opens. The caller (`lib/persistence.ts`) has already cleared
+   * any existing workspace.
+   */
+  async hydrate(
+    datasets: (DatasetSnapshot & { text: string })[],
+    activeId: string | null
+  ): Promise<void> {
+    for (const d of datasets) {
+      try {
+        if (d.kind === "json") {
+          await registerJson(
+            d.tableName,
+            JSON.parse(d.text) as Record<string, unknown>[]
+          );
+        } else {
+          await registerCsv(d.tableName, d.text);
+        }
+        const store = createDatasetStore({
+          id: d.id,
+          tableName: d.tableName,
+          fileName: d.fileName,
+          source: d.source,
+        });
+        const handle: DatasetHandle = { id: d.id, store };
+        this.datasets = [...this.datasets, handle];
+        this.sources.set(d.id, { kind: d.kind, text: d.text });
+        await store.onLoaded(d.fileName);
+        await store.hydrate(d.view);
+      } catch {
+        /* skip this dataset; the rest of the session still loads */
+      }
+    }
+    this.activeId =
+      activeId && this.datasets.some((x) => x.id === activeId)
+        ? activeId
+        : this.datasets[0]?.id ?? null;
+    this.bindActive();
+    await this.syncActiveAlias();
+    this.revision += 1;
+    this.emit();
   }
 }
 
