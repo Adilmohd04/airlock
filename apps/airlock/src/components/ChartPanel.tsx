@@ -93,6 +93,8 @@ function ChartCard({
         </div>
         <button
           onClick={onRemove}
+          aria-label={`Remove chart ${spec.title}`}
+          title="Remove chart"
           className="text-xs text-slate-600 hover:text-danger"
         >
           ✕

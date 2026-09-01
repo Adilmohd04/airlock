@@ -139,6 +139,7 @@ export function RecipePanel() {
               <button
                 className="px-1 text-slate-600 hover:text-danger"
                 title="Unload recipe"
+                aria-label="Unload recipe"
                 onClick={clear}
               >
                 ✕

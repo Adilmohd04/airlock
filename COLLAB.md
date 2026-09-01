@@ -842,3 +842,73 @@ on `main`, confirmed again after install.
 
 Moving to T0-d (deploy verification via the `airlock-deploy` agent), then
 Tier 1. Will keep logging here as each piece lands.
+
+### [2026-09-01] claude-ux — feat/ux-polish is green (UI/UX polish pass, not merged)
+
+Assigned UI/UX polish (T1-c) by the dispatcher — charter is
+`apps/airlock/src/components/*`, `src/index.css`, `tailwind.config.js` only, no
+engine/agent edits. **Note for claude-engine:** the ownership map above lists
+most of these component files as yours; the dispatcher's brief explicitly
+scoped me to them for this pass. Diff is small and additive — please holler if
+anything here conflicts with in-flight work and I'll rebase/drop it.
+
+Found the design system (ink/airlock/pending/commit/danger tokens, the
+`agent-pending`/`agent-committed` motif classes, reduced-motion overrides, the
+mobile gate, the focus-visible CSS) already mostly built out from baseline —
+not "unstarted" so much as inconsistently applied across components. What I
+changed, all in `src/components/*`, build/typecheck/`npm test` green (248
+tests, no count change — no logic files touched):
+
+1. **Real bug — keyboard shortcut hijack (`ReviewPanel.tsx`).** The global
+   Enter/Backspace approve/reject listener only excluded
+   input/textarea/contentEditable, so tabbing to *any* button or link anywhere
+   in the app (e.g. "Export .md", a tab strip button) and pressing Enter would
+   silently approve the top proposal instead of activating what you tabbed to.
+   Narrowed the guard to only fire as a true no-focus-target global hotkey;
+   focused buttons/links/`[role=button]`/`[tabindex]` now handle their own
+   Enter/Space natively. Also added `aria-live="polite"` +
+   `aria-relevant="additions removals"` on the queue list so a screen-reader
+   user hears a proposal land/leave without reading out incidental text
+   changes like a button flipping to "Applying…".
+2. **Real bug — keyboard-unreachable remove buttons.** `DatasetSwitcher`'s
+   remove-dataset button used `hidden group-hover:block` (display:none —
+   unreachable by Tab, full stop). `ColumnList`'s redact button and
+   `SessionMenu`'s rename/delete cluster used `opacity-0 group-hover:opacity-100`
+   with no focus-visible/focus-within reveal (focusable but invisible on
+   keyboard). Fixed all three to reveal on focus, not just hover.
+3. **Accessible names.** Several icon-only "✕" buttons (remove chart, remove
+   dataset, delete session, unload recipe) had only a `title` tooltip, no
+   `aria-label` — `title` is not the accname source when the element has text
+   content, so AT would read the glyph, not "Remove chart X". Added
+   `aria-label`s (`FilterBar`'s remove-filter button already had this right —
+   copied its pattern).
+4. **Motif consistency (`ColumnList.tsx`).** Derived columns are agent-only
+   today (no human "add derived column" UI), but the ✦ spark-glyph +
+   commit-green-flash motif was already implemented for filters
+   (`FilterBar`) and charts/reports (origin badge) and missing here — added
+   both, reusing the existing `useJustAdded` hook verbatim, no new pattern.
+5. **`CenterTabs.tsx`** — added `role="tablist"`/`role="tab"`/`aria-selected`
+   to the Grid/Charts/Report switcher (was three unlabeled buttons).
+
+**What I did NOT change, and why:** the "agent-originated activity-log rows
+carry a spark glyph" requirement in my brief can't be built honestly right
+now — `ActivityEntry` (agent/activity.ts) has no origin field, and by design
+`commit`/`reject` entries can come from either the agent's own
+`commit_*`/`reject_*` tool *or* the human's Approve/Reject button through the
+same `doCommit` path (see `reviewController.ts`'s own comment on this). Faking
+an origin heuristically in the component would show wrong info in a
+transparency-focused ledger, which is worse than not showing it. Needs an
+`origin: "human" | "agent"` field threaded through `agent/activity.ts` +
+`agent/tools.tsx` + `reviewController.ts` — out of my components-only charter,
+flagging for whoever owns those files next.
+
+**Also unverified:** no React component-testing infra exists in this repo
+(`vitest.config.ts` is `environment: "node"`, no jsdom/`@testing-library/react`
+dependency) — adding one would touch `package.json`/`vitest.config.ts`, outside
+my charter and kiro's territory per the ownership map, so I didn't add it. The
+focus-ring/keyboard fixes above are verified by reading + CSS specificity
+math + `tsc`/`vite build`, not a rendered DOM — genuinely unverified in an
+actual browser, same standing caveat this file already carries for everything
+else tonight.
+
+Branch `feat/ux-polish`, not merged, not pushed.
