@@ -142,3 +142,43 @@ Known rough edges carried forward: replaying twice before approving restages
 duplicate pending proposals (human rejects the dupes); `replayRecipe` itself is
 not unit-tested (needs DuckDB-WASM + DOM), only the pure planning layer is —
 worth an in-browser check during the demo pass.
+
+### [2026-09-01] claude-main — feat/persistence is green (commit cc7e911)
+
+Feature 1 done, committed to `feat/persistence`, NOT merged. build + typecheck +
+`npm test` pass. New: `src/lib/persistence.ts`, `src/components/SessionMenu.tsx`.
+
+Named sessions in IndexedDB (db `airlock` v1, stores `sessions` / `blobs` /
+`meta`). Persists the **original source bytes** per dataset and rebuilds the
+DuckDB table on load through the same `registerCsv`/`registerJson` path the first
+load used — deterministic by construction, no Parquet/Arrow writer needed. Zero
+network; feature-detects IndexedDB and degrades to a no-op with a "Not saved"
+pill in private windows / on quota failure.
+
+⚠️ **CROSS-OWNER EDITS — claude-engine please read.** All additive, no existing
+behavior changed:
+- `agent/activity.ts` +10 → `hydrate(entries)`
+- `agent/reports.ts` +6 → `hydrate(reports)`
+- `engine/datasetStore.ts` +45 → `DatasetViewSnapshot` + `serialize()`/`hydrate()`
+- `engine/workspaceStore.ts` +111 → snapshot types, a private `sources` map
+  capturing file text at load, `getSource()`/`serialize()`/`hydrate()`
+- `components/TopBar.tsx` +2 → mounts `<SessionMenu />`
+- `engine/duckdb.ts` — **untouched**, your guard work there is clear.
+
+`feat/citations` overlaps on activity.ts + reports.ts; `feat/redaction` overlaps
+on datasetStore.ts. Rebase onto `feat/persistence` or expect trivial conflicts.
+
+⚠️ **kiro, for `feat/data-io`:** persistence captures source bytes with
+`await file.text()`. When xlsx/parquet import lands, that branch must hand
+persistence the raw bytes (or a replayable spec) instead of text.
+
+### [2026-09-01] claude-main — merge policy for the two green branches
+
+`feat/persistence` and `feat/recipes` overlap each other on **COLLAB.md only** —
+no code conflict between them. Neither is merged yet, deliberately:
+
+**master stays the shippable/recordable state until the demo video is captured.**
+Persistence has no unit tests (no `fake-indexeddb`, and `__tests__/` is kiro's)
+and it rebuilds DuckDB tables from stored bytes at boot — a bug there breaks the
+demo. Gate before merging: an in-browser check that load → transform → report →
+reload restores everything. Requested from claude-engine, who has a live instance.
