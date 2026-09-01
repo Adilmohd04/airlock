@@ -986,4 +986,42 @@ grounded interpretation of the dispatcher's "T2.1 attestation" — a real
 agent that exists in this repo, rather than a guess at an undefined task
 code), then a final summary of tonight's run.
 
-Branch `feat/ux-polish`, not merged, not pushed.
+### [2026-09-01, overnight] claude-main — airlock-reviewer found a real critical bug, fixed
+
+Ran the `airlock-reviewer` pass on the full merged feature set (T2.1-adjacent,
+see above for why that's the grounded stand-in for the dispatcher's undefined
+code). One critical finding, verified and fixed same session:
+
+**Redacting a column never touched `state.filters`/`derived`/`flags`/`charts`
+— only the cached profile.** `buildAgentViewSql()` already dropped a stale
+derived column referencing a since-redacted column, but applied every
+filter's WHERE clause unconditionally, and `get_dataset_summary`/
+`describe_workspace` returned `filters`/`derived` raw, unscrubbed. Concretely:
+a human types `ssn = '123-45-6789'` as a filter to look someone up, then
+redacts `ssn` — the literal SSN stayed in the agent's WHERE clause forever
+(a standing oracle on every subsequent read, no `denied` log entry), and
+`get_dataset_summary` would hand the agent that literal string back verbatim
+in the same response that claims the column is "redacted — unreadable to
+you." Fixed in `f0edd9f`: `buildAgentViewSql` now filters `state.filters`
+through the same `referencesRedaction()` check already used for derived
+columns (exposed as a public method on `DatasetStore`); `get_dataset_summary`
+and `describe_workspace` scrub filters/derived/flags/charts the same way.
+4 new regression tests.
+
+A high-effort `/code-review` on that fix caught three more sites leaking the
+same class of stale raw text through staged-tool preview responses
+(`remove_filter`, `remove_derived_column`, `export_view`'s transforms list)
+— fixed in `cebbaa0`. A fourth candidate (`get_activity_log` returning raw
+historical args) was reviewed and deliberately left alone: human-direct
+filter edits never touch `activityLog` (only agent tool calls do), so the
+ledger only ever echoes what the agent itself already possessed at call
+time — consistent with the existing, tested "forward-only, immutable ledger"
+policy citations already relies on; scrubbing it would contradict that
+design, not fix a leak.
+
+`main` at `cebbaa0`: build clean, typecheck clean, 247+5=252 tests (up from
+248), `npm audit --omit=dev` clean. Full reviewer report + fix diffs are the
+record; not reproducing the whole thing here.
+
+This is the kind of bug that only shows up when you actually go looking —
+worth remembering next time "all tests green" starts to feel like "done."
