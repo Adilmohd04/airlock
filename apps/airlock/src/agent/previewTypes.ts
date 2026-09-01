@@ -31,6 +31,12 @@ export type ToolPreview =
   | { kind: "remove_derived_column"; name: string; expression: string }
   | { kind: "rename_column"; from: string; to: string; type: string }
   | {
+      kind: "redact_column";
+      column: string;
+      type: string;
+      suggestedByHeuristic: boolean;
+    }
+  | {
       kind: "add_chart";
       title: string;
       chartKind: "bar" | "line";

@@ -486,3 +486,82 @@ the merge will be genuinely painful rather than trivial.
 all fail with confusing errors until you run `npm install` **and**
 `npm run build:pkg`. On Windows, `npm install` can die on an `ENOTEMPTY` unlink
 of `node_modules/confbox/dist` — delete that directory and re-run.
+
+### [2026-09-01] claude-engine — feat/redaction is green (NOT merged)
+
+Feature 4 done on `feat/redaction`. build + typecheck + `npm test` (160 airlock
+tests, +88 new) all green. Per-column blindfold: human marks a column redacted
+in `ColumnList`, agent then cannot read its values by any path (rows, profiles,
+aggregates, derived columns, joins, export). Redacting is agent-proposable
+(`propose_redact_column`); un-redacting is human-only (no such tool exists).
+
+**⚠️ claude-main (persistence):** I added two fields to `DatasetState` in
+`engine/datasetStore.ts` — `redactedColumns: string[]` and
+`piiSuggestions: string[]`. `serialize()`/`hydrate()` must round-trip
+`redactedColumns` (it is a security setting the human chose — losing it on
+reload silently re-exposes data). `piiSuggestions` can be re-derived on load, no
+need to persist. Both are initialised in `initialState()` and reset in
+`onLoaded()`, so a hydrate that predates this branch degrades safely to `[]`.
+
+Cross-owner edits (all additive): `engine/duckdb.ts` (+2 exported guards, guard
+side only — Kiro's import paths untouched), `engine/workspaceStore.ts`
+(previewJoin/commitJoin gain an `excludeRedacted?` opt), `agent/tools.tsx`,
+`agent/previewTypes.ts` + `previews.tsx` (new `redact_column` preview),
+`components/ColumnList.tsx` + `DataGrid.tsx`. New files:
+`engine/pii.ts` + 3 co-located `*.test.ts` (not under `__tests__/`).
+
+Aggregates-over-redacted: **disallowed by default** — a redacted column's name
+may not appear in any agent SQL, including inside `avg()/min()/max()`. Reasoning
+in the branch report / `describe_workspace` `redaction.aggregatesAllowed: false`.
+
+### [2026-09-01] claude-integration — feat/redaction merged to `integration-2` (4077db9 → cd3bedb)
+
+`git merge feat/redaction` onto master. Textual conflict was **COLLAB.md only**;
+`datasetStore.ts`, `tools.tsx`, `workspaceStore.ts`, `previewTypes.ts`,
+`previews.tsx` auto-merged into non-overlapping regions. Resolutions:
+
+- **datasetStore.ts** — kept both sides. `DatasetViewSnapshot` gained
+  `redactedColumns: string[]`; `serialize()` now emits it; `hydrate()` restores
+  it defensively (`v.redactedColumns ?? []`), re-strips the cached profile of
+  every restored redacted column to shape-only (so a pre-redaction sample value
+  can't survive the `onLoaded` profiling pass that runs just before hydrate),
+  and only then re-derives `piiSuggestions`. Old snapshots (no field) hydrate to
+  `[]`.
+- **tools.tsx** — kept citations' `write_report`/`get_activity_log` changes and
+  redaction's guards on 8 read + 6 staged tools + the new `redact_column` tool.
+  Merged import block carries both `citations` and the two redaction guards.
+- **workspaceStore.ts** — kept persistence's snapshot code and redaction's
+  `excludeRedacted?` join option.
+- **COLLAB.md** — append-only; every prior entry from both sides retained.
+
+Security round-trip **verified** by a new co-located test
+`engine/datasetStore.redaction.test.ts` ("serialize/hydrate round-trip"):
+redact → `serialize()` → `hydrate()` into a fresh store → column still in
+`redactedColumns`, profile still shape-only; and an old snapshot without the
+field hydrates to `[]` without throwing.
+
+Gates on the merge commit: build clean, typecheck clean,
+webmcp-staged 5/5 + airlock 204/204 (112 master + 88 branch + 4 new
+serialize/hydrate round-trip tests). One merge-reconciliation edit outside the
+conflict set: `lib/recipes.test.ts` `mkState()` gained
+`redactedColumns: []` / `piiSuggestions: []` — redaction made those fields
+required on `DatasetState`, so the pre-existing fixture no longer satisfied the
+type. No behaviour change.
+
+Cross-feature seams checked:
+- `buildAgentViewSql()` × recipe replay — a replayed step that names a redacted
+  column stages, then is refused at commit by the agent-origin guard in
+  `addFilter`/`addDerivedColumn` (`assertAgentMaySee`). Fails closed, logged,
+  never silently applied. (The replay preview count is still computed against
+  the full `buildViewSql` — human-facing, and the human owns the redaction, so
+  not a leak.)
+- `buildAgentViewSql()` × hydrate — redactions are re-applied after `onLoaded`
+  in `DatasetStore.hydrate`, so the agent view excludes them on reload; the
+  human grid (`buildViewSql`) stays complete.
+- citations × redaction — a report citing a ledger entry whose query later
+  touched a now-redacted column still renders valid: the chip resolves by
+  entry id + `kind === "read"`, nothing re-runs SQL. The ledger is an immutable
+  transparency record; redaction is forward-only ("the agent can no longer read
+  it"), not a retroactive scrub of history. Observed, not redesigned.
+- `export_view` — prepare + commit both run `buildAgentViewSql()`; redacted
+  columns stay out of the CSV.

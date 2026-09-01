@@ -255,26 +255,49 @@ class WorkspaceStore {
     rightId: string;
     on: { left: string; right: string }[];
     type: "inner" | "left";
+    /** When set, redacted columns are dropped from the join and cannot be keys. */
+    excludeRedacted?: boolean;
   }): Promise<{ rowCount: number; columns: string[]; sql: string }> {
     const left = this.get(opts.leftId);
     const right = this.get(opts.rightId);
     if (!left || !right) throw new Error("Unknown dataset in join.");
     if (opts.on.length === 0) throw new Error("A join needs at least one key pair.");
-    const leftCols = new Set(left.store.getState().columns);
-    const rightCols = new Set(right.store.getState().columns);
-    const lt = `"${left.store.getState().tableName}"`;
-    const rt = `"${right.store.getState().tableName}"`;
+    const leftState = left.store.getState();
+    const rightState = right.store.getState();
+    const leftCols = new Set(leftState.columns);
+    const rightCols = new Set(rightState.columns);
+    const leftRedacted = new Set(
+      opts.excludeRedacted ? leftState.redactedColumns : []
+    );
+    const rightRedacted = new Set(
+      opts.excludeRedacted ? rightState.redactedColumns : []
+    );
+    const lt = `"${leftState.tableName}"`;
+    const rt = `"${rightState.tableName}"`;
     const cond = opts.on
       .map((p) => {
         const l = assertIdentifier(p.left);
         const r = assertIdentifier(p.right);
         if (!leftCols.has(l)) throw new Error(`Left dataset has no column "${l}".`);
         if (!rightCols.has(r)) throw new Error(`Right dataset has no column "${r}".`);
+        if (leftRedacted.has(l) || rightRedacted.has(r)) {
+          throw new Error(`Cannot join on a redacted column ("${l}"/"${r}").`);
+        }
         return `l."${l}" = r."${r}"`;
       })
       .join(" AND ");
     const joinKw = opts.type === "left" ? "LEFT JOIN" : "JOIN";
-    const sql = `SELECT l.*, r.* FROM ${lt} l ${joinKw} ${rt} r ON ${cond}`;
+    // Explicit projection when redaction is in play, so redacted values are
+    // never copied into the materialized joined table.
+    const proj = (alias: "l" | "r", state: typeof leftState, drop: Set<string>): string => {
+      const kept = state.columns.filter((c) => !drop.has(c));
+      return kept.map((c) => `${alias}."${c.replace(/"/g, '""')}"`).join(", ");
+    };
+    const projection =
+      leftRedacted.size || rightRedacted.size
+        ? `${proj("l", leftState, leftRedacted)}, ${proj("r", rightState, rightRedacted)}`
+        : "l.*, r.*";
+    const sql = `SELECT ${projection} FROM ${lt} l ${joinKw} ${rt} r ON ${cond}`;
     const countRes = await runQuery(
       `SELECT count(*) AS n FROM (${sql})`
     );
@@ -294,6 +317,7 @@ class WorkspaceStore {
     type: "inner" | "left";
     name?: string;
     origin?: Origin;
+    excludeRedacted?: boolean;
   }): Promise<DatasetHandle> {
     const { sql } = await this.previewJoin(opts);
     const left = this.get(opts.leftId)!;

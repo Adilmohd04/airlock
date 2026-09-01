@@ -39,6 +39,8 @@ function mkState(over: Partial<DatasetState> = {}): DatasetState {
     },
     profiles: {},
     renames: {},
+    redactedColumns: [],
+    piiSuggestions: [],
     filters: [],
     derived: [],
     flags: [],
