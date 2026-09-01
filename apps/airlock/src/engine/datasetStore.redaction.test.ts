@@ -98,6 +98,45 @@ describe("buildAgentViewSql", () => {
     // is still there for the human grid.
     expect(store.buildViewSql()).toContain("*");
   });
+
+  // Regression: a filter written BEFORE its column was redacted used to stay
+  // in the agent's WHERE clause forever — a standing oracle on a value the
+  // agent is no longer supposed to see (redactColumn only strips the cached
+  // profile, it never touches state.filters). buildAgentViewSql must drop
+  // it, the same way it already drops a stale derived column.
+  it("drops a filter that references a column redacted after the filter was added", () => {
+    const store = seed({
+      filters: [
+        { id: "f1", expression: "ssn = '123-45-6789'", label: "ssn = '123-45-6789'", origin: "human" },
+        { id: "f2", expression: "department = 'Eng'", label: "department = 'Eng'", origin: "human" },
+      ],
+      redactedColumns: ["ssn"],
+    });
+    const sql = store.buildAgentViewSql();
+    expect(sql).not.toMatch(/123-45-6789/);
+    expect(sql).toMatch(/department = 'Eng'/);
+  });
+
+  it("drops a filter referencing a redacted column even through a rename", () => {
+    const store = seed({
+      filters: [{ id: "f1", expression: "tax_id LIKE '%6789'", label: "tax_id LIKE '%6789'", origin: "agent" }],
+      redactedColumns: ["ssn"],
+      renames: { ssn: "tax_id" },
+    });
+    expect(store.buildAgentViewSql()).not.toMatch(/6789/);
+  });
+});
+
+describe("referencesRedaction", () => {
+  it("flags an expression naming a redacted column via its own identifier lookup", () => {
+    const store = seed({ redactedColumns: ["ssn"], renames: { ssn: "tax_id" } });
+    expect(store.referencesRedaction("tax_id = '1'")).toBe(true);
+    expect(store.referencesRedaction("department = 'Eng'")).toBe(false);
+  });
+
+  it("returns false for everything when nothing is redacted", () => {
+    expect(seed({}).referencesRedaction("ssn = '1'")).toBe(false);
+  });
 });
 
 describe("assertAgentMaySee", () => {

@@ -206,8 +206,20 @@ export function useAirlockTools(): void {
           annotations: { readOnlyHint: true },
           execute: () =>
             read("get_dataset_summary", {}, async () => {
-              const st = activeStore().getState();
+              const store = activeStore();
+              const st = store.getState();
               const redacted = new Set(st.redactedColumns);
+              // A filter/derived column written before its column was
+              // redacted still carries the raw expression text (which can
+              // itself contain the value being hidden) — drop those entries
+              // from what the agent sees, the same way buildAgentViewSql
+              // drops them from the query it can actually run.
+              const visibleFilters = st.filters.filter(
+                (f) => !store.referencesRedaction(f.expression)
+              );
+              const visibleDerived = st.derived.filter(
+                (d) => !store.referencesRedaction(d.expression)
+              );
               return {
                 summary: `"${st.fileName}" — ${st.totalRows.toLocaleString()} rows, ${st.columns.length} columns${
                   redacted.size ? ` (${redacted.size} redacted — unreadable to you)` : ""
@@ -224,8 +236,8 @@ export function useAirlockTools(): void {
                     redacted: redacted.has(c),
                   })),
                   redactedColumns: [...redacted].map((c) => st.renames[c] ?? c),
-                  activeFilters: st.filters.map((f) => f.label),
-                  derivedColumns: st.derived.map((d) => `${d.name} = ${d.expression}`),
+                  activeFilters: visibleFilters.map((f) => f.label),
+                  derivedColumns: visibleDerived.map((d) => `${d.name} = ${d.expression}`),
                   renames: st.renames,
                 },
                 // Redacted columns are deliberately omitted from `returned.columns`
@@ -420,20 +432,31 @@ export function useAirlockTools(): void {
           annotations: { readOnlyHint: true },
           execute: () =>
             read("describe_workspace", {}, async () => {
-              const st = activeStore().getState();
+              const store = activeStore();
+              const st = store.getState();
               const redactedShown = st.redactedColumns.map((c) => st.renames[c] ?? c);
+              // Same scrub as get_dataset_summary: an entry whose raw SQL
+              // text names a redacted column must not reach the agent, even
+              // read-only, even though the entry itself predates the
+              // redaction and buildAgentViewSql already excludes it from
+              // the query that actually runs.
+              const notRedacted = (expr: string) => !store.referencesRedaction(expr);
+              const visibleFilters = st.filters.filter((f) => notRedacted(f.expression));
+              const visibleDerived = st.derived.filter((d) => notRedacted(d.expression));
+              const visibleFlags = st.flags.filter((f) => notRedacted(f.expression));
+              const visibleCharts = st.charts.filter((c) => notRedacted(c.sql));
               return {
                 summary:
-                  `${st.filters.length} filter(s), ${st.derived.length} derived column(s), ${Object.keys(st.renames).length} rename(s), ${st.charts.length} chart(s), ${st.flags.length} flag set(s)` +
+                  `${visibleFilters.length} filter(s), ${visibleDerived.length} derived column(s), ${Object.keys(st.renames).length} rename(s), ${visibleCharts.length} chart(s), ${visibleFlags.length} flag set(s)` +
                   `, ${st.redactedColumns.length} redacted column(s).`,
                 data: {
                   tableName: st.tableName,
                   sqlAlias: "dataset",
-                  filters: st.filters,
-                  derived: st.derived,
+                  filters: visibleFilters,
+                  derived: visibleDerived,
                   renames: st.renames,
-                  charts: st.charts.map((c) => ({ id: c.id, title: c.title, kind: c.kind, sql: c.sql })),
-                  flags: st.flags,
+                  charts: visibleCharts.map((c) => ({ id: c.id, title: c.title, kind: c.kind, sql: c.sql })),
+                  flags: visibleFlags,
                   redaction: {
                     columns: redactedShown,
                     baseColumns: st.redactedColumns,

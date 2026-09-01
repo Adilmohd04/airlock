@@ -148,7 +148,7 @@ export function ColumnList() {
                 {d.name}
               </span>
               <button
-                onClick={() => void store.removeDerivedColumn(d.name)}
+                onClick={() => void store.removeDerivedColumn(d.name).catch(() => {})}
                 className="text-[10px] text-slate-600 hover:text-danger"
               >
                 remove

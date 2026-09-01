@@ -32,7 +32,7 @@ export function DataGrid() {
 
   if (state.error && !view) {
     return (
-      <GridError message={state.error} onRetry={() => void store?.refreshView()} />
+      <GridError message={state.error} onRetry={() => void store?.refreshView().catch(() => {})} />
     );
   }
 
@@ -48,7 +48,7 @@ export function DataGrid() {
             <button
               type="button"
               className="btn btn-ghost text-xs"
-              onClick={() => void store?.clearFilters()}
+              onClick={() => void store?.clearFilters().catch(() => {})}
             >
               Clear {state.filters.length} filter{state.filters.length > 1 ? "s" : ""}
             </button>
@@ -75,7 +75,7 @@ export function DataGrid() {
           <button
             type="button"
             className="shrink-0 underline hover:no-underline"
-            onClick={() => void store?.refreshView()}
+            onClick={() => void store?.refreshView().catch(() => {})}
           >
             retry
           </button>

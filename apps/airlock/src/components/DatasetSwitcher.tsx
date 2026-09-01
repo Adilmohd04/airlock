@@ -45,7 +45,7 @@ export function DatasetSwitcher() {
                   // the tab order — a keyboard user can reach it even though a
                   // mouse user only sees it on hover.
                   className="shrink-0 text-slate-600 opacity-0 hover:text-danger group-hover:opacity-100 focus-visible:opacity-100"
-                  onClick={() => void workspaceStore.removeDataset(h.id)}
+                  onClick={() => void workspaceStore.removeDataset(h.id).catch(() => {})}
                   aria-label={`Remove dataset ${st.fileName}`}
                   title="Remove dataset"
                 >
