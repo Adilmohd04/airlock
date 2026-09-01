@@ -1,173 +1,131 @@
 # Airlock: Agent-Native Data Workspace
 
-**Tagline:** Analyze private data with AI, never leave your browser. Human and agent mutate the same workspace; every state change stages for approval.
+**Tagline:** Analyze private data with AI. Never leaves your browser.
+
+**In one paragraph:** Airlock is a data workspace where an AI agent reads your spreadsheet through WebMCP tools, proposes filters, derived columns, charts and reports, and none of it takes effect until you approve it. The file never uploads anywhere. Every query the agent runs, and every result it saw, is written to an on-screen ledger, so "what did the AI actually see" has a literal answer instead of a policy document's promise.
 
 ---
 
 ## Inspiration
 
-Teams with sensitive tabular data—HR compensation, medical records, financial statements—face a trust boundary: they can't paste it into ChatGPT or Claude to ask for analysis, so they either:
+Compensation data, medical records, anything with a person's name next to a number. That's exactly the data people want AI help analyzing, and exactly the data they're told not to paste into a chat window. The usual response is to do the analysis by hand, hire someone, or build a dashboard that answers last quarter's questions and none of this quarter's.
 
-1. Do the work manually (slow, repetitive).
-2. Hire analysts (expensive).
-3. Build custom dashboards (inflexible, doesn't scale to new questions).
+Language models are already good at this kind of work. They read a schema, write a join, notice that one department's pay ratio is off. The part that doesn't work is where the spreadsheet goes to get analyzed.
 
-Meanwhile, foundation models are *good* at data analysis: they understand SQL, they ask clarifying questions, they recognize patterns. But the data never leaves the building.
-
-**Airlock solves this by inverting the constraint.** Instead of shipping data to an AI, we keep the data on the user's machine and ship a lightweight agent-native workspace. The agent analyzes the data in-browser via WebMCP tools; the human approves every mutation. The data never leaves. The agent's reasoning is auditable. Trust is rebuilt.
+Airlock keeps the file on the machine that opened it. DuckDB compiled to WebAssembly runs the SQL in the tab. The agent reaches it only through WebMCP tools that return query results, not files. Any tool that would change the workspace stages a diff first and waits for a person to click approve. The data doesn't move. The agent's queries are all on the record. That's the whole idea: a session works with a table you'd never paste into ChatGPT.
 
 ---
 
 ## What It Does
 
-**Airlock is a three-column React workspace:**
+Airlock is a three-column workspace. The left rail lists loaded datasets and every column with a live profile: type, null percentage, distinct count. The center holds three tabs, Grid (the current view, filters and derived columns already applied), Charts, and Report. The right rail stacks a review queue above an activity log, so a pending proposal and the full history of what already happened sit next to each other.
 
-- **Left rail:** Dataset switcher, column list with mini-profiles (type, null %, distinct count).
-- **Center:** Tabbed interface — *Grid* (the current view, with filters and derived columns applied), *Charts* (bar/line visualizations), *Report* (agent-authored findings).
-- **Right rail:** *Review panel* (pending proposals from the agent, typed diff previews) above an *Activity log* (every tool call, full audit trail).
+The agent's WebMCP surface is 8 read tools and 12 staged write actions, all registered in `apps/airlock/src/agent/tools.tsx`.
 
-**The agent can:**
-- **Read** (8 tools) — list datasets, profile columns, run SELECT-only SQL, preview rows, describe the current workspace state, and access the activity ledger. All execute immediately, marked `readOnlyHint: true`.
-- **Propose mutations** (11 tools) — add/remove filters, add derived columns (e.g., `comp_ratio = base_salary / market_median`), rename columns, add charts, flag rows, join datasets, export to CSV, or write insight reports. Each proposal stages a typed diff in the review panel. The agent cannot mutate state without human approval.
+Read tools run the moment they're called and are marked `readOnlyHint: true`: `list_datasets`, `get_dataset_summary`, `list_columns`, `profile_column`, `preview_rows`, `run_sql` (SELECT-only, enforced), `describe_workspace`, `get_activity_log`. Nothing they do can change the workspace. They just look, and every look is logged.
 
-**The human can:**
-- Click to add filters, derived columns, charts, or renames directly—same UI, same store as the agent.
-- Review and approve/reject each agent proposal via the review panel (keyboard shortcuts: ⏎ approve, ⌫ reject).
-- See a live "Seal" indicator in the top bar showing "0 bytes sent"—proof that no data left the browser post-load.
-- Export the transformed view (with all filters and derived columns baked in) as a CSV.
+Write actions are different. `add_filter`, `remove_filter`, `clear_filters`, `add_derived_column`, `remove_derived_column`, `rename_column`, `redact_column`, `add_chart`, `flag_rows`, `join_datasets`, `export_view`, `write_report`: each one registers as a `propose_*` / `commit_*` / `reject_*` trio. `propose_*` builds a typed preview (a filter shows rows kept vs. total, a derived column shows three sample rows with the new value computed) and changes nothing. `commit_*` refuses to run until a human has approved the matching proposal in the review panel. There is no path from agent intent to applied change that skips that queue.
 
-**The key insight:** the human and agent mutate the exact same stores. A filter the agent proposes, once approved, is indistinguishable from one the human clicked. Undo is shared. Charts are shared. This is not a separate "agent mode"—it's a unified data workspace.
+A person can do everything the agent can, clicking to add a filter, add a derived column, rename a header, through the same UI, and it lands in the same store. Approve a proposal with Enter, reject with Backspace. The Seal indicator in the top bar reads live bytes sent since load; in normal use it stays at zero.
 
-### Beyond the demo: the four things that make it a tool, not a toy
+### What makes it more than a filter-and-chart demo
 
-Staged approval is the mechanism. These are what make someone open it a second time.
-
-- **Named sessions.** Close the tab and come back tomorrow — datasets, filters, derived columns, charts, reports and the full activity ledger are still there. Sessions live in IndexedDB; the original file bytes are stored locally and the DuckDB table is rebuilt through the same import path it first used, so a restore is deterministic by construction. Still zero network.
-- **Recipes.** An analyst runs the same compensation review every quarter. Export the approved transform sequence as versioned, diff-able JSON; load next quarter's file; replay in one click. Critically, **replay stages proposals rather than applying them** — a recipe is not a licence to mutate silently. Steps referencing a column the new file lacks are reported and skipped, never silently dropped.
-- **Cited claims.** When an agent report says "engineering is paid 8% below market", that claim carries a `[cite:…]` marker resolving to the exact ledger entry — query, arguments, result — that produced it. Click it and the evidence opens inline. Broken or unbacked citations render visibly broken and are logged. The approval card shows **cited vs. uncited claim counts before you approve**, so you judge the evidence, not the prose. This is the anti-hallucination surface.
-- **Per-column redaction.** Mark `name` or `ssn` redacted and the agent cannot read those values through any path — not `preview_rows`, not `run_sql`, not an aliased expression or a derived column. Profiles return shape only. Every blocked attempt is logged, so the ledger proves the agent tried. A PII heuristic flags likely-sensitive columns on load as *suggestions* — never auto-redacting, never claiming to be exhaustive. This is what turns the privacy claim from architectural into enforceable.
+- **Sessions.** Close the tab, come back tomorrow, and the dataset, filters, derived columns, charts, reports and the full activity log are still there. Airlock stores the original file bytes in IndexedDB and rebuilds the DuckDB table on load by replaying the same import path the file first went through: CSV and JSON as text, Parquet as raw bytes. No second data format, no lossy intermediate. If storage is blocked, or you're in a private window, the app boots anyway and just doesn't save.
+- **Recipes.** Export an approved sequence of filters and derived columns as a small JSON file, load a fresh CSV next quarter, replay it in one click. Replay does not apply anything directly. It re-stages every step as a pending proposal through the same review queue, so a recipe is a suggestion, not a bypass. A step naming a column the new file doesn't have gets reported and skipped, not silently dropped.
+- **Citations.** When the agent's report claims "engineering is paid 8% below market," that sentence carries a `[cite:<id>]` marker pointing at the exact ledger entry (query, arguments, row count) that produced the number. Click it and the evidence opens inline. A citation pointing at nothing, or at a proposal rather than a read, renders as a struck-through red chip instead of quietly disappearing. Before you approve a report, the proposal card shows how many claims are cited and how many aren't, so you're judging evidence, not prose.
+- **Redaction.** Mark a column redacted, from the column list, or the agent can propose it after noticing something that looks like PII, and the agent loses that column completely. Not in row previews, not in a profile, not inside an aggregate, not through a derived-column expression that references it, not in an export. `SELECT *` is refused outright while any column is redacted, so there's no wildcard escape hatch. Every blocked attempt lands in the activity log as a denial, so the record shows the agent tried and was stopped. Un-redacting is a human-only action. There's no tool for it.
+- **Real files, not toy CSVs.** Import handles CSV, JSON, TSV, pasted clipboard data with delimiter sniffing, a folder picked through the File System Access API, and Parquet, read natively through DuckDB-WASM's linked reader at zero added dependency cost. Export goes out through the same staged `export_view` tool as everything else, as CSV. `.xlsx` import and export were built and then pulled before merge. More on why below.
 
 ---
 
 ## How We Built It
 
-### Architecture
+**Monorepo, npm workspaces.**
 
-**Monorepo** (npm workspaces):
-- `packages/webmcp-staged/` — a reusable, zero-dependency primitive (`propose_* → human review → commit_*`). Registered tools declare `readOnlyHint: true` (read tools) or `registerStagedTool` (staged writes). Human actions (approve/reject) and agent actions (commit/deny) land in the same queue. MIT-licensed, published-shaped.
-- `apps/airlock/` — the application layer.
-  - `src/engine/` — DuckDB-WASM (in-browser SQL engine), three observable stores:
-    - `datasetStore` — per-dataset state (columns, filters, derived, charts, profiles, renames).
-    - `workspaceStore` — workspace-level (dataset list, active dataset, activity log).
-    - `uiStore` — UI state (active tab, focused column).
-  - `src/agent/tools.tsx` — **all 19 WebMCP registrations** (8 read + 11 staged). Each read tool wraps its logic in a `read()` helper that executes and appends to the activity ledger. Each write tool defines a `prepare()` (builds typed preview, runs read-only queries) and `commit()` (mutates the store, appends to ledger).
-  - `src/agent/activity.ts` — activity log store: every tool call (read, propose, commit, reject, denied) with args, summary, timestamp, and origin (`agent` vs. `human`).
-  - `src/agent/reports.ts` — stores agent-authored insight reports (markdown), keyed by ID.
-  - `src/components/` — React UI: `TopBar`, `SealStatus` (egress counter), `LeftRail`, `ColumnList`, `DataGrid` (virtualized), `ChartPanel` (Recharts), `ReportPanel` (sanitized markdown render), `ReviewPanel` (pending proposals), `ProposalCard` (typed diff previews), `ActivityLog`.
-  - `src/lib/` — utilities: `egress.ts` (wraps fetch/XHR to count bytes post-load), `csv.ts` (rows → CSV), `markdown.tsx` (safe markdown render via `marked` + `DOMPurify`), `format.ts` (number/date/bytes formatting).
-  - `public/demo/` — bundled demo CSVs (HR compensation, headcount) — no external data sources.
+`packages/webmcp-staged/` is the reusable primitive underneath all of this: `registerTool` for reads, `registerStagedTool` for a `propose_* → human review → commit_*` trio, zero runtime dependencies in the core, React bindings on top. It's written to be extended, not rewritten, and it stayed that way through five feature branches.
 
-### Tech Stack
+`apps/airlock/` is the application:
 
-- **React 18** + TypeScript strict.
-- **TanStack Table** (virtualized grid).
-- **Recharts** (bar/line charts).
-- **Tailwind CSS** with semantic color tokens (`pending` amber for proposals, `commit` green for applied, `danger` red for reject).
-- **@duckdb/duckdb-wasm** — WASM SQL engine, self-hosted bundle.
-- **@mcp-b/webmcp-polyfill** — WebMCP in local dev (Vite dev server); native WebMCP in ChatGPT/Chrome with WebMCP enabled.
-- **marked + DOMPurify** — safe markdown rendering (agent-authored reports).
-- `useSyncExternalStore` pattern for all state (matching the engine's design).
+- `src/engine/`: the DuckDB-WASM wrapper and the SQL guards, plus three observable stores built on `useSyncExternalStore`. `datasetStore` (per-dataset columns, filters, derived columns, profiles, redaction state), `workspaceStore` (the dataset list, joins, source bytes for persistence), `uiStore` (active tab, focused column).
+- `src/agent/tools.tsx`: the entire WebMCP surface described above.
+- `src/agent/activity.ts`: the transparency ledger. Every read, propose, commit, reject and denial gets an entry with arguments, a result summary and an id. That id is what a citation marker points at.
+- `src/agent/citations.ts`, `src/agent/reports.ts`: citation resolution and the agent-authored report store.
+- `src/lib/`: `egress.ts` (wraps fetch, XHR, sendBeacon and WebSocket to count outbound bytes, backs the Seal indicator), `persistence.ts` (the IndexedDB session layer), `recipes.ts`, `csv.ts`, `markdown.tsx` (marked + DOMPurify, run twice; see Challenges).
+- `src/components/`: the React UI. TopBar with SealStatus and SessionMenu, LeftRail with ColumnList and FileDrop, DataGrid, ChartPanel (Recharts), ReportPanel, RecipePanel, ReviewPanel with ProposalCard, ActivityLog, and a built-in AgentConsole for invoking tools by hand without a real WebMCP host.
 
-### Design Principles
+**Stack:** React 18, TypeScript strict, Vite, Tailwind with the project's semantic tokens (amber for pending, green for committed, red for reject/danger), TanStack Table for the virtualized grid, Recharts, `@duckdb/duckdb-wasm` self-hosted, `@mcp-b/webmcp-polyfill` for local testing, loaded only when `document.modelContext` isn't already present, so a real host is never shadowed.
 
-**Honest split.** Read tools = `registerTool` + `readOnlyHint: true`, auto-execute. Write tools = `registerStagedTool`, human-gated via typed proposals. Hosts like ChatGPT can surface this distinction to the user.
-
-**Data immutability.** The base table is never modified. Filters, derived columns, and renames are view-level transformations (`buildViewSql` constructs a CTE that applies all transforms). You can verify with `run_sql("SELECT * FROM dataset LIMIT 1")` that the underlying data is unchanged.
-
-**Zero egress.** After initial load (the bundled WASM runtime and demo CSVs), *nothing* leaves the browser. The `SealStatus` component shows a live egress counter (via `egress.ts`, which wraps fetch and XHR). Verified: 0 bytes sent in all normal flows.
-
-**Unified mutation.** Agent and human mutate the same stores via the same `datasetStore` methods. No separate agent view, no shadowing—the UI is the source of truth for workspace state.
-
-**Audit trail.** Every tool call (read, propose, commit, reject, denied) appends to `activityLog` with args, result summary, timestamp, and origin. This is the transparency payoff—you can see exactly what the agent queried and what it saw.
+**Three agents, one repo, a shared log file.** This was built overnight by three coordinating Claude and Kiro sessions with the human offline, using `COLLAB.md` as the only channel between them: branch ownership, feature acceptance criteria, and a running message log every agent read before touching a file. It's not a framework, just a plain markdown file that turned out to be enough discipline to keep five feature branches from stepping on each other, and to catch the bug described below before it reached `main`.
 
 ---
 
 ## Challenges
 
-1. **DuckDB-WASM bundle size and cold start.** The WASM runtime (~10MB gzipped) and initialization add latency. Mitigation: self-host the bundle (avoid CDN cold starts), add a loading state, use DuckDB's streaming import for large CSVs.
+**DuckDB-WASM is not small.** The WASM runtime and the demo data add real load time on a cold start. We self-host the bundle instead of pulling it from a CDN, split it into its own async chunk so the main app shell paints first, and show a loading state instead of a blank screen while it initializes.
 
-2. **Privacy claim precision.** "Data never leaves the browser" is almost true, but read-tool results *are* returned to the agent (as JSON in the tool response). We address this head-on:
-   - Every query and its result are logged in the activity ledger.
-   - The `get_activity_log` tool lets you ask "what has the agent seen?"
-   - The "Seal" indicator shows 0 bytes egress—raw bytes never leave.
-   - Marketing copy is precise: "your raw bytes never leave your browser; tool results are shown in the audit log."
+**Saying "your data never leaves the browser" precisely enough to defend it.** That sentence is true about the file's raw bytes and not true about everything the agent learns. A read tool's whole job is to hand back real content. We chose to state the boundary exactly rather than round it up: raw bytes never leave; query results are returned to the agent, and every one of those results is written to the activity ledger, visible to the human, queryable through `get_activity_log`. The Seal indicator counts bytes sent, not bytes read. One tool, `export_view`, moves data out of the tab, and only on explicit approval.
 
-3. **Three-day deadline, full-stack scope.** Phase 1 (human-only workspace, no agent yet), Phase 2 (WebMCP layer + review panel), Phase 3 (multi-dataset joins, report writing). Built a staged checkpoint system to ensure Phase 2 is always shippable, with Phase 3 as upside.
+**A bug that only existed in the combination.** Redaction and session persistence were built on separate branches by different agents, and each shipped clean on its own. Redaction hides a column from every read path the agent has. Persistence writes the whole dataset state, including which columns are hidden, to IndexedDB and rebuilds it on reload. Wire them up naively and a reload of a session with `ssn` redacted would silently stop hiding it, because the redaction flag never made it into the snapshot in the first place. Fixing that exposed a second, quieter problem: the profiling pass that runs right after a table loads reads live sample values into a cache before the redaction state gets restored, so even a column correctly flagged as redacted after reload could still be carrying a cached sample from before the flag existed. The fix restores redactions last and routes each one through the same `redactColumn` function a human's click in the UI uses, so the cached profile gets stripped back to shape-only as part of restoring the flag, not as a separate step someone could forget. Four tests pin the round trip now, including a session saved before redaction existed at all. Neither branch's own test suite would have caught this on its own. It only shows up where the two features overlap, which is the actual argument for merging early and testing the integration rather than saving that for the night before the deadline.
 
-4. **Staging area state consistency.** The `webmcp-staged` primitive's proposal store and `datasetStore` mutations must stay in sync. Solution: every commit flows through the same `datasetStore` method (called from `tools.tsx` commit bodies), and the stage/unstage logic is handled by `webmcp-staged`'s `defaultProposalStore`.
+**Closing the SQL side channels, twice.** `run_sql` was guarded from day one against writes and multi-statement stacking. It took a second pass to notice that a networkish URL sitting inside a SQL comment (`-- see https://evil.example`) slipped past the guard, because the check ran on a comment-stripped copy of the query while the same URL in a string literal or bare expression was already rejected. Small gap, but it undercuts the exact claim the product makes. Fixed the same night the gap was found: the network check now runs on the text before comments are stripped, and the test that had documented the hole as accepted behavior got flipped into a regression test that asserts rejection instead.
 
-5. **Closing the SQL side channels.** An early version guarded only `run_sql`, so an agent could stack statements through a filter expression (`... ); UPDATE ...`) or read a URL from inside DuckDB's worker (`read_csv('https://...')`) — past the egress monitor, which only sees the main thread. We consolidated to three guards (`assertSelectOnly` / `assertExpression` / `assertIdentifier`) backed by one validator, applied to every agent- and human-supplied SQL fragment at both the tool boundary and the store mutators, and every rejection is logged as `denied`.
+**Keeping five feature branches from corrupting each other's state.** `datasetStore.ts`, `tools.tsx` and `workspaceStore.ts` each got touched by three or four different branches: persistence adding `serialize`/`hydrate`, redaction adding a column blindfold, citations adding evidence markers, data I/O adding a source-bytes union type. The rule that held it together was mechanical. Every mutation, agent or human, goes through the same store method, and every merge got re-gated on the full test suite before landing. It wasn't glamorous. It's also the reason five features merged without a single silent regression, and the one real cross-feature bug got caught by a test instead of by a user.
 
 ---
 
 ## Accomplishments
 
-- **Full working product.** Boots at `npm run dev`, loads a demo HR dataset, human can add filters/derived columns/charts/renames interactively.
-- **Complete WebMCP surface.** 8 read tools (all working, all logged) + 11 staged write tools. Every tool call tested in Chrome with `#enable-webmcp-testing` + WebMCP Inspector, or via the built-in `AgentConsole` (dev panel to invoke tools by hand).
-- **Honest staged approval.** `propose_*` tools stage diff previews (e.g., "add_filter: keeps 150 of 800 rows"). Commit refuses until the human approves in the UI. Typed diffs per tool kind (filters show row counts, derived columns show sample values, charts show mini-preview).
-- **Zero egress verified.** SealStatus shows live egress counter. All demo data bundled in `public/demo/`, no fetch calls post-load.
-- **Audit transparency.** Activity log shows every tool call (read, propose, commit) with args and result summary. `get_activity_log` tool returns the last 40 entries. "What has the agent seen?" is answerable.
-- **Keyboard-first review.** Approve (⏎) and reject (⌫) shortcuts in ReviewPanel. Agent can't force a commit—the human has the only key.
-- **Multi-dataset joins.** Agent can propose `join_datasets` to merge two loaded datasets. Preview shows result row count. On approval, creates a new "joined" dataset.
-- **Agent-authored reports.** `write_report` tool lets the agent draft markdown findings. Human approves. Renders in Report tab (safe markdown via `marked` + `DOMPurify`). Exportable as `.md`.
-- **CSV export with transform awareness.** `export_view` exports the *current view* (filters + derived + renames applied) to a CSV. Download only on approval. Preview shows which transforms are included.
-- **Polyfill path for local dev.** `@mcp-b/webmcp-polyfill` makes WebMCP always available in dev. AgentConsole lets you invoke tools by hand.
+- **All five planned features shipped and merged**, not four with one left on a branch: named sessions, recipe replay, cited reports, per-column redaction, and native multi-format import (CSV, JSON, TSV, Parquet, clipboard paste, File System Access).
+- **248 tests passing** (243 in the app, 5 in the reusable primitive). `npm run build` and `npm run typecheck` clean. `npm audit --omit=dev` reports zero vulnerabilities.
+- **A staged-approval loop that actually holds.** `commit_*` errors out on an unapproved proposal, the agent's own `reject_*` tool and a denied commit attempt both land in the ledger, and the human Approve button and the agent's `commit_*` call are the same code path underneath, not two paths that happen to agree today.
+- **Redaction that survives every path we tried to break it with:** rows, profiles, aggregates, derived-column expressions, `SELECT *`, and joins. 41 tests specifically target the guard side of this.
+- **A citation mechanism with no new trust surface.** A citation is a pointer into the ledger that already exists, not a second store that could drift out of sync with it. The XSS handling is three layers deep on purpose: the marker syntax is inert to the markdown parser, the id it captures is charset-locked to exactly what the ledger's id generator produces, and DOMPurify runs twice, once on the agent's raw markdown with a tight allowlist, again after chip injection with a slightly widened one. Agent text never reaches the second pass as trusted markup.
+- **Native Parquet at zero added dependencies**, because DuckDB-WASM's linked reader already does it. Confirmed against the actual library version in a throwaway test harness before committing to the approach.
+- **A parser we chose not to ship.** `.xlsx` import and export were fully built, using SheetJS. Before merge, `npm audit` flagged two unpatched high-severity advisories in that dependency, one of them prototype pollution, sitting directly in the code path that parses a file a stranger's spreadsheet app produced. We pulled it rather than ship a known-vulnerable parser inside a tool whose entire pitch is that this is the safe place for sensitive files. `main` audits clean today because of that call, not despite it.
 
 ---
 
 ## What We Learned
 
-1. **Read/write honesty is the core.** The `readOnlyHint` split is not decoration—it changes how hosts present the tool to the user. This is WebMCP done right: declaring intent clearly.
+Read/write honesty is not a formality. It's the mechanism. `readOnlyHint: true` tells a host it can run a tool without asking, and everything downstream depends on that being true. The moment a "read" tool could mutate state, the whole trust model collapses, so every read tool in this build is a pure lookup with no side effect beyond a log entry.
 
-2. **Staged diffs are underrated.** Showing the human a typed preview ("This filter keeps 50 of 800 rows") before commit is more powerful than textual justification. We built typed preview renderers per tool, and each one is now testable and auditable.
+A typed preview beats a paragraph of justification. Telling a human "this filter keeps 127 of 812 rows" before they approve it is a stronger signal than any amount of agent-written explanation, and it's checkable in a way prose isn't.
 
-3. **The activity ledger is the transparency engine.** Every tool call in/out is logged. Combine that with `get_activity_log` and you have a human-auditable trace of "what did the AI ask for, and what did it see?" This is the privacy story.
+The activity ledger turned out to be the answer to the hardest question this kind of product has to answer: what did the AI actually see? Not what data exists. What did it actually query, and what came back. Citations just point at entries that were already being written for a different reason, which is probably why they were cheap to add once the ledger existed.
 
-4. **Agent and human must share mutation paths.** If you let the agent mutate state via one code path and the human via another, consistency breaks. We built it so both land in `datasetStore.addFilter()`, `addDerivedColumn()`, etc. The UI is the source of truth.
-
-5. **DuckDB-WASM is underrated for this.** Full SQL, no server, no query to an API. The agent can write complex queries and they just work. Join syntax, window functions, CTEs—all there in-browser.
+Two features can each be correct and still combine into a bug neither one's tests would catch. That's not a novel insight in the abstract, but living through it (redaction and persistence, a real security regression, caught the same night by a probe test written specifically to check the seam) is a different thing than knowing it in principle.
 
 ---
 
 ## What's Next
 
-**Excel import, once it can be done safely.** Airlock already reads Parquet, TSV, JSON and pasted clipboard data — Parquet at zero dependency cost, because DuckDB-WASM's reader is natively linked. `.xlsx` was built and then deliberately cut: the only viable npm parser (SheetJS 0.18.5) carries two unpatched high-severity advisories, one of them prototype pollution, in exactly the code path that parses untrusted user files. Shipping a known-vulnerable parser inside a tool whose whole promise is "this is the safe place for your sensitive data" wasn't a trade worth making for one file format. `npm audit` reports zero vulnerabilities. Excel returns when there's a parser we'd defend.
+**Excel, once there's a parser worth trusting.** SheetJS 0.20.x fixes the advisories that made us pull 0.18.x, but only the CDN tarball has it, and that install path isn't available in this environment. `.xlsx` comes back the day a patched build is installable from a source we can pin and audit.
 
-**Share the analysis, never the data.** A recipe plus a cited report is a complete, reproducible piece of work that contains no rows. Send a colleague the method and let them run it against their own copy. That's a fundamentally different sharing model than emailing a spreadsheet, and it falls out of what's already built.
+**Sharing the method instead of the spreadsheet.** A recipe plus a cited report is a complete, reproducible piece of analysis that contains zero rows of the original data. Send a colleague the recipe and the report; they run it against their own copy. That's already possible with what's built. It just hasn't been the headline yet.
 
-**Redaction that survives the agent getting smarter.** Today's enforcement is a lexical guard plus value masking. The stronger version is a genuinely read-only DuckDB connection with column-level grants, so the boundary is enforced by the engine rather than by our validator. Defence in depth is good; defence in the engine is better.
+**Redaction enforced by the database, not just by our validator.** Right now a redacted column is blocked by a lexical guard checked before the query runs. The stronger version is a DuckDB connection with actual column-level grants, so the boundary lives in the engine instead of in code we wrote and tested ourselves. Defense in depth is good. Defense in the engine is better.
 
-**Verify the report, not just the claim.** Citations prove a number came from a query. The next step is proving the *query* was reasonable — flagging when an agent cites a query whose result doesn't actually support the sentence it's attached to.
+**Checking whether a cited query actually supports the sentence it's attached to**, not just whether the citation resolves. Right now a citation proves a number came from a real query. It doesn't yet prove the query's result matches the claim.
 
-**Multi-table joins** (3+ datasets, cached intermediates), **richer charts** (scatter, histogram, heatmap), and **refresh-and-alert** — point a recipe at a folder, re-run on new files, and surface what changed.
+**Bigger joins, more chart types, and a recipe that watches a folder.** Three-plus dataset joins with cached intermediates, scatter and histogram charts, and a recipe that re-runs itself against new files and reports what changed.
 
-**Immediate:** deploy to Netlify, record the demo, and let judges see the staged approval loop in action. Everything above is roadmap; everything in "What It Does" is built.
+**Still ahead of submission:** the live deploy, the recorded demo video, and real screenshots replacing the placeholder set. Everything described above under "What It Does" is built and tested; those three items are packaging, not development, and they're the last mile before a judge can actually open this.
 
 ---
 
 ## Technical Verification
 
-- **Boots:** `npm install` (root) + `npm run dev` → http://localhost:5173 renders EmptyState; "Load demo" loads HR CSV, grid populates.
-- **Read tools:** Chrome `#enable-webmcp-testing` + WebMCP Inspector → `list_columns`, `profile_column`, `run_sql` all return correct data.
-- **Guarded SELECT:** `run_sql("UPDATE dataset SET salary = 0")` → rejected by `assertSelectOnly`.
-- **Staged write:** Invoke `propose_add_filter` in Inspector → proposal appears in ReviewPanel; `commit_add_filter` before approval → error; approve in UI → commit succeeds, grid updates.
-- **Egress:** SealStatus reads 0 bytes sent throughout normal use.
-- **Audit:** Every tool call (read, propose, commit) in activityLog, visible in ActivityLog component.
+- `npm install` at the repo root, then `npm run dev`. The landing screen renders, "Load demo" loads `compensation.csv` (812 rows), and the grid populates.
+- The built-in Agent Console (Ctrl/Cmd + `` ` ``) lists all 20 registered tool actions and invokes any of them by hand, including the full propose → approve → commit loop. No external host required to verify the WebMCP surface.
+- `run_sql("UPDATE dataset SET base_salary = 0")` is rejected by `assertSelectOnly` before it reaches DuckDB.
+- Invoking `commit_add_filter` on a proposal that hasn't been approved yet fails; approving it in the review panel first makes the same commit succeed and the grid updates immediately.
+- Redact a column, then try `run_sql("SELECT name FROM dataset")`, `SELECT *`, and a concatenation expression referencing it. All three are refused and logged as denials.
+- `npm test` at the root runs both workspaces: 248 tests passing (243 airlock, 5 webmcp-staged). `npm audit --omit=dev` reports zero vulnerabilities.
 
 ---
 
 ## Why It Matters
 
-Airlock unlocks a new class of analysis: *human-in-the-loop, agent-native data workspace, zero data egress.* You get the speed of AI + the safety of data staying put + the auditability of an activity ledger. Teams with sensitive data can now ask an agent for analysis without violating their data policy. The honest WebMCP split (`readOnlyHint`, staged approval) is the mechanism that makes this trustworthy.
+The honest version of "AI for your private spreadsheet" isn't a chatbot with a bigger context window and a promise not to log your data. It's an agent that can only reach your data through tools that are either provably read-only or provably staged for your approval, running in a tab that never uploads the file in the first place. Airlock is that, built specifically for the people who currently can't use AI on their own data at all: HR teams looking at comp equity, analysts with financial statements, anyone whose spreadsheet has a name column they can't paste into a chat window.
 
-This is not a demo. It's a foundation for a new way to collaborate with AI on data: the agent proposes, the human approves, both mutate the same workspace, and nothing moves without consent.
+The agent proposes. The human approves. Both write to the same ledger, and that ledger is the whole privacy claim, spelled out instead of asserted.
