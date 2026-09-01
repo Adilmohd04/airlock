@@ -12,15 +12,11 @@
  * where a message is asserted it is a substring confirmed to exist in
  * `duckdb.ts`. Error message text is NOT invented.
  *
- * Behavior discrepancies vs. the design's property text (verified in source,
- * tests follow the CODE):
- *   - Property 2 (networkish in a COMMENT): `assertNoAbuse` calls
- *     `stripComments` BEFORE the NETWORKISH test, so a networkish scheme that
- *     appears only inside a comment is stripped away and NOT rejected on the
- *     networkish rule. Networkish inside a STRING LITERAL is still rejected
- *     (strings are not neutralized before the NETWORKISH test). Tests below
- *     encode this real behavior and the comment-only case is asserted to be
- *     accepted (when otherwise safe).
+ * Fixed 2026-09-01: the NETWORKISH check now runs on the pre-`stripComments`
+ * text, so a networkish scheme hidden only inside a line or block comment is
+ * rejected too, closing the gap between code and the design's Property 2 text
+ * (previously `assertNoAbuse` tested the comment-stripped copy, so a
+ * comment-only URL slipped through).
  */
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
@@ -161,17 +157,17 @@ describe("Property 2 — networkish references are rejected (bare and inside lit
     }
   );
 
-  // DISCREPANCY (documented): networkish inside a COMMENT is stripped before the
-  // networkish test, so it is NOT rejected on the networkish rule. When the rest
-  // of the fragment is a safe read query, it is accepted. This encodes the real
-  // code behavior, contrary to the property text that says comments should also
-  // trigger rejection.
-  it("does NOT reject a networkish scheme that appears only inside a comment (documented discrepancy)", () => {
+  // Regression test for the fixed comment-hole: a networkish scheme hidden
+  // only inside a `--` or `/* */` comment must still be rejected, even though
+  // the comment itself never reaches DuckDB.
+  it("rejects a networkish scheme that appears only inside a comment", () => {
     const fragment = "SELECT 1 -- see https://example.com/notes";
-    expect(assertSelectOnly(fragment)).toBe(fragment);
+    expect(() => assertSelectOnly(fragment)).toThrow(/Remote URLs/);
+    expect(() => assertExpression(fragment)).toThrow(/Remote URLs/);
     // Block comment form.
     const block = "SELECT 1 /* https://example.com */";
-    expect(assertSelectOnly(block)).toBe(block);
+    expect(() => assertSelectOnly(block)).toThrow(/Remote URLs/);
+    expect(() => assertExpression(block)).toThrow(/Remote URLs/);
   });
 });
 
