@@ -38,6 +38,15 @@ Meanwhile, foundation models are *good* at data analysis: they understand SQL, t
 
 **The key insight:** the human and agent mutate the exact same stores. A filter the agent proposes, once approved, is indistinguishable from one the human clicked. Undo is shared. Charts are shared. This is not a separate "agent mode"—it's a unified data workspace.
 
+### Beyond the demo: the four things that make it a tool, not a toy
+
+Staged approval is the mechanism. These are what make someone open it a second time.
+
+- **Named sessions.** Close the tab and come back tomorrow — datasets, filters, derived columns, charts, reports and the full activity ledger are still there. Sessions live in IndexedDB; the original file bytes are stored locally and the DuckDB table is rebuilt through the same import path it first used, so a restore is deterministic by construction. Still zero network.
+- **Recipes.** An analyst runs the same compensation review every quarter. Export the approved transform sequence as versioned, diff-able JSON; load next quarter's file; replay in one click. Critically, **replay stages proposals rather than applying them** — a recipe is not a licence to mutate silently. Steps referencing a column the new file lacks are reported and skipped, never silently dropped.
+- **Cited claims.** When an agent report says "engineering is paid 8% below market", that claim carries a `[cite:…]` marker resolving to the exact ledger entry — query, arguments, result — that produced it. Click it and the evidence opens inline. Broken or unbacked citations render visibly broken and are logged. The approval card shows **cited vs. uncited claim counts before you approve**, so you judge the evidence, not the prose. This is the anti-hallucination surface.
+- **Per-column redaction.** Mark `name` or `ssn` redacted and the agent cannot read those values through any path — not `preview_rows`, not `run_sql`, not an aliased expression or a derived column. Profiles return shape only. Every blocked attempt is logged, so the ledger proves the agent tried. A PII heuristic flags likely-sensitive columns on load as *suggestions* — never auto-redacting, never claiming to be exhaustive. This is what turns the privacy claim from architectural into enforceable.
+
 ---
 
 ## How We Built It
@@ -132,17 +141,17 @@ Meanwhile, foundation models are *good* at data analysis: they understand SQL, t
 
 ## What's Next
 
-**If we had more time:**
+**Real data in, real data out.** Analysts don't live in single CSVs. Excel and Parquet import, clipboard paste, a local folder via the File System Access API, and export to `.xlsx` — all through the same human-gated export path, all with self-hosted parsers so egress stays at zero.
 
-1. **Bigger joins.** Multi-table joins (3+ datasets). Recursive materialization strategy (build intermediate joins, cache them).
-2. **Advanced charting.** Scatter plots, heatmaps, histograms. Let the agent propose the chart query and we render a mini-preview in the proposal.
-3. **Alerts and thresholds.** Agent flags a cohort; human sets an alert rule. Next time data is refreshed, alerts fire.
-4. **Dataset versioning.** Snapshot the current workspace state (filters, derived, charts). Rewind to an earlier snapshot.
-5. **Export to BI tools.** CSV is the minimum. Ideally: export to Tableau, Looker, etc., with the transforms baked in.
-6. **Sharing (with guardrails).** Encrypt a snapshot of the workspace; send a link to a colleague. They can load it read-only or with mutation approval from the owner.
-7. **Natural language column names.** Instead of typing SQL, say "emails per user, last 30 days"—the agent translates to SQL.
+**Share the analysis, never the data.** A recipe plus a cited report is a complete, reproducible piece of work that contains no rows. Send a colleague the method and let them run it against their own copy. That's a fundamentally different sharing model than emailing a spreadsheet, and it falls out of what's already built.
 
-**Immediate:** Ship the Phase 2 checkpoint (human workspace + WebMCP layer + review panel) on time. Deploy to Netlify. Record a <3-min demo video. Let the judges see the honest staged approval in action.
+**Redaction that survives the agent getting smarter.** Today's enforcement is a lexical guard plus value masking. The stronger version is a genuinely read-only DuckDB connection with column-level grants, so the boundary is enforced by the engine rather than by our validator. Defence in depth is good; defence in the engine is better.
+
+**Verify the report, not just the claim.** Citations prove a number came from a query. The next step is proving the *query* was reasonable — flagging when an agent cites a query whose result doesn't actually support the sentence it's attached to.
+
+**Multi-table joins** (3+ datasets, cached intermediates), **richer charts** (scatter, histogram, heatmap), and **refresh-and-alert** — point a recipe at a folder, re-run on new files, and surface what changed.
+
+**Immediate:** deploy to Netlify, record the demo, and let judges see the staged approval loop in action. Everything above is roadmap; everything in "What It Does" is built.
 
 ---
 
