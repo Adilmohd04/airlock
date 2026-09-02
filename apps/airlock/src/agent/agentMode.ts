@@ -220,9 +220,9 @@ export function describeMode(state: AgentModeState): ModeBadge {
       return {
         headline: "Fully local · on-device model",
         detail:
-          `An AI model is running inside this browser tab${m}. Your file, your ` +
-          `questions and every value it reads stay on this device — nothing is ` +
-          `sent anywhere. The Seal reports the measured network total.`,
+          `An AI model is running inside this browser tab${m}. It has no network ` +
+          `access of its own — your file, your questions and every value it reads ` +
+          `stay on this device. The Seal shows the measured network total.`,
       };
     }
     const avail = computeAvailability("local", state);
