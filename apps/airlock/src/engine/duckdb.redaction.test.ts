@@ -8,6 +8,7 @@
  * directly — no Worker/wasm is instantiated).
  */
 import { describe, it, expect } from "vitest";
+import fc from "fast-check";
 import { assertNoRedactedColumns, assertNoStarProjection } from "./duckdb";
 
 const REDACTED = ["ssn", "salary"];
@@ -173,5 +174,160 @@ describe("assertNoStarProjection — star expansion is refused while redactions 
   it("is a no-op when nothing is redacted", () => {
     const sql = "SELECT * FROM dataset";
     expect(assertNoStarProjection(sql, [])).toBe(sql);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression: a comment marker INSIDE a literal must not delete the redacted
+// column from the scan copy.
+//
+// Both guards above used to build their scan by stripping comments with one
+// regex and emptying string literals with another, comments first. A `--`,
+// `/*` or `*/` sitting inside a string literal therefore truncated the *scan
+// copy* while the original fragment — still naming the blindfolded column, or
+// still carrying a `SELECT *` — is what DuckDB actually ran:
+//
+//   SELECT x FROM dataset WHERE note = '--' AND y = ssn
+//
+// `stripComments` deleted `--' AND y = ssn`, so `ssn` never appeared in the
+// scan and the query was ACCEPTED. `assertSelectOnly` does not catch it either:
+// it is otherwise perfectly legal read-only SQL. That defeats redaction
+// outright. Both guards now read `scanCopies().identifiersIntact`, the third
+// copy of the single-pass lexer: comments blanked, string VALUES emptied,
+// quoted IDENTIFIERS verbatim.
+// ---------------------------------------------------------------------------
+
+/** Every literal form the lexer tracks, as a wrapper around a comment marker. */
+const LITERAL_WRAPPERS: { name: string; wrap: (m: string) => string }[] = [
+  { name: "single-quoted string", wrap: (m) => `'${m}'` },
+  { name: "dollar-quoted string", wrap: (m) => `$$${m}$$` },
+  { name: "tagged dollar-quoted string", wrap: (m) => `$tag$${m}$tag$` },
+  { name: "double-quoted identifier", wrap: (m) => `"note${m}"` },
+];
+
+const MARKERS = ["--", "/*", "*/"] as const;
+
+describe("assertNoRedactedColumns — literal-borne comment markers cannot hide the column", () => {
+  // The confirmed bypass, spelled out, plus the same trick in every other
+  // literal form. Each must now be refused.
+  it.each([
+    "SELECT x FROM dataset WHERE note = '--' AND y = ssn",
+    "SELECT x FROM dataset WHERE note = '/*' AND y = ssn AND z = '*/'",
+    "SELECT x FROM dataset WHERE note = $$--$$ AND y = ssn",
+    "SELECT x FROM dataset WHERE note = $tag$/*$tag$ AND y = salary",
+    "SELECT x FROM dataset WHERE note = 'a--b' AND y = dataset.ssn",
+    "SELECT 'x--' AS tag, ssn FROM dataset",
+  ])("refuses a reference hidden behind a string-borne marker: %s", (sql) => {
+    expect(() => assertNoRedactedColumns(sql, REDACTED)).toThrow(/redacted/);
+  });
+
+  // A marker inside a DOUBLE-quoted identifier is not a comment either — and
+  // the identifier itself stays verbatim in the scan, so `"ssn"` still trips.
+  it.each([
+    'SELECT x FROM dataset WHERE "note--" = 1 AND y = ssn',
+    'SELECT "col/*x" , ssn FROM dataset',
+    'SELECT "ssn--alias" FROM dataset',
+  ])("refuses a reference hidden behind an identifier-borne marker: %s", (sql) => {
+    expect(() => assertNoRedactedColumns(sql, REDACTED)).toThrow(/redacted/);
+  });
+
+  // A real comment still separates two tokens, exactly as DuckDB's own lexer
+  // does: `a,/*note*/ssn` is a column reference there, so it must be one here.
+  it("refuses a reference glued to a block comment", () => {
+    expect(() =>
+      assertNoRedactedColumns("SELECT a,/*note*/ssn FROM dataset", REDACTED)
+    ).toThrow(/redacted/);
+  });
+
+  it("rejects the redacted name after a marker in any literal form (property)", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...MARKERS),
+        fc.constantFrom(...LITERAL_WRAPPERS.map((w) => w.name)),
+        fc.constantFrom("ssn", "salary", "SSN", "dataset.salary"),
+        (marker, wrapperName, col) => {
+          const wrap = LITERAL_WRAPPERS.find((w) => w.name === wrapperName)!.wrap;
+          const sql = `SELECT id FROM dataset WHERE note = ${wrap(marker)} AND y = ${col}`;
+          expect(() => assertNoRedactedColumns(sql, REDACTED)).toThrow(/redacted/);
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  // The other direction: a marker inside a VALUE is inert, and a guard that
+  // cries wolf on ordinary analyst SQL is a regression, not a fix.
+  it.each([
+    "SELECT department FROM dataset WHERE note = 'dropped ssn from payroll'",
+    "SELECT department FROM dataset WHERE note = 'a -- b /* c */'",
+    "SELECT department FROM dataset WHERE note = '*/ end'",
+    "SELECT department FROM dataset WHERE path = 'C:/*/logs'",
+    "SELECT department FROM dataset /* ssn is redacted, skipping it */",
+  ])("still accepts a marker or the word inside a value: %s", (sql) => {
+    expect(assertNoRedactedColumns(sql, REDACTED)).toBe(sql);
+  });
+
+  // Newly correct: a dollar-quoted VALUE is a value. The old scan only emptied
+  // single-quoted literals, so this false-tripped.
+  it("accepts the redacted word inside a dollar-quoted value", () => {
+    const sql = "SELECT department FROM dataset WHERE note = $$ssn on file$$";
+    expect(assertNoRedactedColumns(sql, REDACTED)).toBe(sql);
+  });
+
+  it("accepts a value containing a marker in any literal form (property)", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...MARKERS),
+        fc.constantFrom("'", "$$", "$tag$"),
+        fc.constantFrom("", " ssn", " salary here"),
+        (marker, quote, trailer) => {
+          const sql = `SELECT department FROM dataset WHERE note = ${quote}${marker}${trailer}${quote}`;
+          expect(assertNoRedactedColumns(sql, REDACTED)).toBe(sql);
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+});
+
+describe("assertNoStarProjection — literal-borne comment markers cannot hide a star", () => {
+  it.each([
+    "SELECT a FROM dataset WHERE note = '--' AND b IN (SELECT * FROM other)",
+    "SELECT a FROM dataset WHERE note = '/*' AND b IN (SELECT * FROM other) AND c = '*/'",
+    "SELECT a FROM dataset WHERE note = $$--$$ AND b IN (SELECT * FROM other)",
+    "SELECT a FROM dataset WHERE note = $tag$--$tag$ AND b IN (SELECT COLUMNS('.*') FROM other)",
+    "SELECT a FROM dataset WHERE note = '--' AND b IN (SELECT column_name FROM (SUMMARIZE dataset))",
+    'SELECT "note--" , * FROM dataset',
+  ])("refuses a star hidden behind a literal-borne marker: %s", (sql) => {
+    expect(() => assertNoStarProjection(sql, ["ssn"])).toThrow(
+      /disabled while a column is redacted/
+    );
+  });
+
+  it("rejects a star after a marker in any literal form (property)", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...MARKERS),
+        fc.constantFrom(...LITERAL_WRAPPERS.map((w) => w.name)),
+        fc.constantFrom("SELECT * FROM other", "SELECT COLUMNS('x') FROM other"),
+        (marker, wrapperName, tail) => {
+          const wrap = LITERAL_WRAPPERS.find((w) => w.name === wrapperName)!.wrap;
+          const sql = `SELECT a FROM dataset WHERE note = ${wrap(marker)} AND b IN (${tail})`;
+          expect(() => assertNoStarProjection(sql, ["ssn"])).toThrow(
+            /disabled while a column is redacted/
+          );
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it.each([
+    "SELECT id FROM dataset WHERE note = 'a -- b /* c */'",
+    "SELECT id, count(*) AS n FROM dataset WHERE note = '--' GROUP BY id",
+    "SELECT base * 1.1 AS bumped FROM dataset WHERE note = '/*'",
+    "SELECT id FROM dataset -- everything else is fine",
+  ])("still accepts legitimate SQL carrying a marker: %s", (sql) => {
+    expect(assertNoStarProjection(sql, ["ssn"])).toBe(sql);
   });
 });
