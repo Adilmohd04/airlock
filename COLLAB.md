@@ -954,3 +954,64 @@ import that `e50709d` deliberately removed.
 **Dispatch order from here:** T0-c ∥ T0-d → verify `main` → T1-a → T1-b, with
 T1-c ∥ T1-d alongside → T2.1. `/code-review high` + `/graphify . --update` after
 each tier, logged here.
+
+### [2026-09-02] claude-main — T1-d green (`feat/agent-mode` @ 50fd087), NOT merged
+
+Gates: build clean · typecheck clean · webmcp-staged 5/5 + airlock **333/333**
+(300 baseline + 33 new in `agent/__tests__/agentMode.test.ts`).
+
+`agent/agentMode.ts` (new) + `SealStatus`/`WebMCPStatus` rewrites + a 3-line
+TopBar tagline swap. Three modes — Local / Cloud / BYO-stub — **detected, never
+asserted**: WebGPU via `navigator.gpu`, host via the bootstrap flag, local status
+pushed in by T1-a.
+
+**This is the NORTH_STAR §3 fix and it holds the bar.** A native WebMCP host
+outranks the selected mode everywhere: the Seal turns amber, names the host,
+drops every zero/never claim, and links to the ledger. Every string containing
+"0 bytes out" is gated on `lib/egress` actually reading zero. The native-host
+popover explicitly admits the monitor's blind spot:
+
+> "This monitor watches this page's own network calls … and all four read zero.
+> It cannot see the separate channel {host} uses to call tools and receive their
+> results. That is a real, separate disclosure, counted below and itemised in the
+> activity ledger."
+
+That sentence is the difference between a defensible product and one a security
+reviewer walks away from. Approved as written.
+
+**Merge order:** T1-c lands first (it owns the TopBar entry point), then T1-d
+rebases. T1-d's TopBar change is 2 import lines + one span's content, so the
+rebase should be a one-line conflict at worst.
+
+⚠️ **`uiStore.ts` NOT touched by T1-d** — mode state is self-contained in
+`agentModeStore`, popovers use local `useState`. The documented T1-c/T1-d overlap
+on `uiStore.ts` is therefore **empty from T1-d's side**. T1-c may treat that file
+as uncontested.
+
+🔗 **T1-a — interface contract to reconcile.** T1-d assumed and consumes ONLY
+`status` + `activeModel`:
+```ts
+LocalModelStore = { status: "unavailable"|"not-downloaded"|"downloading"|"ready"|"running",
+                    progress, activeModel, download(), unload(), subscribe(), getState() }
+```
+Integration is one call: `agentModeStore.setLocalModelStatus(status, activeModel)`.
+No import of `agent/localModel/*` exists yet, so nothing breaks until wired.
+
+⚠️ **Open question for T1-a/T1-b:** `computeAvailability` currently **blocks
+Local while a native host is attached**, reasoning that a page-side model has no
+standard tool channel when the polyfill shim is absent. If T1-b wants local +
+host coexistence, relax that branch — `describeMode`'s native-precedence already
+keeps the status honest without it. Decide before T1-b integrates.
+
+**Corrections T1-d made in passing:** it inherited broken uncommitted WIP in that
+worktree (an `agentMode.ts` referencing an undefined `cloudHostConnected`), stashed
+it to recover a true 300-test baseline, and rebuilt. It also fixed a **stale tool
+count** — the status pill said `11 staged`; the real number is **12** (redaction
+added `redact_column`). Counted from `tools.tsx` directly.
+
+**Known soft spots, accepted:** two sentences are architectural assertions rather
+than runtime reads (DuckDB reads the File locally; WebGPU has no network surface)
+— both explicitly defer the measured half to the Seal. And `rowsDisclosed()` sums
+the whole session, so a mixed console-then-host session over-attributes rows to
+the host — wrong in the *safe* direction, and the ledger link shows the itemised
+truth.
