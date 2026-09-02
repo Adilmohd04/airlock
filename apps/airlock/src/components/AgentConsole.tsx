@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { uiStore } from "../engine/uiStore";
+import { LocalAgentConsole } from "./LocalAgentConsole";
 
 /**
  * The Agent console — a developer / demo surface, NOT a hidden LLM.
@@ -73,6 +74,10 @@ export function AgentConsole() {
   const [args, setArgs] = useState("{}");
   const [out, setOut] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  // The console has two faces: the local agent (drives the model itself) and
+  // the manual tool caller (developer/demo surface). Default to the agent —
+  // it's the headline.
+  const [view, setView] = useState<"agent" | "manual">("agent");
 
   useEffect(() => {
     if (shim) {
@@ -101,14 +106,28 @@ export function AgentConsole() {
   };
 
   return (
-    <div className="h-64 shrink-0 border-t border-ink-700 bg-ink-950">
+    <div className="h-80 shrink-0 border-t border-ink-700 bg-ink-950">
       <div className="flex items-center justify-between border-b border-ink-800 px-3 py-1.5">
-        <span className="panel-title">
-          Agent console
-          <span className="ml-2 font-normal normal-case tracking-normal text-slate-600">
-            {shim ? `${tools.length} tools registered` : "no WebMCP testing shim in this browser"}
-          </span>
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="panel-title">Agent console</span>
+          <div className="ml-2 flex overflow-hidden rounded border border-ink-700 text-[11px]">
+            <button
+              className={`px-2 py-0.5 ${view === "agent" ? "bg-ink-700 text-slate-100" : "text-slate-500 hover:text-slate-300"}`}
+              onClick={() => setView("agent")}
+            >
+              Local agent
+            </button>
+            <button
+              className={`px-2 py-0.5 ${view === "manual" ? "bg-ink-700 text-slate-100" : "text-slate-500 hover:text-slate-300"}`}
+              onClick={() => setView("manual")}
+            >
+              Manual tools
+              <span className="ml-1.5 font-normal text-slate-600">
+                {shim ? tools.length : "—"}
+              </span>
+            </button>
+          </div>
+        </div>
         <button
           className="text-xs text-slate-500 hover:text-slate-300"
           onClick={() => uiStore.toggleConsole()}
@@ -117,6 +136,11 @@ export function AgentConsole() {
         </button>
       </div>
 
+      {view === "agent" ? (
+        <div className="h-[calc(100%-33px)]">
+          <LocalAgentConsole />
+        </div>
+      ) : (
       <div className="grid h-[calc(100%-33px)] grid-cols-[200px_1fr_1fr]">
         <div className="overflow-y-auto border-r border-ink-800 p-2">
           <p className="panel-title mb-1">Quick calls</p>
@@ -166,6 +190,7 @@ export function AgentConsole() {
           {out || "result appears here"}
         </pre>
       </div>
+      )}
     </div>
   );
 }

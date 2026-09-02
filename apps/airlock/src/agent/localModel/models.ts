@@ -194,7 +194,31 @@ export const LOCAL_MODELS: readonly LocalModelInfo[] = [
   },
 ];
 
+/**
+ * The model selected by default in the UI — the one a capable machine should
+ * run. 3B is the best tool-caller in the catalog, and on a discrete GPU the
+ * approval gate, not the model, is the slow part.
+ */
 export const DEFAULT_MODEL_ID: LocalModelId = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
+
+/**
+ * The model the PUBLIC DEPLOY mirrors and offers first.
+ *
+ * The two defaults are deliberately different, and the reason is honest
+ * economics, not a quality opinion:
+ *  - `DEFAULT_MODEL_ID` (3B, ~1.75 GB) is what you want on real hardware.
+ *  - `DEPLOY_DEFAULT_MODEL_ID` (1.5B, ~0.88 GB) is what the hosted demo can
+ *    actually serve same-origin without blowing past a static host's per-file
+ *    and total-size limits — while still being a Qwen2.5, which is the smallest
+ *    model that emits valid tool-call JSON reliably enough for the demo.
+ *
+ * `scripts/fetch-models.mjs --deploy` mirrors exactly this one. The 3B stays a
+ * one-click opt-up for anyone who mirrors it themselves or self-hosts. Keeping
+ * the weights same-origin either way is the non-negotiable; which model the
+ * public URL ships is a size trade-off layered on top of that.
+ */
+export const DEPLOY_DEFAULT_MODEL_ID: LocalModelId =
+  "Qwen2.5-1.5B-Instruct-q4f16_1-MLC";
 
 export function getModel(id: LocalModelId): LocalModelInfo {
   const m = LOCAL_MODELS.find((x) => x.id === id);

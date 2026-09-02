@@ -4,200 +4,81 @@
  * live download bar, model choice, and cache management (size + delete).
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * INTEGRATION SEAM. T1-a owns the real `LocalModelStore`
- * (`agent/localModel/store.ts`) and its catalog (`agent/localModel/models.ts`).
- * Neither is importable on this branch yet, so everything between the two
- * `STUB ↓` / `STUB ↑` markers below is a throwaway in-memory implementation of
- * the interface this UI needs, coded against the state machine in the T1-c
- * acceptance criteria and against T1-a's already-landed `runtime.ts`
- * (`GpuReport`, `HostingReport`, `LoadProgress`, same-origin weights).
- *
- * To integrate once T1-a lands:
- *   1. delete the stub block (everything between the markers) and the
- *      `export const localModelStore` / `useLocalModelStore` that follow it;
- *   2. `import { localModelStore, useLocalModelStore } from "../agent/localModel/store"`
- *      — the store must expose `getState()/subscribe()` plus the methods on the
- *      `LocalModelStore` interface below (names chosen to match);
- *   3. `import { LOCAL_MODELS, DEFAULT_MODEL_ID, getModel, formatModelSize,`
- *      `type LocalModelId } from "../agent/localModel/models"` and delete the
- *      local copies. `LocalModelInfo` here is a structural subset of T1-a's, so
- *      the component code below the stub does not change.
+ * T1-a INTEGRATED (2026-09-02, T1-b stream). The in-memory stub this panel was
+ * written against is gone; it now binds to the real `LocalModelStore`
+ * (`agent/localModel/store.ts`) and catalog (`agent/localModel/models.ts`).
+ * The contract types and catalog helpers are re-exported from those modules so
+ * `ModelDownloadDialog` / `WebMCPStatus` keep importing them from here. The
+ * real `LocalModelState` is a structural superset (it adds `generating`), which
+ * is assignable everywhere the panel's narrower shape was expected.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import React, { useEffect, useRef, useState } from "react";
 import { uiStore, useUI } from "../engine/uiStore";
+import {
+  localModelStore,
+  toAgentModeStatus,
+  type LocalModelState,
+  type LocalHardwareReport,
+  type LocalModelProgress,
+} from "../agent/localModel/store";
+import {
+  DEFAULT_MODEL_ID,
+  formatModelSize,
+  getModel,
+  LOCAL_MODELS,
+  type LocalModelId,
+  type LocalModelInfo,
+} from "../agent/localModel/models";
+import { agentModeStore } from "../agent/agentMode";
 
-// ── Contract this UI binds to ───────────────────────────────────────────────
+// ── Re-exports so ModelDownloadDialog / WebMCPStatus import from one place ────
+export {
+  localModelStore,
+  type LocalModelState,
+  type LocalHardwareReport,
+  type LocalModelProgress,
+};
+export {
+  DEFAULT_MODEL_ID,
+  formatModelSize,
+  getModel,
+  LOCAL_MODELS,
+  type LocalModelId,
+  type LocalModelInfo,
+};
 
-/** Mirrors `agent/localModel/models.ts#LocalModelId` (4-model curated list). */
-export type LocalModelId =
-  | "Qwen2.5-3B-Instruct-q4f16_1-MLC"
-  | "Llama-3.2-3B-Instruct-q4f16_1-MLC"
-  | "Qwen2.5-1.5B-Instruct-q4f16_1-MLC"
-  | "Llama-3.2-1B-Instruct-q4f16_1-MLC";
-
-/** Structural subset of `agent/localModel/models.ts#LocalModelInfo`. */
-export interface LocalModelInfo {
-  id: LocalModelId;
-  label: string;
-  tier: "default" | "alternate" | "small" | "low-end";
-  params: string;
-  blurb: string;
-  /** One-time download total (weights + kernel lib), bytes. */
-  downloadBytes: number;
-  vramRequiredMB: number;
-  license: string;
+/** React binding for the real store — the hook the stub used to provide. */
+export function useLocalModelStore(): LocalModelState {
+  return React.useSyncExternalStore(
+    localModelStore.subscribe,
+    localModelStore.getState,
+    localModelStore.getState
+  );
 }
 
 /**
- * The state machine. `paused` and `error` extend BUILD_PROMPT's documented five
- * (`unavailable | not-downloaded | downloading | ready | running`) because the
- * T1-c acceptance criteria call for a real design of the cancelled and failed
- * states. `unavailableReason` + `blocker` sit underneath `"unavailable"` so the
- * UI can tell "no WebGPU in this browser" apart from "this deployment never
- * mirrored the weights" — T1-a's `runtime.ts` treats those as distinct too.
+ * Keep the mode indicator (`agent/agentMode.ts`) in sync with the real store:
+ * it consumes only `status` (mapped 7→5 by the store's own `toAgentModeStatus`)
+ * and the active model id. Subscribed once, at module load.
  */
-export type LocalModelStatus =
-  | "unavailable"
-  | "not-downloaded"
-  | "downloading"
-  | "paused"
-  | "ready"
-  | "running"
-  | "error";
-
-export type LocalModelBlocker = "none" | "no-webgpu" | "no-weights-hosted";
-
-export interface LocalModelProgress {
-  /** 0..1. Real fraction from the runtime; bytes below are derived from it. */
-  fraction: number;
-  loadedBytes: number;
-  totalBytes: number;
-  /** The runtime's own status line, shown verbatim. */
-  label: string;
-  /** true = pulling weights over the (same-origin) network; false = warming the GPU. */
-  fetching: boolean;
-  elapsedMs: number;
+let modeSyncInstalled = false;
+function installModeSync(): void {
+  if (modeSyncInstalled) return;
+  modeSyncInstalled = true;
+  const push = () => {
+    const s = localModelStore.getState();
+    agentModeStore.setLocalModelStatus(
+      toAgentModeStatus(s.status),
+      s.activeModelId
+    );
+  };
+  localModelStore.subscribe(push);
+  push();
 }
 
-export interface LocalHardwareReport {
-  available: boolean;
-  /** e.g. "nvidia - ampere"; "" when unavailable. */
-  adapter: string;
-  speed: "fast" | "usable" | "slow" | "unknown";
-  /** Plain-language; "" when available. */
-  reason: string;
-}
-
-export interface LocalModelCache {
-  /** Bytes held in the browser's model cache, or null when indeterminate. */
-  bytesOnDisk: number | null;
-  cachedModelIds: LocalModelId[];
-}
-
-export interface LocalModelState {
-  status: LocalModelStatus;
-  selectedModelId: LocalModelId;
-  /** The model resident on the GPU (status `running`), else null. */
-  activeModelId: LocalModelId | null;
-  progress: LocalModelProgress | null;
-  /** Bytes kept in cache from a cancelled download (drives "resume"). */
-  partialBytes: number;
-  /** Sanitized message; set iff status === "error". */
-  error: string | null;
-  /** Set iff status === "unavailable". */
-  unavailableReason: string | null;
-  blocker: LocalModelBlocker;
-  /** null until the first hardware probe resolves. */
-  hardware: LocalHardwareReport | null;
-  cache: LocalModelCache;
-}
-
-export interface LocalModelStore {
-  getState(): LocalModelState;
-  subscribe(listener: () => void): () => void;
-  /** Probe WebGPU (and, in the real store, the same-origin weight mirror). */
-  refresh(): Promise<void>;
-  selectModel(id: LocalModelId): void;
-  /** Start, or resume after a cancel, the one-time download for the selection. */
-  download(): Promise<void>;
-  /** Cancel an in-flight download; cached shards survive → `paused`. */
-  cancelDownload(): void;
-  /** Bring the cached model onto the GPU: `ready` → `running`. */
-  load(): Promise<void>;
-  /** Free the GPU, keep the weights: `running` → `ready`. */
-  unload(): Promise<void>;
-  /** Delete a model's cached weights. Resolves with bytes reclaimed. */
-  deleteWeights(id: LocalModelId): Promise<number>;
-  /** Leave the `error` state without retrying. */
-  clearError(): void;
-}
-
-// ── Catalog (mirrors agent/localModel/models.ts, numbers measured 2026-09-02) ─
-
-export const LOCAL_MODELS: readonly LocalModelInfo[] = [
-  {
-    id: "Qwen2.5-3B-Instruct-q4f16_1-MLC",
-    label: "Qwen2.5 3B Instruct",
-    tier: "default",
-    params: "3B",
-    blurb:
-      "Best tool-calling accuracy of the four. Needs a GPU with about 2.5 GB free.",
-    downloadBytes: 1_743_386_559 + 5_438_957,
-    vramRequiredMB: 2504.76,
-    license: "Qwen Research License",
-  },
-  {
-    id: "Llama-3.2-3B-Instruct-q4f16_1-MLC",
-    label: "Llama 3.2 3B Instruct",
-    tier: "alternate",
-    params: "3B",
-    blurb:
-      "Alternative 3B. Slightly larger download, slightly lower GPU requirement.",
-    downloadBytes: 1_816_632_516 + 5_957_281,
-    vramRequiredMB: 2263.69,
-    license: "Llama 3.2 Community License",
-  },
-  {
-    id: "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
-    label: "Qwen2.5 1.5B Instruct",
-    tier: "small",
-    params: "1.5B",
-    blurb:
-      "Half the download. The pick for an integrated GPU that still needs valid tool calls.",
-    downloadBytes: 875_705_761 + 5_225_782,
-    vramRequiredMB: 1629.75,
-    license: "Apache-2.0",
-  },
-  {
-    id: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
-    label: "Llama 3.2 1B Instruct",
-    tier: "low-end",
-    params: "1B",
-    blurb:
-      "For weak or integrated GPUs: about 0.9 GB of VRAM. Expect more malformed tool calls.",
-    downloadBytes: 704_397_819 + 5_320_982,
-    vramRequiredMB: 879.04,
-    license: "Llama 3.2 Community License",
-  },
-];
-
-export const DEFAULT_MODEL_ID: LocalModelId = "Qwen2.5-3B-Instruct-q4f16_1-MLC";
-
-export function getModel(id: LocalModelId): LocalModelInfo {
-  return LOCAL_MODELS.find((m) => m.id === id) ?? LOCAL_MODELS[0];
-}
-
-/** GB-aware size string — `lib/format.ts#bytes` stops at MB, models are ~1.7 GB. */
-export function formatModelSize(n: number): string {
-  if (!Number.isFinite(n) || n < 0) return "—";
-  const MB = 1024 * 1024;
-  if (n >= 1024 * MB) return `${(n / (1024 * MB)).toFixed(2)} GB`;
-  if (n >= MB) return `${Math.round(n / MB)} MB`;
-  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
-  return `${Math.round(n)} B`;
-}
+installModeSync();
 
 // ── Presentational helpers (shared with ModelDownloadDialog) ─────────────────
 
@@ -250,393 +131,6 @@ function pillMeta(s: LocalModelState): { dot: string; word: string } {
     default:
       return { dot: "bg-ink-500", word: "set up" };
   }
-}
-
-// ─────────────────────────── STUB ↓  (delete at T1-a merge) ──────────────────
-
-const CACHE_IDS_KEY = "airlock.localModel.stub.cachedIds";
-
-function readCachedIds(): LocalModelId[] {
-  try {
-    const raw = globalThis.localStorage?.getItem(CACHE_IDS_KEY);
-    const arr: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr)
-      ? arr.filter((x): x is LocalModelId =>
-          LOCAL_MODELS.some((m) => m.id === x)
-        )
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeCachedIds(ids: LocalModelId[]): void {
-  try {
-    globalThis.localStorage?.setItem(CACHE_IDS_KEY, JSON.stringify(ids));
-  } catch {
-    /* private window / storage disabled — the stub just won't remember */
-  }
-}
-
-interface AdapterInfoLike {
-  vendor?: string;
-  architecture?: string;
-  device?: string;
-  description?: string;
-}
-
-function describeAdapter(info: AdapterInfoLike | undefined): string {
-  if (!info) return "GPU (details withheld by the browser)";
-  const parts = [info.vendor, info.architecture].filter(
-    (p): p is string => !!p && p.length > 0
-  );
-  if (parts.length) return parts.join(" - ");
-  return info.description || info.device || "GPU (details withheld by the browser)";
-}
-
-function rankSpeed(text: string, maxBindingBytes: number): LocalHardwareReport["speed"] {
-  if (/swiftshader|llvmpipe|basic render|software/i.test(text)) return "slow";
-  const MiB = 1024 * 1024;
-  if (maxBindingBytes >= 1024 * MiB) return "fast";
-  if (maxBindingBytes >= 256 * MiB) return "usable";
-  if (maxBindingBytes > 0) return "slow";
-  return "unknown";
-}
-
-/**
- * Real WebGPU feature-detection — condensed from T1-a's `detectWebGpu`. Never
- * throws and never logs (a throw becomes an `available:false` report), which is
- * what keeps a WebGPU-less browser free of console errors. The weight-mirror
- * probe that T1-a's store also runs is deliberately NOT done here: a 404 against
- * a dev server with no `/models/` mirror would show up as a console network
- * error, and the stub's job is to make the happy path demoable, not to test the
- * deploy.
- */
-async function probeHardware(): Promise<{
-  hw: LocalHardwareReport;
-  blocker: LocalModelBlocker;
-}> {
-  try {
-    const nav = globalThis.navigator as unknown as {
-      gpu?: {
-        requestAdapter(o?: unknown): Promise<{
-          features?: { has(n: string): boolean };
-          limits?: { maxStorageBufferBindingSize?: number };
-          info?: AdapterInfoLike;
-          requestAdapterInfo?: () => Promise<AdapterInfoLike>;
-        } | null>;
-      };
-    };
-    if (!nav?.gpu?.requestAdapter) {
-      return {
-        blocker: "no-webgpu",
-        hw: {
-          available: false,
-          adapter: "",
-          speed: "unknown",
-          reason:
-            "This browser does not expose WebGPU. Running a model on your device needs Chrome or Edge 113+, or Safari 18+, with hardware acceleration enabled.",
-        },
-      };
-    }
-    const adapter = await nav.gpu.requestAdapter({
-      powerPreference: "high-performance",
-    });
-    if (!adapter) {
-      return {
-        blocker: "no-webgpu",
-        hw: {
-          available: false,
-          adapter: "",
-          speed: "unknown",
-          reason:
-            "WebGPU is present but no GPU adapter was granted — usually a headless session, a blocklisted driver, or hardware acceleration turned off.",
-        },
-      };
-    }
-    let info = adapter.info;
-    if (!info && typeof adapter.requestAdapterInfo === "function") {
-      try {
-        info = await adapter.requestAdapterInfo();
-      } catch {
-        info = undefined;
-      }
-    }
-    const name = describeAdapter(info);
-    const f16 = adapter.features?.has("shader-f16") ?? false;
-    const maxBinding = adapter.limits?.maxStorageBufferBindingSize ?? 0;
-    if (!f16) {
-      return {
-        blocker: "no-webgpu",
-        hw: {
-          available: false,
-          adapter: name,
-          speed: "unknown",
-          reason:
-            "Your GPU reports no support for 16-bit shaders (shader-f16), which every model in the local catalog needs.",
-        },
-      };
-    }
-    const text = [info?.vendor, info?.architecture, info?.device, info?.description]
-      .filter(Boolean)
-      .join(" ");
-    return {
-      blocker: "none",
-      hw: {
-        available: true,
-        adapter: name,
-        speed: rankSpeed(text, maxBinding),
-        reason: "",
-      },
-    };
-  } catch (err) {
-    return {
-      blocker: "no-webgpu",
-      hw: {
-        available: false,
-        adapter: "",
-        speed: "unknown",
-        reason: `The WebGPU check did not complete: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      },
-    };
-  }
-}
-
-function cachedBytes(ids: LocalModelId[]): number {
-  return ids.reduce((sum, id) => sum + getModel(id).downloadBytes, 0);
-}
-
-function createStubLocalModelStore(): LocalModelStore {
-  const cached = readCachedIds();
-  const selected = DEFAULT_MODEL_ID;
-
-  let state: LocalModelState = {
-    status: cached.includes(selected) ? "ready" : "not-downloaded",
-    selectedModelId: selected,
-    activeModelId: null,
-    progress: null,
-    partialBytes: 0,
-    error: null,
-    unavailableReason: null,
-    blocker: "none",
-    hardware: null,
-    cache: { bytesOnDisk: cachedBytes(cached), cachedModelIds: cached },
-  };
-
-  const listeners = new Set<() => void>();
-  let snapshot = state;
-  const emit = () => {
-    snapshot = state;
-    for (const l of listeners) l();
-  };
-  const set = (patch: Partial<LocalModelState>) => {
-    state = { ...state, ...patch };
-    emit();
-  };
-
-  let ticker: ReturnType<typeof setInterval> | null = null;
-  let warmup: ReturnType<typeof setTimeout> | null = null;
-  let startedAt = 0;
-  const FULL_DOWNLOAD_MS = 9000;
-
-  const stop = () => {
-    if (ticker) {
-      clearInterval(ticker);
-      ticker = null;
-    }
-    if (warmup) {
-      clearTimeout(warmup);
-      warmup = null;
-    }
-  };
-
-  const complete = () => {
-    stop();
-    const id = state.selectedModelId;
-    const next = state.cache.cachedModelIds.includes(id)
-      ? state.cache.cachedModelIds
-      : [...state.cache.cachedModelIds, id];
-    writeCachedIds(next);
-    set({
-      status: "ready",
-      progress: null,
-      partialBytes: 0,
-      cache: { cachedModelIds: next, bytesOnDisk: cachedBytes(next) },
-    });
-  };
-
-  const runDownload = () => {
-    const total = getModel(state.selectedModelId).downloadBytes;
-    startedAt = Date.now() - (state.partialBytes / total) * FULL_DOWNLOAD_MS;
-    ticker = setInterval(() => {
-      const prev = state.progress?.loadedBytes ?? state.partialBytes;
-      const loaded = Math.min(total, prev + total * (0.02 + Math.random() * 0.03));
-      if (loaded >= total) {
-        if (ticker) {
-          clearInterval(ticker);
-          ticker = null;
-        }
-        // Weights are all here — now WebLLM warms the GPU (no bytes, indeterminate).
-        set({
-          progress: {
-            fraction: 1,
-            loadedBytes: total,
-            totalBytes: total,
-            label: "Loading the model onto your GPU…",
-            fetching: false,
-            elapsedMs: Date.now() - startedAt,
-          },
-        });
-        warmup = setTimeout(complete, 1100);
-        return;
-      }
-      set({
-        progress: {
-          fraction: loaded / total,
-          loadedBytes: loaded,
-          totalBytes: total,
-          label: "Downloading model weights from this site…",
-          fetching: true,
-          elapsedMs: Date.now() - startedAt,
-        },
-      });
-    }, 260);
-  };
-
-  return {
-    getState: () => snapshot,
-    subscribe: (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-
-    async refresh() {
-      const { hw, blocker } = await probeHardware();
-      const isCached = state.cache.cachedModelIds.includes(state.selectedModelId);
-      let status = state.status;
-      let unavailableReason = state.unavailableReason;
-      if (status === "downloading" || status === "paused" || status === "running") {
-        // don't yank the rug out from under an in-flight operation
-      } else if (!hw.available) {
-        status = "unavailable";
-        unavailableReason = hw.reason;
-      } else if (status === "unavailable") {
-        status = isCached ? "ready" : "not-downloaded";
-        unavailableReason = null;
-      }
-      set({ hardware: hw, blocker, status, unavailableReason });
-    },
-
-    selectModel(id) {
-      if (state.status === "downloading" || state.status === "running") return;
-      const isCached = state.cache.cachedModelIds.includes(id);
-      const noGpu = state.hardware != null && !state.hardware.available;
-      set({
-        selectedModelId: id,
-        partialBytes: 0,
-        progress: null,
-        error: null,
-        status: noGpu ? "unavailable" : isCached ? "ready" : "not-downloaded",
-      });
-    },
-
-    async download() {
-      if (state.status === "downloading") return;
-      if (state.hardware != null && !state.hardware.available) return;
-      if (state.cache.cachedModelIds.includes(state.selectedModelId)) {
-        set({ status: "ready" });
-        return;
-      }
-      const total = getModel(state.selectedModelId).downloadBytes;
-      set({
-        status: "downloading",
-        error: null,
-        progress: {
-          fraction: state.partialBytes / total,
-          loadedBytes: state.partialBytes,
-          totalBytes: total,
-          label: "Starting the download…",
-          fetching: true,
-          elapsedMs: 0,
-        },
-      });
-      runDownload();
-    },
-
-    cancelDownload() {
-      if (state.status !== "downloading") return;
-      stop();
-      set({
-        status: "paused",
-        partialBytes: state.progress?.loadedBytes ?? state.partialBytes,
-      });
-    },
-
-    async load() {
-      if (state.status !== "ready") return;
-      // Real store emits LoadProgress here while WebLLM warms the GPU; the stub
-      // flips straight through.
-      set({
-        status: "running",
-        activeModelId: state.selectedModelId,
-        progress: null,
-        error: null,
-      });
-    },
-
-    async unload() {
-      if (state.status !== "running") return;
-      set({ status: "ready", activeModelId: null });
-    },
-
-    async deleteWeights(id) {
-      stop();
-      const isFull = state.cache.cachedModelIds.includes(id);
-      const reclaimed = isFull ? getModel(id).downloadBytes : state.partialBytes;
-      const next = state.cache.cachedModelIds.filter((x) => x !== id);
-      writeCachedIds(next);
-      const hitSelection = state.selectedModelId === id;
-      const noGpu = state.hardware != null && !state.hardware.available;
-      set({
-        cache: { cachedModelIds: next, bytesOnDisk: cachedBytes(next) },
-        partialBytes: hitSelection ? 0 : state.partialBytes,
-        progress: hitSelection ? null : state.progress,
-        activeModelId: state.activeModelId === id ? null : state.activeModelId,
-        status: hitSelection
-          ? noGpu
-            ? "unavailable"
-            : "not-downloaded"
-          : state.status,
-      });
-      return reclaimed;
-    },
-
-    clearError() {
-      const isCached = state.cache.cachedModelIds.includes(state.selectedModelId);
-      set({
-        error: null,
-        status: isCached
-          ? "ready"
-          : state.partialBytes > 0
-            ? "paused"
-            : "not-downloaded",
-      });
-    },
-  };
-}
-
-// ─────────────────────────── STUB ↑ ─────────────────────────────────────────
-
-export const localModelStore: LocalModelStore = createStubLocalModelStore();
-
-export function useLocalModelStore(): LocalModelState {
-  return React.useSyncExternalStore(
-    localModelStore.subscribe,
-    localModelStore.getState,
-    localModelStore.getState
-  );
 }
 
 // ── Shared UI pieces ────────────────────────────────────────────────────────

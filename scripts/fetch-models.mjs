@@ -88,9 +88,15 @@ async function readCatalog() {
     );
   }
   const defaultMatch = src.match(/DEFAULT_MODEL_ID: LocalModelId = "([^"]+)"/);
+  const deployMatch = src.match(
+    /DEPLOY_DEFAULT_MODEL_ID: LocalModelId =\s*"([^"]+)"/
+  );
   return {
     models: ids.map((id, i) => ({ id, libFile: libs[i] })),
     defaultId: defaultMatch ? defaultMatch[1] : ids[0],
+    // The model the public deploy mirrors — smaller, so a static host can serve
+    // it. Falls back to the UI default if the constant is ever removed.
+    deployId: deployMatch ? deployMatch[1] : defaultMatch ? defaultMatch[1] : ids[0],
   };
 }
 
@@ -287,7 +293,7 @@ async function mirrorModel(model, modelVersion, { checkOnly }) {
 
 async function main() {
   const argv = process.argv.slice(2);
-  const { models, defaultId } = await readCatalog();
+  const { models, defaultId, deployId } = await readCatalog();
 
   if (argv.includes("--help") || argv.includes("-h")) {
     console.log(
@@ -296,8 +302,13 @@ async function main() {
         "",
         "  node scripts/fetch-models.mjs --list",
         "  node scripts/fetch-models.mjs [modelId...]",
+        "  node scripts/fetch-models.mjs --deploy    # the smaller model the public demo ships",
         "  node scripts/fetch-models.mjs --all",
         "  node scripts/fetch-models.mjs --check [modelId...]",
+        "",
+        "With no arguments, mirrors the UI default (" + defaultId + ").",
+        "--deploy mirrors the smaller deploy default (" + deployId + "), which is",
+        "what a size-limited static host can serve same-origin for the live demo.",
         "",
         "Downloads from huggingface.co and raw.githubusercontent.com. This is the",
         "ONLY place Airlock ever touches those hosts, and it never runs in a browser.",
@@ -308,12 +319,19 @@ async function main() {
 
   if (argv.includes("--list")) {
     for (const m of models) {
-      console.log(`${m.id}${m.id === defaultId ? "  (default)" : ""}`);
+      const tags = [
+        m.id === defaultId ? "default" : "",
+        m.id === deployId ? "deploy" : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
+      console.log(`${m.id}${tags ? `  (${tags})` : ""}`);
     }
     return;
   }
 
   const checkOnly = argv.includes("--check");
+  const deployOnly = argv.includes("--deploy");
   const named = argv.filter((a) => !a.startsWith("--"));
   const selected = argv.includes("--all")
     ? models
@@ -323,7 +341,9 @@ async function main() {
           if (!m) throw new Error(`unknown model id: ${id}`);
           return m;
         })
-      : models.filter((m) => m.id === defaultId);
+      : deployOnly
+        ? models.filter((m) => m.id === deployId)
+        : models.filter((m) => m.id === defaultId);
 
   const modelVersion = await readModelVersion();
   console.log(

@@ -1,3 +1,4 @@
+import React from "react";
 import { useActiveDataset } from "../engine/useDataset";
 import { uiStore, useUI } from "../engine/uiStore";
 import { SealStatus } from "./SealStatus";
@@ -8,11 +9,26 @@ import { SessionMenu } from "./SessionMenu";
 import { MobileGate } from "./MobileGate";
 import { num } from "../lib/format";
 import { taglineFor, useAgentMode } from "../agent/agentMode";
+import { localAgent } from "../agent/localModel/agent";
+
+/** Live agent run status, so the console button can show when it's working. */
+function useAgentRunStatus() {
+  return React.useSyncExternalStore(
+    localAgent.subscribe,
+    () => localAgent.getState().status,
+    () => localAgent.getState().status
+  );
+}
 
 export function TopBar() {
   const { state } = useActiveDataset();
   const ui = useUI();
   const agentMode = useAgentMode();
+  const agentStatus = useAgentRunStatus();
+  const agentBusy =
+    agentStatus === "thinking" ||
+    agentStatus === "calling-tool" ||
+    agentStatus === "waiting-approval";
 
   return (
     <>
@@ -52,8 +68,17 @@ export function TopBar() {
           className="btn btn-ghost !px-2 !py-1 text-xs"
           onClick={() => uiStore.toggleConsole()}
           aria-pressed={ui.consoleOpen}
-          title="Toggle the agent console (Ctrl/Cmd + `)"
+          title="Open the agent console: run the local model, or call tools manually (Ctrl/Cmd + `)"
         >
+          {agentBusy && (
+            <span
+              className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${
+                agentStatus === "waiting-approval"
+                  ? "bg-pending"
+                  : "bg-pending animate-pending-pulse"
+              }`}
+            />
+          )}
           Agent console
         </button>
       </div>

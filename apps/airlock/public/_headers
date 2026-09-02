@@ -33,6 +33,31 @@
 /demo/*
   Cache-Control: public, max-age=31536000, immutable
 
+# ── Local model weights (same-origin, mirrored by scripts/fetch-models.mjs) ──
+# These are NOT in git; the mirror script writes them into public/models/. The
+# compiled WebGPU kernel libraries live under /models/lib/*.wasm and MUST carry
+# the wasm MIME: the site-wide `X-Content-Type-Options: nosniff` in the /*
+# block below means a wrong/absent Content-Type is refused, not sniffed, and
+# WebLLM's `instantiateStreaming` requires `application/wasm`. Ordered before
+# the broad /models/* rule so the more specific wasm type wins for the lib dir.
+/models/lib/*
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=31536000, immutable
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: cross-origin
+
+# The weight shards (params_shard_*.bin), tokenizer, config and the mirror
+# manifest (airlock-manifest.json). Immutable: a model id is content-addressed,
+# so its files never change once mirrored. Netlify auto-detects the JSON MIME
+# for the manifest, which the runtime's probe relies on to tell a real mirror
+# apart from an SPA HTML fallback.
+/models/*
+  Cache-Control: public, max-age=31536000, immutable
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: cross-origin
+
 # Catch-all: guarantees COOP/COEP + security headers on every path, including
 # SPA deep links with no file extension (e.g. /workspace/report) that the /*
 # redirect below serves index.html for. Netlify evaluates header rules against

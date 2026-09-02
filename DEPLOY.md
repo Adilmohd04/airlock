@@ -148,6 +148,58 @@ claim that's worth re-checking after every `@duckdb/duckdb-wasm` version bump,
 since a future version's tree-shaking behavior or default bundle-selection
 code path could change.
 
+## Local model weights (Tier 1 — the fully-local agent)
+
+Local mode runs an in-browser LLM (WebLLM + WebGPU) that drives Airlock's tools
+with **zero data egress**. The weights are large and are **not in git**; they
+are served same-origin from `/models/` and mirrored there by
+`scripts/fetch-models.mjs` (the one place any third-party weight URL exists, run
+by hand or in CI, never in a browser).
+
+### Which model the public deploy ships
+
+Two defaults, on purpose (see `agent/localModel/models.ts`):
+
+| Constant | Model | Size | Role |
+| --- | --- | --- | --- |
+| `DEFAULT_MODEL_ID` | Qwen2.5-3B-Instruct q4f16_1 | ~1.75 GB | Best tool-caller; the pick on real hardware. Selected by default in the UI. |
+| `DEPLOY_DEFAULT_MODEL_ID` | Qwen2.5-1.5B-Instruct q4f16_1 | ~0.88 GB | What the hosted demo mirrors — small enough for a static host, still a Qwen2.5 so tool-call JSON stays reliable. |
+
+The 3B stays a **one-click opt-up** for anyone who mirrors it themselves or
+self-hosts. The size trade-off never touches the guarantee: whichever model
+ships, its weights are served from Airlock's own origin, so the Seal stays at
+0 external and `models.ts#assertSameOrigin` fails the build closed if a URL
+ever points off-origin.
+
+### Mirroring for a deploy
+
+```bash
+# What the live demo needs — the smaller deploy default:
+node scripts/fetch-models.mjs --deploy      # ~0.88 GB into apps/airlock/public/models/
+
+# Opt-up / self-host the 3B as well:
+node scripts/fetch-models.mjs               # the UI default (3B)
+
+# Everything, or a check without downloading:
+node scripts/fetch-models.mjs --all
+node scripts/fetch-models.mjs --check --deploy
+```
+
+Run this **before** `npm run build` (or in the build image), and make sure the
+resulting `apps/airlock/public/models/` ships with the site. `netlify.toml` and
+`_headers` already:
+- **exclude `/models/*` from the SPA catch-all** so a missing weight returns a
+  real 404 instead of `index.html` (a `200 text/html` fallback makes WebLLM
+  "download" the app shell and fail deep in a tensor parse);
+- serve `/models/lib/*` as `application/wasm` (required — the site-wide
+  `nosniff` means a wrong MIME is rejected, not sniffed);
+- cache `/models/*` immutable (a model id is content-addressed).
+
+If the deploy does **not** mirror any weights, Local mode degrades honestly: the
+runtime's `probeHosted()` reports "this deployment does not host <model>" and
+Cloud mode still works. Nothing breaks; the local demo just isn't available on
+that URL.
+
 ## Deployment Configuration
 
 ### netlify.toml
