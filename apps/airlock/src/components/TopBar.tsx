@@ -5,6 +5,7 @@ import { SealStatus } from "./SealStatus";
 import { WebMCPStatus } from "./WebMCPStatus";
 import { LocalModelPanel } from "./LocalModelPanel";
 import { ModelDownloadDialog } from "./ModelDownloadDialog";
+import { AttestationPanel } from "./AttestationPanel";
 import { SessionMenu } from "./SessionMenu";
 import { MobileGate } from "./MobileGate";
 import { num } from "../lib/format";
@@ -62,6 +63,7 @@ export function TopBar() {
             {state.columns.length + state.derived.length} cols
           </span>
         )}
+        {state?.loaded && <AttestationPanel />}
         <SessionMenu />
         <button
           type="button"
