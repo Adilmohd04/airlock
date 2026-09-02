@@ -1530,3 +1530,55 @@ never engaged with it. PDF import already exists and is tested (5 tests,
 extension if wanted later, but it's a real new scope item, not a "finish
 what's already 90% done" item — flagging it rather than starting it
 unprompted at this hour.
+
+### [2026-09-02] claude-main — /code-review high on the never-reviewed T1-b/T2.1 commits: one critical, three real bugs, all fixed
+
+The T1-b/T2.1/PDF-import/deploy commits landed directly on `main` via a
+parallel session, not through the dispatcher-merge flow, so they'd never
+been through `/code-review high`. Ran it. Four real findings, all fixed and
+tested, commit `c8143e0`:
+
+1. **CRITICAL — `verify.html` XSS.** The offline attestation verifier built
+   its result table with unescaped receipt fields via `innerHTML`. Since
+   this page's whole purpose is to be run by a third party (an auditor) on
+   a file someone else handed them, a crafted receipt could execute
+   arbitrary JS in the verifier — the exact opposite of what a trust artifact
+   is for. Added the same `esc()` discipline `attestation.ts` already uses.
+   Verified live: a payload receipt renders as inert text now; legitimate
+   receipts still verify and tamper-detection still fires correctly (both
+   re-tested after the fix).
+2. **`DEPLOY_DEFAULT_MODEL_ID` never wired.** Defined, documented, used by
+   `fetch-models.mjs`, but `LocalModelStore` never referenced it — a fresh
+   visitor to a size-constrained deploy (which only mirrors the 1.5B) would
+   see Local mode as permanently "unavailable" because the untouched
+   default is the 3B. Now falls back to the deploy default, but *only* when
+   the selection was never an explicit user choice — reselecting the 3B by
+   name still reports honestly if it isn't hosted.
+3. **Local-agent commit/reject hallucinations invisible to the ledger.**
+   Caught and refused correctly, but never touched `activityLog` — so the
+   attempt was missing from both the ActivityLog panel and the attestation
+   receipt's `disclosure.denied` count, unlike the same denial from a cloud
+   host or the manual console. Now logged identically.
+4. **Concurrency, three rounds deep.** Fix #2 opened a real race
+   (`selectModel()` landing mid-probe could get silently reverted, or leave
+   the new selection unprobed, or — caught only on a third review pass —
+   have its localStorage entry clobbered by a stale fallback decision, or
+   double-fire network probes). Two rounds of targeted patches each closed
+   one hole and opened another — the tell that ad-hoc chaining was the
+   wrong tool. Replaced it with a generation counter (`epoch`): every
+   `refresh()` for a genuinely new selection gets its own epoch, every
+   state-mutating step re-checks it's still current before writing, a
+   superseded probe safely no-ops. A fourth, non-concurrency finding (wrong
+   model's reason string reported when neither the default nor the
+   fallback is hosted) was caught on the pass *after* that and fixed too.
+
+19 new/updated tests. `main` @ `c8143e0`: build clean, typecheck clean,
+487 airlock + 29 webmcp-staged = 516 tests, all green.
+
+**Note on process, for whoever reads this next:** three consecutive review
+passes each found something real in the same ~120-line function. That is
+not a reason to keep iterating indefinitely — it is why the last round
+switched from patching to a proper rewrite (the epoch counter) instead of
+a fourth special case. Two clean passes after that found nothing new. If a
+change needs a third patch to its own patch, stop and redesign rather than
+patch again.
