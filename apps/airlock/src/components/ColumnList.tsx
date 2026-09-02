@@ -1,9 +1,13 @@
 import { useActiveDataset } from "../engine/useDataset";
 import { Sparkline } from "./Sparkline";
+import { useJustAdded } from "./useJustAdded";
 import { num, pct } from "../lib/format";
 
 export function ColumnList() {
   const { state, store } = useActiveDataset();
+  // Same "agent's touch" motif as FilterBar: a spark glyph for agent-originated
+  // rows, one commit-green flash the moment a derived column lands.
+  const flashing = useJustAdded(state?.derived.map((d) => d.id) ?? []);
   if (!state || !store) return null;
 
   const redacted = new Set(state.redactedColumns);
@@ -81,7 +85,7 @@ export function ColumnList() {
                     className={`text-[10px] ${
                       isSuggested
                         ? "font-medium text-pending hover:text-pending/70"
-                        : "text-slate-600 opacity-0 hover:text-danger group-hover:opacity-100"
+                        : "text-slate-600 opacity-0 hover:text-danger group-hover:opacity-100 focus-visible:opacity-100"
                     }`}
                   >
                     {isSuggested ? "⚠ redact (looks like PII)" : "redact"}
@@ -132,10 +136,15 @@ export function ColumnList() {
             key={d.id}
             className={`rounded-md px-2 py-1.5 ${
               d.origin === "agent" ? "chip-agent" : ""
-            }`}
+            } ${flashing.has(d.id) ? "agent-committed" : ""}`}
           >
             <div className="flex items-baseline justify-between gap-2">
               <span className="truncate font-mono text-xs text-airlock-300">
+                {d.origin === "agent" && (
+                  <span className="mr-1 text-airlock-400" title="Added by the agent">
+                    ✦
+                  </span>
+                )}
                 {d.name}
               </span>
               <button

@@ -8,7 +8,7 @@ every shot shows real data.
 | File | Shot | Caption |
 | --- | --- | --- |
 | `01-empty-state.png` | The landing screen: the "The data stays in your browser" headline, the CSV/JSON drop zone, and the two demo-dataset buttons. | Load a spreadsheet you would never paste into a chat window. |
-| `02-grid.png` | A loaded dataset — TopBar with the green **Sealed · 0 bytes out** indicator and the `8 read · 11 staged` WebMCP status, LeftRail column list, DataGrid, FilterBar. | The agent and the human share one workspace. |
+| `02-grid.png` | A loaded dataset — TopBar with the green **Sealed · 0 bytes out** indicator and the `8 read · 12 staged` WebMCP status, LeftRail column list, DataGrid, FilterBar. | The agent and the human share one workspace. |
 | `03-review-queue.png` | RightRail **Review queue** with one or more pending `ProposalCard`s showing a typed diff (e.g. a filter's rows-kept-vs-total, or a derived-column preview) in amber. | Every change the agent proposes is staged as a diff you approve or reject. |
 | `04-activity-ledger.png` | The **Activity** panel (RightRail, lower) listing read / propose / commit / reject entries, with the "rows disclosed / distinct columns seen" totals visible. | The honest answer to "what did the agent actually see?" |
 | `05-seal-popover.png` | The Seal indicator popover open, showing request-body bytes sent, external requests, same-origin asset loads, hosts contacted, and the note that read tools still return data to the agent. | "Data never leaves the browser" — made measurable. |
