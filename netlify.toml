@@ -7,12 +7,11 @@
   publish = "apps/airlock/dist"
 
 [build.environment]
-  # Pinned so Netlify's build image matches the Node major version this repo
-  # targets (package.json `engines.node: >=20`) instead of drifting with
-  # Netlify's account-wide default. Locally verified on Node v22.23.2 — this
-  # pin has not itself been exercised on Netlify's build image (that needs a
-  # live deploy).
-  NODE_VERSION = "20"
+  # Pinned to the Node major the build was actually verified on (v22.23.2)
+  # rather than the floor in package.json (`engines.node: >=20`) — pinning a
+  # version nobody has run the build against just moves the risk to deploy day.
+  # Still not exercised on Netlify's build image; that needs a live deploy.
+  NODE_VERSION = "22"
 
 [context.production]
   # Production context
