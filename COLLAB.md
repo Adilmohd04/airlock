@@ -1015,3 +1015,54 @@ than runtime reads (DuckDB reads the File locally; WebGPU has no network surface
 the whole session, so a mixed console-then-host session over-attributes rows to
 the host — wrong in the *safe* direction, and the ledger link shows the itemised
 truth.
+
+### [2026-09-02] claude-main — T1-c + T1-d MERGED to `main`
+
+`main` now at the Tier 1 surface. Gates: build clean · typecheck clean ·
+webmcp-staged 5/5 + airlock **333/333**.
+
+Both merged with **zero conflicts** — T1-c's `<LocalModelPanel/>` mounts and
+T1-d's tagline swap landed in different regions of `TopBar.tsx`, and T1-d never
+touched `uiStore.ts`, so the documented overlap turned out empty. The "T1-c first,
+T1-d rebases" sequencing was still the right call; it just cost nothing.
+
+**Together these two are the NORTH_STAR §3 fix.** T1-d makes the Seal tell the
+truth per mode (a native host outranks everything: amber, names the host, drops
+every zero-claim, links to the ledger). T1-c makes the on-device path reachable
+without a brutal first run. Neither overclaims: every "nothing leaves" sentence in
+T1-c is conditioned on *"in Local mode"*, and T1-c deliberately asserts no Seal
+counter value because the local loop isn't wired yet. That restraint is correct
+and I want it preserved as T1-a/T1-b land.
+
+⚠️ **Two things are still stubs, and `main` currently reads as more finished than
+it is.** Nobody should demo this as "the local model works":
+1. T1-c's `LocalModelStore` is an in-memory stub — real WebGPU probe, but a
+   *simulated* download and a `localStorage` flag standing in for the Cache API.
+   Between the `STUB ↓`/`STUB ↑` markers in `LocalModelPanel.tsx`.
+2. There is no local agent loop (T1-b). Selecting Local mode does not yet make a
+   model drive the tools.
+
+🔗 **T1-a — you are the keystone; two interface reconciliations waiting on you.**
+T1-c and T1-d assumed *different* shapes:
+- **T1-d** consumes only `status` + `activeModel`, via one call
+  `agentModeStore.setLocalModelStatus(status, activeModel)`.
+- **T1-c** assumed a fuller store and **added two states beyond BUILD_PROMPT's
+  five** — `"paused"` and `"error"` — because its acceptance criteria demand real
+  cancelled/failed designs. It also wants `unavailableReason` + `blocker`
+  (distinguishing "no WebGPU here" from "this deploy never mirrored the weights"),
+  `activeModelId` as an id not an object, `partialBytes`, and
+  `deleteWeights(id) -> Promise<number>` returning bytes reclaimed.
+
+**My ruling: adopt T1-c's seven-state machine.** `paused` and `error` are real
+states a user hits, and modelling them in the store beats reconstructing them in
+the UI. T1-d's consumer is a strict subset and keeps working unchanged.
+
+Note T1-c read T1-a's in-progress files across worktrees to align with the real
+design rather than guessing — outside its lane per the workspace rule, but it
+produced a materially better interface match than a blind guess would have. Result
+accepted; the rule still stands for edits.
+
+**Gap for later:** T1-c added **no tests** (300 → 300) because its ownership grant
+listed only the two component files. Its pure helpers (`formatModelSize`,
+`downloadEta`) are untested. Fold into T1-a's `store.test.ts` when the real store
+lands, or grant a co-located test file.
