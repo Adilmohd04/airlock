@@ -22,6 +22,7 @@ import {
 } from "./duckdb";
 import { gridToCsv, parseDelimited, rowsToCsv } from "../lib/csv";
 import { detectFormat, sniffDelimiter } from "../lib/importFormats";
+import { extractPdf } from "../lib/pdf";
 
 export interface DatasetHandle {
   id: string;
@@ -235,7 +236,7 @@ class WorkspaceStore {
     const fmt = detectFormat(file.name, file.type);
     if (!fmt) {
       throw new Error(
-        `Airlock can't read "${file.name}". Supported: .csv, .tsv, .json, .parquet.`
+        `Airlock can't read "${file.name}". Supported: .csv, .tsv, .json, .parquet, .pdf, .md, .log.`
       );
     }
 
@@ -260,6 +261,20 @@ class WorkspaceStore {
         fmt === "tsv" ? gridToCsv(parseDelimited(raw, "\t")) : raw;
       await registerCsv(tableName, text);
       return { kind: "csv", text };
+    }
+
+    if (fmt === "pdf") {
+      // Text-extract client-side, then ride the normal CSV path — so the
+      // persisted source is plain CSV and restore needs no special case.
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let extracted;
+      try {
+        extracted = await extractPdf(bytes);
+      } catch {
+        throw new Error("That PDF could not be parsed (is it password-protected?)");
+      }
+      await registerCsv(tableName, extracted.csv);
+      return { kind: "csv", text: extracted.csv };
     }
 
     // parquet: DuckDB's native reader, straight from the raw bytes.
