@@ -16,8 +16,13 @@
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
 
-# Web workers (used by DuckDB-WASM)
-/assets/*.worker.js
+# Web workers (used by DuckDB-WASM). Vite's worker source files are named
+# `duckdb-browser-eh.worker.js` / `duckdb-browser-mvp.worker.js`, but the
+# emitted, hashed filenames insert the hash BEFORE the extension, not after
+# a `.worker` suffix: `duckdb-browser-eh.worker-hQa-dcAV.js`. A pattern of
+# `/assets/*.worker.js` therefore matches zero real files — confirmed against
+# an actual `npm run build` output. `*worker*.js` matches the real names.
+/assets/*worker*.js
   Content-Type: application/javascript; charset=UTF-8
   Cache-Control: public, max-age=31536000, immutable
   Cross-Origin-Opener-Policy: same-origin
@@ -28,10 +33,24 @@
 /demo/*
   Cache-Control: public, max-age=31536000, immutable
 
-# Root HTML and any other .html files
-# Must NOT be cached so SPA routing and deployments work correctly
+# Catch-all: guarantees COOP/COEP + security headers on every path, including
+# SPA deep links with no file extension (e.g. /workspace/report) that the /*
+# redirect below serves index.html for. Netlify evaluates header rules against
+# every path pattern that matches a request, and this is the only pattern here
+# that matches an extensionless path.
+#
+# Deliberately NO Cache-Control here: when multiple rules match the same
+# request path, Netlify applies headers from all of them, and a header set by
+# more than one matching rule is not something to leave ambiguous. This rule
+# and /assets/* both match /assets/* paths — if this block also set
+# Cache-Control, whichever value "wins" would silently decide whether hashed
+# assets get long-lived caching or are revalidated on every load. Verified
+# locally: serving dist/ through a script that applies _headers rules in file
+# order (last match wins per key, the documented Netlify behavior) showed
+# every asset losing its `immutable` cache header to this block's `max-age=0`
+# before this fix. Cache-Control for HTML lives in netlify.toml's `/` and
+# `/*.html` blocks instead, which don't overlap /assets/* or /demo/*.
 /*
-  Cache-Control: public, max-age=0, must-revalidate
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
   X-Content-Type-Options: nosniff
