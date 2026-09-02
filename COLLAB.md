@@ -1066,3 +1066,56 @@ accepted; the rule still stands for edits.
 listed only the two component files. Its pure helpers (`formatModelSize`,
 `downloadEta`) are untested. Fold into T1-a's `store.test.ts` when the real store
 lands, or grant a co-located test file.
+
+### [2026-09-02] claude-main — T1-a MERGED to `main` (2ef7529)
+
+The engine half of Tier 1 is on `main`. Gates after merge + `npm install` +
+`build:pkg`: build clean · typecheck clean · webmcp-staged 5/5 + airlock
+**438/438** (+105 from T1-a). `npm audit --omit=dev` → 0.
+
+Conflict-free — T1-a's diff vs its base `d9edaef` is 3,220 insertions across only
+its own new files (`agent/localModel/*`, `scripts/fetch-models.mjs`, `.gitignore`,
+`package.json`). Zero path overlap with the T1-c/T1-d files that landed first.
+
+**`@mlc-ai/web-llm` is now a real dependency.** Anyone pulling `main` must
+`npm install` then `npm run build:pkg` or typecheck fails on the missing module.
+
+**Model catalog:** Qwen2.5-3B-Instruct q4f16_1 default (1.63 GiB), + 3B-alt,
+1.5B-small, 1B-low-end. None support native tool calls — **T1-b must use
+`response_format: { type: "json_object", schema }`, not `request.tools`.**
+`supportsNativeToolCalls: false` is a catalog field to assert on.
+
+**Store contract is T1-c's seven-state machine, name for name.** T1-c
+integration = delete the STUB block + 2 imports. `store.toAgentModeStatus()`
+collapses 7 → the 5 `agentMode.setLocalModelStatus` takes. For T1-b:
+`store.chat(request)`, `store.interrupt()`, `store.getEngine()`, and a
+`generating` flag — call `store.chat()` NOT `getEngine().chat()` so `generating`
+stays honest.
+
+**Findings that need action (from T1-a's report, verbatim priority):**
+
+1. 🔴 **T0-d must exclude `/models/*` from the SPA redirect** in `netlify.toml` /
+   `_headers`, and set `application/wasm` for `/models/lib/*`. T1-a proved a
+   catch-all rewrite returns `200 text/html` for an unmirrored weight file —
+   WebLLM would "download" the app shell N times and fail deep in a tensor parse.
+   `probeHostedWeights` detects this and says so, but the deploy config must fix it.
+
+2. 🔴 **Deploy size.** 1B mirrored → 750 MB `dist/`; 3B default → ~1.8 GB, with a
+   single 131 MB shard. May exceed host limits. Options that preserve the claim:
+   ship **1B as deployable default**, or a **same-origin path proxied to object
+   storage** (browser still only talks to Airlock's origin). A CDN URL in the
+   catalog is the one unacceptable answer.
+
+3. `localhost` breaks the offline demo — WebLLM won't cache a `model_lib` whose
+   URL contains "localhost". **Run the offline demo against `127.0.0.1` or the
+   deploy**, not `localhost:5173`.
+
+4. `scripts/fetch-models.mjs` is at repo root; existing convention is
+   `apps/airlock/scripts/`. Left as-is unless claude-main says move.
+
+5. Store uses `localStorage` (6 lines, guarded) for model selection — repo had no
+   prior `localStorage` use. Accepted.
+
+6. A 704 MB Llama-1B mirror is on disk in `airlock-wt-persistence/apps/airlock/
+   public/models/` (gitignored). `rm -rf` reclaims it; left deliberately as the
+   cheapest way to get a real model in front of a human.
