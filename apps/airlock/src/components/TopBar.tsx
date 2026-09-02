@@ -7,10 +7,12 @@ import { ModelDownloadDialog } from "./ModelDownloadDialog";
 import { SessionMenu } from "./SessionMenu";
 import { MobileGate } from "./MobileGate";
 import { num } from "../lib/format";
+import { taglineFor, useAgentMode } from "../agent/agentMode";
 
 export function TopBar() {
   const { state } = useActiveDataset();
   const ui = useUI();
+  const agentMode = useAgentMode();
 
   return (
     <>
@@ -24,7 +26,7 @@ export function TopBar() {
         </div>
         <span className="font-semibold tracking-tight text-white">Airlock</span>
         <span className="hidden text-xs text-slate-500 sm:inline">
-          the agent works on data that never leaves your browser
+          {taglineFor(agentMode)}
         </span>
       </div>
 
