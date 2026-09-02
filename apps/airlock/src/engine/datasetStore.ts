@@ -278,7 +278,16 @@ export class DatasetStore {
     assertNoRedactedColumns(sql, this.redactedIdentifiers());
   }
 
-  private referencesRedaction(expr: string, ids: string[]): boolean {
+  /**
+   * True if `expr` names a redacted column (by base name or its current
+   * rename) anywhere in the fragment. Used both to keep the agent's own view
+   * (`buildAgentViewSql`) from applying a stale filter/derived column that
+   * predates a redaction, and to scrub redacted-referencing metadata
+   * (filter labels, derived-column formulas) out of tool responses like
+   * `get_dataset_summary` / `describe_workspace` — a filter's raw expression
+   * text can itself contain the value the redaction is supposed to hide.
+   */
+  referencesRedaction(expr: string, ids: string[] = this.redactedIdentifiers()): boolean {
     if (ids.length === 0) return false;
     try {
       assertNoRedactedColumns(expr, ids);
@@ -359,12 +368,20 @@ export class DatasetStore {
     const derivedCols = s.derived
       .filter((d) => !this.referencesRedaction(d.expression, redactedIds))
       .map((d) => `(${d.expression}) AS ${this.q(d.name)}`);
+    // A filter written before its column was redacted must not go on gating
+    // every subsequent agent query — that's a standing oracle on a value the
+    // agent is no longer supposed to see, not a one-time leak. Drop it from
+    // the agent's WHERE the same way a stale derived column is dropped; the
+    // human's own view (buildViewSql) is unaffected and keeps the filter.
+    const agentFilters = s.filters.filter(
+      (f) => !this.referencesRedaction(f.expression, redactedIds)
+    );
 
     const selectList =
       [...baseCols, ...derivedCols].join(", ") || "NULL AS all_columns_redacted";
     const where =
-      s.filters.length > 0
-        ? " WHERE " + s.filters.map((f) => `(${f.expression})`).join(" AND ")
+      agentFilters.length > 0
+        ? " WHERE " + agentFilters.map((f) => `(${f.expression})`).join(" AND ")
         : "";
     const lim = typeof limit === "number" ? ` LIMIT ${limit}` : "";
     return `SELECT ${selectList} FROM ${this.q(s.tableName)}${where}${lim}`;

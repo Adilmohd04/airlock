@@ -206,8 +206,20 @@ export function useAirlockTools(): void {
           annotations: { readOnlyHint: true },
           execute: () =>
             read("get_dataset_summary", {}, async () => {
-              const st = activeStore().getState();
+              const store = activeStore();
+              const st = store.getState();
               const redacted = new Set(st.redactedColumns);
+              // A filter/derived column written before its column was
+              // redacted still carries the raw expression text (which can
+              // itself contain the value being hidden) — drop those entries
+              // from what the agent sees, the same way buildAgentViewSql
+              // drops them from the query it can actually run.
+              const visibleFilters = st.filters.filter(
+                (f) => !store.referencesRedaction(f.expression)
+              );
+              const visibleDerived = st.derived.filter(
+                (d) => !store.referencesRedaction(d.expression)
+              );
               return {
                 summary: `"${st.fileName}" — ${st.totalRows.toLocaleString()} rows, ${st.columns.length} columns${
                   redacted.size ? ` (${redacted.size} redacted — unreadable to you)` : ""
@@ -224,8 +236,8 @@ export function useAirlockTools(): void {
                     redacted: redacted.has(c),
                   })),
                   redactedColumns: [...redacted].map((c) => st.renames[c] ?? c),
-                  activeFilters: st.filters.map((f) => f.label),
-                  derivedColumns: st.derived.map((d) => `${d.name} = ${d.expression}`),
+                  activeFilters: visibleFilters.map((f) => f.label),
+                  derivedColumns: visibleDerived.map((d) => `${d.name} = ${d.expression}`),
                   renames: st.renames,
                 },
                 // Redacted columns are deliberately omitted from `returned.columns`
@@ -420,20 +432,31 @@ export function useAirlockTools(): void {
           annotations: { readOnlyHint: true },
           execute: () =>
             read("describe_workspace", {}, async () => {
-              const st = activeStore().getState();
+              const store = activeStore();
+              const st = store.getState();
               const redactedShown = st.redactedColumns.map((c) => st.renames[c] ?? c);
+              // Same scrub as get_dataset_summary: an entry whose raw SQL
+              // text names a redacted column must not reach the agent, even
+              // read-only, even though the entry itself predates the
+              // redaction and buildAgentViewSql already excludes it from
+              // the query that actually runs.
+              const notRedacted = (expr: string) => !store.referencesRedaction(expr);
+              const visibleFilters = st.filters.filter((f) => notRedacted(f.expression));
+              const visibleDerived = st.derived.filter((d) => notRedacted(d.expression));
+              const visibleFlags = st.flags.filter((f) => notRedacted(f.expression));
+              const visibleCharts = st.charts.filter((c) => notRedacted(c.sql));
               return {
                 summary:
-                  `${st.filters.length} filter(s), ${st.derived.length} derived column(s), ${Object.keys(st.renames).length} rename(s), ${st.charts.length} chart(s), ${st.flags.length} flag set(s)` +
+                  `${visibleFilters.length} filter(s), ${visibleDerived.length} derived column(s), ${Object.keys(st.renames).length} rename(s), ${visibleCharts.length} chart(s), ${visibleFlags.length} flag set(s)` +
                   `, ${st.redactedColumns.length} redacted column(s).`,
                 data: {
                   tableName: st.tableName,
                   sqlAlias: "dataset",
-                  filters: st.filters,
-                  derived: st.derived,
+                  filters: visibleFilters,
+                  derived: visibleDerived,
                   renames: st.renames,
-                  charts: st.charts.map((c) => ({ id: c.id, title: c.title, kind: c.kind, sql: c.sql })),
-                  flags: st.flags,
+                  charts: visibleCharts.map((c) => ({ id: c.id, title: c.title, kind: c.kind, sql: c.sql })),
+                  flags: visibleFlags,
                   redaction: {
                     columns: redactedShown,
                     baseColumns: st.redactedColumns,
@@ -623,6 +646,12 @@ export function useAirlockTools(): void {
           (f) => f.label === filter || f.expression === filter
         );
         if (!target) throw new Error(`No active filter matching "${filter}".`);
+        // A filter can predate the redaction of a column it names — the
+        // filter itself is safe to remove, but its raw text must not be
+        // echoed back (same class of leak buildAgentViewSql/get_dataset_summary
+        // guard against for the query and the summary respectively).
+        const hidden = store.referencesRedaction(target.expression);
+        const shownLabel = hidden ? "(a filter referencing a redacted column)" : target.label;
         const rowsBefore = st.totalRows;
         const remaining = st.filters.filter((f) => f.id !== target.id);
         const base = `SELECT * FROM ${q(st.tableName)}`;
@@ -632,11 +661,11 @@ export function useAirlockTools(): void {
             : "";
         const after = await runQuery(`SELECT count(*) AS n FROM (${base}${where})`);
         return {
-          summary: `Remove filter "${target.label}"`,
+          summary: `Remove filter "${shownLabel}"`,
           preview: {
             kind: "remove_filter",
-            label: target.label,
-            expression: target.expression,
+            label: shownLabel,
+            expression: hidden ? "(redacted)" : target.expression,
             rowsBefore,
             rowsAfter: Number(after.rows[0]?.n ?? 0),
           },
@@ -733,11 +762,20 @@ export function useAirlockTools(): void {
         required: ["name"],
       },
       prepare: async ({ name }) => {
-        const d = activeStore().getState().derived.find((x) => x.name === name);
+        const store = activeStore();
+        const d = store.getState().derived.find((x) => x.name === name);
         if (!d) throw new Error(`No derived column "${name}".`);
+        // Same leak class as remove_filter: a derived column can predate the
+        // redaction of a column its formula names — safe to remove, but the
+        // raw formula text must not be echoed back.
+        const hidden = store.referencesRedaction(d.expression);
         return {
           summary: `Remove derived column ${name}`,
-          preview: { kind: "remove_derived_column", name, expression: d.expression },
+          preview: {
+            kind: "remove_derived_column",
+            name,
+            expression: hidden ? "(redacted)" : d.expression,
+          },
         };
       },
       commit: async ({ name }) => {
@@ -985,9 +1023,17 @@ export function useAirlockTools(): void {
         // in this file. (The human can export them via un-redact + their own UI.)
         const res = await runQuery(store.buildAgentViewSql());
         const redactedOut = store.redactedDisplayNames();
+        // buildAgentViewSql already drops a filter/derived column that names
+        // a since-redacted column (it has no effect on this export) — the
+        // transforms list must match, both to stay accurate and because the
+        // raw text (e.g. a filter's literal value) must not be echoed back.
         const transforms = [
-          ...st.filters.map((f) => `filter: ${f.label}`),
-          ...st.derived.map((d) => `+column: ${d.name}`),
+          ...st.filters
+            .filter((f) => !store.referencesRedaction(f.expression))
+            .map((f) => `filter: ${f.label}`),
+          ...st.derived
+            .filter((d) => !store.referencesRedaction(d.expression))
+            .map((d) => `+column: ${d.name}`),
           ...Object.entries(st.renames).map(([a, b]) => `rename: ${a}→${b}`),
           ...redactedOut.map((c) => `redacted (excluded): ${c}`),
         ];

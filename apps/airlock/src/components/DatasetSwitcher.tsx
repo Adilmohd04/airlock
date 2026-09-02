@@ -42,7 +42,7 @@ export function DatasetSwitcher() {
               {ws.datasets.length > 1 && (
                 <button
                   className="hidden shrink-0 text-slate-600 hover:text-danger group-hover:block"
-                  onClick={() => void workspaceStore.removeDataset(h.id)}
+                  onClick={() => void workspaceStore.removeDataset(h.id).catch(() => {})}
                   title="Remove dataset"
                 >
                   ✕

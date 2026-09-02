@@ -35,7 +35,7 @@ export function FilterBar() {
           <span className="max-w-[220px] truncate">{f.label}</span>
           <button
             type="button"
-            onClick={() => void store.removeFilter(f.id)}
+            onClick={() => void store.removeFilter(f.id).catch(() => {})}
             aria-label={`Remove filter ${f.label}`}
             className="text-slate-500 hover:text-danger"
           >
@@ -55,7 +55,7 @@ export function FilterBar() {
       {state.filters.length > 0 && (
         <button
           type="button"
-          onClick={() => void store.clearFilters()}
+          onClick={() => void store.clearFilters().catch(() => {})}
           className="text-[11px] text-slate-500 hover:text-slate-300"
         >
           clear all
