@@ -10,7 +10,12 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { LocalModelStore, toAgentModeStatus, type LocalModelStatus } from "./store";
-import { DEFAULT_MODEL_ID, LOCAL_MODELS, type LocalModelId } from "./models";
+import {
+  DEFAULT_MODEL_ID,
+  DEPLOY_DEFAULT_MODEL_ID,
+  LOCAL_MODELS,
+  type LocalModelId,
+} from "./models";
 import {
   LoadAbortedError,
   type GpuReport,
@@ -84,7 +89,7 @@ class FakeAdapter implements LocalRuntimeAdapter {
   lastLoad: LoadOptions | null = null;
 
   detectGpu = vi.fn(async () => this.gpu);
-  probeHosted = vi.fn(async () => this.hosting);
+  probeHosted = vi.fn(async (_id: LocalModelId) => this.hosting);
   isCached = vi.fn(async (id: LocalModelId) => this.cachedIds.has(id));
   deleteWeights = vi.fn(async (id: LocalModelId) => {
     this.cachedIds.delete(id);
@@ -225,10 +230,98 @@ describe("refresh", () => {
     expect(s.hardware?.available).toBe(true);
   });
 
+  it("reports the DEFAULT_MODEL_ID reason, not the fallback candidate's, when neither is hosted", async () => {
+    const { adapter, store } = makeStore();
+    const defaultNotHosted: HostingReport = {
+      hosted: false,
+      reason: `does not host ${DEFAULT_MODEL_ID}`,
+      manifest: null,
+    };
+    const deployNotHosted: HostingReport = {
+      hosted: false,
+      reason: `does not host ${DEPLOY_DEFAULT_MODEL_ID}`,
+      manifest: null,
+    };
+    adapter.probeHosted = vi.fn(async (id: LocalModelId) =>
+      id === DEPLOY_DEFAULT_MODEL_ID ? deployNotHosted : defaultNotHosted
+    );
+    await store.refresh();
+    const s = store.getState();
+    // selectedModelId stays DEFAULT_MODEL_ID (the fallback never took), so
+    // the reason shown must match — not silently swap to the model that was
+    // only scouted, never selected.
+    expect(s.selectedModelId).toBe(DEFAULT_MODEL_ID);
+    expect(s.unavailableReason).toBe(defaultNotHosted.reason);
+  });
+
+  it("falls back to the deploy-default model when the UI default isn't hosted, and persists it", async () => {
+    const { adapter, store } = makeStore();
+    adapter.probeHosted = vi.fn(async (id: LocalModelId) =>
+      id === DEPLOY_DEFAULT_MODEL_ID ? HOSTED : NOT_HOSTED
+    );
+    await store.refresh();
+    const s = store.getState();
+    // A size-constrained deploy only mirrors the small model — the store
+    // must land there instead of reporting "unavailable" over a model
+    // nobody asked for and this origin never claimed to host.
+    expect(s.selectedModelId).toBe(DEPLOY_DEFAULT_MODEL_ID);
+    expect(s.status).toBe("not-downloaded");
+    expect(s.blocker).toBe("none");
+    expect(localStorage.getItem("airlock.localModel.v1")).toBe(
+      DEPLOY_DEFAULT_MODEL_ID
+    );
+  });
+
+  it("does NOT fall back once the user has explicitly chosen a model", async () => {
+    localStorage.setItem("airlock.localModel.v1", DEFAULT_MODEL_ID);
+    const { adapter, store } = makeStore();
+    adapter.probeHosted = vi.fn(async (id: LocalModelId) =>
+      id === DEPLOY_DEFAULT_MODEL_ID ? HOSTED : NOT_HOSTED
+    );
+    await store.refresh();
+    const s = store.getState();
+    // The user asked for this model by name (even if it happens to equal the
+    // default) — respect the choice and report honestly, don't silently swap.
+    expect(s.selectedModelId).toBe(DEFAULT_MODEL_ID);
+    expect(s.status).toBe("unavailable");
+    expect(s.blocker).toBe("no-weights-hosted");
+  });
+
   it("shares one probe between concurrent callers", async () => {
     const { adapter, store } = makeStore();
     await Promise.all([store.refresh(), store.refresh(), store.refresh()]);
     expect(adapter.detectGpu).toHaveBeenCalledTimes(1);
+  });
+
+  it("a selectModel() during an in-flight probe is not reverted, and the new selection still gets probed", async () => {
+    const gate = deferred<HostingReport>();
+    const { store } = makeStore((a) => {
+      // DEFAULT_MODEL_ID's probe hangs on the gate; OTHER_ID resolves
+      // immediately as genuinely unhosted — so a stale optimistic
+      // "not-downloaded" left over from selectModel()'s own synchronous
+      // guess is distinguishable from a real, completed probe.
+      a.probeHosted = vi.fn(async (id: LocalModelId) =>
+        id === DEFAULT_MODEL_ID ? gate.promise : NOT_HOSTED
+      );
+    });
+    const run = store.refresh(); // starts probing DEFAULT_MODEL_ID, hangs on the gate
+    await Promise.resolve();
+
+    store.selectModel(OTHER_ID); // lands while the DEFAULT_MODEL_ID probe is still open
+    expect(store.getState().selectedModelId).toBe(OTHER_ID);
+    expect(store.getState().status).toBe("not-downloaded"); // selectModel's optimistic guess
+
+    gate.resolve(HOSTED); // the stale DEFAULT_MODEL_ID probe finally resolves
+    await run;
+    await store.refresh(); // waits out the chained follow-up probe for OTHER_ID
+
+    const s = store.getState();
+    // The user's later choice must win — not get silently reverted back to
+    // whatever the abandoned probe was investigating — AND must actually get
+    // probed itself, not left stuck on the optimistic guess.
+    expect(s.selectedModelId).toBe(OTHER_ID);
+    expect(s.status).toBe("unavailable");
+    expect(s.blocker).toBe("no-weights-hosted");
   });
 
   it("notifies subscribers and replaces the snapshot", async () => {
@@ -529,6 +622,26 @@ describe("selectModel", () => {
     await store.refresh();
     store.selectModel(OTHER_ID);
     expect(store.getState().status).toBe("ready");
+  });
+
+  it("an explicit reselect of DEFAULT_MODEL_ID is not overridden by the deploy-default fallback", async () => {
+    // Switch away, then explicitly back to DEFAULT_MODEL_ID, on a deploy that
+    // only hosts DEPLOY_DEFAULT_MODEL_ID — the fallback that exists for a
+    // never-touched default must not also fire for a real user choice.
+    const { adapter, store } = makeStore();
+    adapter.probeHosted = vi.fn(async (id: LocalModelId) =>
+      id === DEPLOY_DEFAULT_MODEL_ID ? HOSTED : NOT_HOSTED
+    );
+    await store.refresh();
+    expect(store.getState().selectedModelId).toBe(DEPLOY_DEFAULT_MODEL_ID); // the fallback fired once
+
+    store.selectModel(DEFAULT_MODEL_ID);
+    await store.refresh();
+
+    const s = store.getState();
+    expect(s.selectedModelId).toBe(DEFAULT_MODEL_ID);
+    expect(s.status).toBe("unavailable");
+    expect(s.blocker).toBe("no-weights-hosted");
   });
 
   it("refuses mid-download rather than corrupting the load", async () => {
