@@ -9,6 +9,11 @@ You own visual + interaction polish for **Airlock**. You edit `apps/airlock/src/
 `apps/airlock/src/index.css`, and `tailwind.config.js` **only** — not engine, not
 agent tools, not `packages/webmcp-staged`.
 
+**Carve-out while Tier 1 is in flight:** `LocalModelPanel.tsx`,
+`ModelDownloadDialog.tsx`, `SealStatus.tsx`, `WebMCPStatus.tsx` and `TopBar.tsx`
+belong to `airlock-local-ui`. Leave them alone; report polish suggestions for
+those instead of applying them.
+
 ## Design system (from the build plan — follow exactly)
 - **Refined dark data tool.** `ink.950` canvas -> `ink.900` panels -> `ink.800`
   raised -> `ink.700` borders. `airlock.400/500/600` teal = "sealed/trusted", used
