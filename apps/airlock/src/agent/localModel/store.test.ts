@@ -2,15 +2,15 @@
  * `LocalModelStore` state-machine tests, driven through a fake
  * `LocalRuntimeAdapter` — no GPU, no network, no WebLLM import.
  *
- * The walk the acceptance criterion names is asserted end to end:
- *   unavailable -> not-downloaded -> downloading -> ready
- * plus the branches that decide whether the product is honest: a machine with
- * no WebGPU never reaches for the network, and a browser that already holds the
- * weights never depends on the network either.
+ * The walk BUILD_PROMPT names is asserted end to end
+ * (`unavailable → not-downloaded → downloading → ready/running`), together with
+ * T1-c's two extra states (`paused`, `error`) and the branches that decide
+ * whether the product is honest: a machine with no WebGPU never reaches for the
+ * network, and a browser that already holds the weights never depends on it.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { LocalModelStore } from "./store";
-import { DEFAULT_MODEL_ID, getModel, LOCAL_MODELS } from "./models";
+import { LocalModelStore, toAgentModeStatus, type LocalModelStatus } from "./store";
+import { DEFAULT_MODEL_ID, LOCAL_MODELS, type LocalModelId } from "./models";
 import {
   LoadAbortedError,
   type GpuReport,
@@ -41,6 +41,8 @@ const NO_GPU: GpuReport = {
   maxBufferBytes: 0,
   reason: "This browser does not support WebGPU.",
 };
+
+const MANIFEST_TOTAL = 1_000_000 + 2_000;
 
 const HOSTED: HostingReport = {
   hosted: true,
@@ -74,19 +76,18 @@ function deferred<T>() {
 class FakeAdapter implements LocalRuntimeAdapter {
   gpu: GpuReport = GOOD_GPU;
   hosting: HostingReport = HOSTED;
-  cached = false;
+  cachedIds = new Set<LocalModelId>();
   bytes: number | null = 0;
-  /** Set to hold `load()` open so a cancel can be observed mid-flight. */
-  gate: { promise: Promise<void>; resolve: () => void; reject: (e: unknown) => void } | null =
-    null;
+  /** Hold `load()` open so a cancel can be observed mid-flight. */
+  gate: { promise: Promise<void>; reject: (e: unknown) => void } | null = null;
   loadError: unknown = null;
   lastLoad: LoadOptions | null = null;
 
   detectGpu = vi.fn(async () => this.gpu);
   probeHosted = vi.fn(async () => this.hosting);
-  isCached = vi.fn(async () => this.cached);
-  deleteWeights = vi.fn(async () => {
-    this.cached = false;
+  isCached = vi.fn(async (id: LocalModelId) => this.cachedIds.has(id));
+  deleteWeights = vi.fn(async (id: LocalModelId) => {
+    this.cachedIds.delete(id);
     this.bytes = 0;
   });
   cacheBytes = vi.fn(async () => this.bytes);
@@ -107,14 +108,15 @@ class FakeAdapter implements LocalRuntimeAdapter {
       fetching: true,
     });
     if (this.gate) {
+      const gate = this.gate;
       options.signal?.addEventListener("abort", () =>
-        this.gate?.reject(new LoadAbortedError())
+        gate.reject(new LoadAbortedError())
       );
-      await this.gate.promise;
+      await gate.promise;
     }
     if (this.loadError) throw this.loadError;
-    this.cached = true;
-    this.bytes = 1_002_000;
+    this.cachedIds.add(options.modelId);
+    this.bytes = MANIFEST_TOTAL;
     return {
       modelId: options.modelId,
       chat: this.chat,
@@ -130,7 +132,7 @@ function makeStore(configure?: (a: FakeAdapter) => void) {
   return { adapter, store: new LocalModelStore(adapter) };
 }
 
-/** Let the floating `void refreshCacheSize()` calls settle. */
+/** Let the floating `void refreshCacheOnly()` calls settle. */
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {
@@ -147,16 +149,18 @@ afterEach(() => {
 });
 
 describe("initial state", () => {
-  it("starts unavailable and un-probed", () => {
+  it("claims nothing until the hardware has been probed", () => {
     const { store } = makeStore();
     const s = store.getState();
-    expect(s.status).toBe("unavailable");
-    expect(s.initialized).toBe(false);
-    expect(s.gpu).toBeNull();
-    expect(s.activeModel).toBeNull();
+    expect(s.hardware).toBeNull();
+    expect(s.activeModelId).toBeNull();
+    expect(s.progress).toBeNull();
+    expect(s.blocker).toBe("none");
+    expect(s.error).toBeNull();
+    expect(s.unavailableReason).toBeNull();
     expect(s.selectedModelId).toBe(DEFAULT_MODEL_ID);
-    expect(s.selected.id).toBe(DEFAULT_MODEL_ID);
-    expect(s.downloadBytes).toBe(getModel(DEFAULT_MODEL_ID).downloadBytes);
+    expect(s.cache).toEqual({ bytesOnDisk: null, cachedModelIds: [] });
+    expect(s.generating).toBe(false);
   });
 
   it("hands out a stable snapshot until something changes", () => {
@@ -170,60 +174,60 @@ describe("initial state", () => {
   });
 });
 
-describe("init", () => {
+describe("refresh", () => {
   it("stops at unavailable without touching the network when WebGPU is absent", async () => {
     const { adapter, store } = makeStore((a) => {
       a.gpu = NO_GPU;
     });
-    await store.init();
+    await store.refresh();
     const s = store.getState();
     expect(s.status).toBe("unavailable");
-    expect(s.initialized).toBe(true);
+    expect(s.blocker).toBe("no-webgpu");
     expect(s.unavailableReason).toBe(NO_GPU.reason);
     expect(adapter.probeHosted).not.toHaveBeenCalled();
     expect(adapter.isCached).not.toHaveBeenCalled();
   });
 
-  it("walks to not-downloaded when the mirror is hosted", async () => {
+  it("lands on not-downloaded when the mirror is hosted", async () => {
     const { store } = makeStore();
-    await store.init();
+    await store.refresh();
     const s = store.getState();
     expect(s.status).toBe("not-downloaded");
-    expect(s.weightsCached).toBe(false);
-    expect(s.weightsHosted).toBe(true);
-    // The manifest is more accurate than the catalog estimate; prefer it.
-    expect(s.downloadBytes).toBe(1_002_000);
+    expect(s.blocker).toBe("none");
+    expect(s.hardware?.available).toBe(true);
+    expect(s.cache.cachedModelIds).toEqual([]);
   });
 
-  it("skips the mirror probe entirely when the weights are already cached", async () => {
+  it("lands on ready, and skips the mirror probe, when the weights are cached", async () => {
     const { adapter, store } = makeStore((a) => {
-      a.cached = true;
+      a.cachedIds.add(DEFAULT_MODEL_ID);
+      a.bytes = MANIFEST_TOTAL;
     });
-    await store.init();
+    await store.refresh();
     // This is the offline case: a cached browser must not need the network.
     expect(adapter.probeHosted).not.toHaveBeenCalled();
     const s = store.getState();
-    expect(s.status).toBe("not-downloaded");
-    expect(s.weightsCached).toBe(true);
-    expect(s.downloadBytes).toBe(0);
+    expect(s.status).toBe("ready");
+    expect(s.cache.cachedModelIds).toEqual([DEFAULT_MODEL_ID]);
+    expect(s.cache.bytesOnDisk).toBe(MANIFEST_TOTAL);
   });
 
-  it("goes unavailable, with the operator's fix, when the mirror is missing", async () => {
+  it("blames the deployment, not the machine, when the mirror is missing", async () => {
     const { store } = makeStore((a) => {
       a.hosting = NOT_HOSTED;
     });
-    await store.init();
+    await store.refresh();
     const s = store.getState();
     expect(s.status).toBe("unavailable");
-    expect(s.weightsHosted).toBe(false);
+    expect(s.blocker).toBe("no-weights-hosted");
     expect(s.unavailableReason).toMatch(/does not host/);
-    // The GPU is fine — the UI should be able to say so.
-    expect(s.gpu?.available).toBe(true);
+    // The GPU is fine — the UI must be able to say so.
+    expect(s.hardware?.available).toBe(true);
   });
 
   it("shares one probe between concurrent callers", async () => {
     const { adapter, store } = makeStore();
-    await Promise.all([store.init(), store.init(), store.init()]);
+    await Promise.all([store.refresh(), store.refresh(), store.refresh()]);
     expect(adapter.detectGpu).toHaveBeenCalledTimes(1);
   });
 
@@ -232,21 +236,36 @@ describe("init", () => {
     const before = store.getState();
     const seen = vi.fn();
     const off = store.subscribe(seen);
-    await store.init();
+    await store.refresh();
     expect(seen).toHaveBeenCalled();
     expect(store.getState()).not.toBe(before);
     off();
     const calls = seen.mock.calls.length;
-    await store.refreshCacheSize();
+    await store.refreshCacheOnly();
     expect(seen.mock.calls.length).toBe(calls);
+  });
+
+  it("does not disturb a download already in flight", async () => {
+    const gate = deferred<void>();
+    const { store } = makeStore((a) => {
+      a.gate = { promise: gate.promise, reject: gate.reject };
+    });
+    await store.refresh();
+    const run = store.download();
+    await Promise.resolve();
+    expect(store.getState().status).toBe("downloading");
+    await store.refresh();
+    expect(store.getState().status).toBe("downloading");
+    store.cancelDownload();
+    await run;
   });
 });
 
 describe("download", () => {
-  it("completes the walk to ready and reports progress on the way", async () => {
+  it("walks not-downloaded → downloading → running and reports progress", async () => {
     const { store } = makeStore();
-    await store.init();
-    const seen: string[] = [];
+    await store.refresh();
+    const seen: LocalModelStatus[] = [];
     store.subscribe(() => seen.push(store.getState().status));
 
     const run = store.download();
@@ -255,92 +274,117 @@ describe("download", () => {
 
     expect(seen).toContain("downloading");
     const s = store.getState();
-    expect(s.status).toBe("ready");
-    expect(s.activeModel).toBe(DEFAULT_MODEL_ID);
-    expect(s.progress).toBe(1);
-    expect(s.weightsCached).toBe(true);
-    expect(s.downloadBytes).toBe(0);
+    expect(s.status).toBe("running");
+    expect(s.activeModelId).toBe(DEFAULT_MODEL_ID);
+    expect(s.progress).toBeNull();
     expect(s.error).toBeNull();
     expect(store.getEngine()).not.toBeNull();
   });
 
-  it("mirrors WebLLM's fetching flag so the UI can say download vs. warm-up", async () => {
+  it("derives loaded bytes from the runtime fraction and the mirror total", async () => {
     const { store } = makeStore();
-    await store.init();
-    const flags: boolean[] = [];
-    store.subscribe(() => flags.push(store.getState().fetching));
+    await store.refresh();
+    const seen: (number | null)[] = [];
+    store.subscribe(() => seen.push(store.getState().progress?.loadedBytes ?? null));
+    await store.download();
+    // The fake reports fraction 0.5 once; the mirror manifest said 1_002_000.
+    expect(seen).toContain(Math.round(0.5 * MANIFEST_TOTAL));
+  });
+
+  it("mirrors the fetching flag so the UI can say download vs. warm-up", async () => {
+    const { store } = makeStore();
+    await store.refresh();
+    const flags: (boolean | null)[] = [];
+    store.subscribe(() => flags.push(store.getState().progress?.fetching ?? null));
     await store.download();
     expect(flags).toContain(true);
-    expect(store.getState().fetching).toBe(false);
   });
 
-  it("initializes itself if called before init", async () => {
+  it("probes the hardware itself if called before refresh", async () => {
     const { store } = makeStore();
     await store.download();
-    expect(store.getState().status).toBe("ready");
+    expect(store.getState().status).toBe("running");
   });
 
-  it("refuses and explains when local mode is unavailable", async () => {
+  it("goes to error, not silence, when local mode is unavailable", async () => {
     const { adapter, store } = makeStore((a) => {
       a.gpu = NO_GPU;
     });
-    await store.init();
+    await store.refresh();
     await store.download();
     expect(adapter.load).not.toHaveBeenCalled();
-    expect(store.getState().status).toBe("unavailable");
+    expect(store.getState().status).toBe("error");
     expect(store.getState().error).toBe(NO_GPU.reason);
   });
 
-  it("falls back to not-downloaded and surfaces the failure", async () => {
-    const { adapter, store } = makeStore((a) => {
+  it("surfaces a load failure as the error state", async () => {
+    const { store } = makeStore((a) => {
       a.loadError = new Error("GPU out of memory");
     });
-    await store.init();
+    await store.refresh();
     await store.download();
     const s = store.getState();
-    expect(s.status).toBe("not-downloaded");
+    expect(s.status).toBe("error");
     expect(s.error).toBe("GPU out of memory");
-    expect(s.activeModel).toBeNull();
+    expect(s.activeModelId).toBeNull();
     expect(store.getEngine()).toBeNull();
-    expect(adapter.isCached).toHaveBeenCalledTimes(2); // re-probed after failure
   });
 
-  it("treats a cancel as a choice, not an error", async () => {
-    const gate = deferred<void>();
-    const { adapter, store } = makeStore((a) => {
-      a.gate = { promise: gate.promise, resolve: gate.resolve, reject: gate.reject };
-    });
-    await store.init();
-    const run = store.download();
-    await Promise.resolve();
-    expect(store.getState().status).toBe("downloading");
-    expect(store.getState().cancellable).toBe(true);
-    store.cancel();
-    await run;
-    const s = store.getState();
-    expect(s.status).toBe("not-downloaded");
-    expect(s.error).toBeNull();
-    expect(s.cancellable).toBe(false);
-    expect(adapter.lastLoad?.signal?.aborted).toBe(true);
-  });
-
-  it("is a no-op once ready", async () => {
+  it("is a no-op once the model is running", async () => {
     const { adapter, store } = makeStore();
-    await store.init();
+    await store.refresh();
     await store.download();
     await store.download();
     expect(adapter.load).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("cancel and resume", () => {
+  it("cancels into paused, keeping what already landed", async () => {
+    const gate = deferred<void>();
+    const { adapter, store } = makeStore((a) => {
+      a.gate = { promise: gate.promise, reject: gate.reject };
+    });
+    await store.refresh();
+    const run = store.download();
+    await Promise.resolve();
+    expect(store.getState().status).toBe("downloading");
+    store.cancelDownload();
+    await run;
+    const s = store.getState();
+    expect(s.status).toBe("paused");
+    expect(s.error).toBeNull();
+    expect(s.partialBytes).toBe(Math.round(0.5 * MANIFEST_TOTAL));
+    expect(adapter.lastLoad?.signal?.aborted).toBe(true);
+  });
+
+  it("resumes from paused straight back into a download", async () => {
+    const gate = deferred<void>();
+    const { adapter, store } = makeStore((a) => {
+      a.gate = { promise: gate.promise, reject: gate.reject };
+    });
+    await store.refresh();
+    const first = store.download();
+    await Promise.resolve();
+    store.cancelDownload();
+    await first;
+    expect(store.getState().status).toBe("paused");
+
+    adapter.gate = null;
+    await store.download();
+    expect(store.getState().status).toBe("running");
+    expect(store.getState().partialBytes).toBe(0);
   });
 
   it("ignores a late progress callback from a cancelled load", async () => {
     const gate = deferred<void>();
     const { adapter, store } = makeStore((a) => {
-      a.gate = { promise: gate.promise, resolve: gate.resolve, reject: gate.reject };
+      a.gate = { promise: gate.promise, reject: gate.reject };
     });
-    await store.init();
+    await store.refresh();
     const run = store.download();
     await Promise.resolve();
-    store.cancel();
+    store.cancelDownload();
     await run;
     adapter.lastLoad?.onProgress?.({
       progress: 0.9,
@@ -348,112 +392,205 @@ describe("download", () => {
       timeElapsed: 9,
       fetching: true,
     });
-    expect(store.getState().progressText).toBe("");
-    expect(store.getState().progress).toBe(0);
+    expect(store.getState().progress).toBeNull();
+  });
+
+  it("does nothing when there is no download to cancel", async () => {
+    const { store } = makeStore();
+    await store.refresh();
+    store.cancelDownload();
+    expect(store.getState().status).toBe("not-downloaded");
   });
 });
 
-describe("unload / deleteWeights", () => {
-  it("frees the GPU but keeps the weights on disk", async () => {
+describe("load / unload", () => {
+  it("brings cached weights onto the GPU: ready → running", async () => {
+    const { store } = makeStore((a) => {
+      a.cachedIds.add(DEFAULT_MODEL_ID);
+    });
+    await store.refresh();
+    expect(store.getState().status).toBe("ready");
+    await store.load();
+    expect(store.getState().status).toBe("running");
+    expect(store.getState().activeModelId).toBe(DEFAULT_MODEL_ID);
+  });
+
+  it("refuses to load from a state that has no weights", async () => {
     const { adapter, store } = makeStore();
-    await store.init();
+    await store.refresh();
+    await store.load();
+    expect(adapter.load).not.toHaveBeenCalled();
+    expect(store.getState().status).toBe("not-downloaded");
+  });
+
+  it("frees the GPU but keeps the weights: running → ready", async () => {
+    const { adapter, store } = makeStore();
+    await store.refresh();
     await store.download();
     await store.unload();
     expect(adapter.engineUnload).toHaveBeenCalled();
     const s = store.getState();
-    expect(s.status).toBe("not-downloaded");
-    expect(s.activeModel).toBeNull();
-    expect(s.weightsCached).toBe(true);
+    expect(s.status).toBe("ready");
+    expect(s.activeModelId).toBeNull();
     expect(store.getEngine()).toBeNull();
   });
+});
 
-  it("deletes the weights and re-measures what is left", async () => {
+describe("deleteWeights", () => {
+  it("reports the bytes actually reclaimed, measured not assumed", async () => {
     const { adapter, store } = makeStore();
-    await store.init();
+    await store.refresh();
     await store.download();
-    await store.deleteWeights();
     await settle();
+    const reclaimed = await store.deleteWeights(DEFAULT_MODEL_ID);
     expect(adapter.deleteWeights).toHaveBeenCalledWith(DEFAULT_MODEL_ID);
-    expect(store.getState().weightsCached).toBe(false);
-    expect(store.getState().cachedBytes).toBe(0);
+    expect(reclaimed).toBe(MANIFEST_TOTAL);
+    const s = store.getState();
+    expect(s.status).toBe("not-downloaded");
+    expect(s.cache.cachedModelIds).not.toContain(DEFAULT_MODEL_ID);
+    expect(s.cache.bytesOnDisk).toBe(0);
+  });
+
+  it("unloads a model that is on the GPU before deleting it", async () => {
+    const { adapter, store } = makeStore();
+    await store.refresh();
+    await store.download();
+    await store.deleteWeights(DEFAULT_MODEL_ID);
+    expect(adapter.engineUnload).toHaveBeenCalled();
+    expect(store.getState().activeModelId).toBeNull();
   });
 
   it("reports a delete that fails instead of pretending it worked", async () => {
     const { adapter, store } = makeStore();
-    await store.init();
+    await store.refresh();
     await store.download();
     adapter.deleteWeights.mockRejectedValueOnce(new Error("cache locked"));
-    await store.deleteWeights();
+    const reclaimed = await store.deleteWeights(DEFAULT_MODEL_ID);
+    expect(reclaimed).toBe(0);
+    expect(store.getState().status).toBe("error");
     expect(store.getState().error).toBe("cache locked");
+  });
+
+  it("leaves the current selection alone when another model is deleted", async () => {
+    const { store } = makeStore((a) => {
+      a.cachedIds.add(DEFAULT_MODEL_ID);
+      a.cachedIds.add(OTHER_ID);
+    });
+    await store.refresh();
+    expect(store.getState().status).toBe("ready");
+    await store.deleteWeights(OTHER_ID);
+    expect(store.getState().status).toBe("ready");
+    expect(store.getState().selectedModelId).toBe(DEFAULT_MODEL_ID);
   });
 });
 
-describe("select", () => {
-  it("switches model, re-probes, and remembers the choice", async () => {
-    const { adapter, store } = makeStore();
-    await store.init();
-    adapter.hosting = { ...HOSTED, manifest: null };
-    await store.select(OTHER_ID);
-    expect(store.getState().selectedModelId).toBe(OTHER_ID);
-    expect(store.getState().selected.id).toBe(OTHER_ID);
-    expect(store.getState().downloadBytes).toBe(getModel(OTHER_ID).downloadBytes);
+describe("clearError", () => {
+  it("returns to not-downloaded when nothing was fetched", async () => {
+    const { store } = makeStore((a) => {
+      a.loadError = new Error("boom");
+    });
+    await store.refresh();
+    await store.download();
+    expect(store.getState().status).toBe("error");
+    store.clearError();
+    expect(store.getState().status).toBe("not-downloaded");
+    expect(store.getState().error).toBeNull();
+  });
 
+  it("returns to ready when the weights survived the failure", async () => {
+    const { adapter, store } = makeStore((a) => {
+      a.cachedIds.add(DEFAULT_MODEL_ID);
+      a.loadError = new Error("shader compile failed");
+    });
+    await store.refresh();
+    await store.load();
+    expect(store.getState().status).toBe("error");
+    adapter.loadError = null;
+    store.clearError();
+    expect(store.getState().status).toBe("ready");
+  });
+});
+
+describe("selectModel", () => {
+  it("switches synchronously and remembers the choice", async () => {
+    const { adapter, store } = makeStore();
+    await store.refresh();
+    store.selectModel(OTHER_ID);
+    expect(store.getState().selectedModelId).toBe(OTHER_ID);
+    expect(store.getState().status).toBe("not-downloaded");
     // A new store in the same browser picks the remembered model back up.
     expect(new LocalModelStore(adapter).getState().selectedModelId).toBe(OTHER_ID);
   });
 
-  it("unloads the current model before switching", async () => {
-    const { adapter, store } = makeStore();
-    await store.init();
-    await store.download();
-    await store.select(OTHER_ID);
-    expect(adapter.engineUnload).toHaveBeenCalled();
-    expect(store.getState().activeModel).toBeNull();
+  it("goes straight to ready for a model already on disk", async () => {
+    const { store } = makeStore((a) => {
+      a.cachedIds.add(OTHER_ID);
+    });
+    await store.refresh();
+    store.selectModel(OTHER_ID);
+    expect(store.getState().status).toBe("ready");
   });
 
   it("refuses mid-download rather than corrupting the load", async () => {
     const gate = deferred<void>();
     const { store } = makeStore((a) => {
-      a.gate = { promise: gate.promise, resolve: gate.resolve, reject: gate.reject };
+      a.gate = { promise: gate.promise, reject: gate.reject };
     });
-    await store.init();
+    await store.refresh();
     const run = store.download();
     await Promise.resolve();
-    await store.select(OTHER_ID);
+    store.selectModel(OTHER_ID);
     expect(store.getState().selectedModelId).toBe(DEFAULT_MODEL_ID);
-    expect(store.getState().error).toMatch(/Finish or cancel/);
-    store.cancel();
+    store.cancelDownload();
     await run;
   });
 });
 
 describe("chat", () => {
-  it("refuses when no model is loaded", async () => {
+  it("refuses when no model is on the GPU", async () => {
     const { store } = makeStore();
-    await store.init();
+    await store.refresh();
     await expect(store.chat({ messages: [] })).rejects.toThrow(/not loaded/);
   });
 
-  it("flips to running for the duration and back to ready", async () => {
+  it("flips `generating` for the duration and stays `running`", async () => {
     const { adapter, store } = makeStore();
-    await store.init();
+    await store.refresh();
     await store.download();
-    await settle(); // let download's trailing cache measurement land first
-    const seen: string[] = [];
-    store.subscribe(() => seen.push(store.getState().status));
+    await settle();
+    const seen: boolean[] = [];
+    store.subscribe(() => seen.push(store.getState().generating));
     const result = await store.chat({ messages: [{ role: "user", content: "hi" }] });
     expect(result.text).toBe("hello");
-    expect(seen).toEqual(["running", "ready"]);
+    expect(seen).toEqual([true, false]);
+    expect(store.getState().status).toBe("running");
     expect(adapter.chat).toHaveBeenCalledTimes(1);
   });
 
-  it("records the failure and still returns to ready", async () => {
+  it("records a generation failure without unloading the model", async () => {
     const { adapter, store } = makeStore();
-    await store.init();
+    await store.refresh();
     await store.download();
     adapter.chat.mockRejectedValueOnce(new Error("shader compile failed"));
     await expect(store.chat({ messages: [] })).rejects.toThrow(/shader compile/);
-    expect(store.getState().status).toBe("ready");
+    expect(store.getState().status).toBe("running");
+    expect(store.getState().generating).toBe(false);
     expect(store.getState().error).toBe("shader compile failed");
+  });
+});
+
+describe("toAgentModeStatus", () => {
+  it.each([
+    ["unavailable", "unavailable"],
+    ["not-downloaded", "not-downloaded"],
+    ["downloading", "downloading"],
+    ["ready", "ready"],
+    ["running", "running"],
+    // The two states agentMode.ts does not model collapse onto the honest
+    // "capable machine, no model to talk to yet".
+    ["paused", "not-downloaded"],
+    ["error", "not-downloaded"],
+  ] as [LocalModelStatus, string][])("maps %s to %s", (from, to) => {
+    expect(toAgentModeStatus(from)).toBe(to);
   });
 });

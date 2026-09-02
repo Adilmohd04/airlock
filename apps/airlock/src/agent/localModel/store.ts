@@ -1,37 +1,47 @@
 /**
- * `LocalModelStore` — the one piece of state the UI and the local agent loop
- * both read.
+ * `LocalModelStore` — the one piece of state the download UI, the mode
+ * indicator and the local agent loop all read.
  *
- * Same shape as `activityLog` / `reportStore`: a class with
- * `getState()` + `subscribe()` returning a referentially-stable snapshot, so a
- * component can bind with `useSyncExternalStore(store.subscribe, store.getState)`
- * and nothing else in the app needs to know how models load.
+ * Same idiom as `activityLog` / `reportStore`: a class with `getState()` +
+ * `subscribe()` returning a referentially-stable snapshot, so a component binds
+ * with `useSyncExternalStore(store.subscribe, store.getState)` and nothing else
+ * in the app needs to know how models load.
+ *
+ * ── Whose shape this is ────────────────────────────────────────────────────
+ * The state and method names are T1-c's, per claude-main's ruling in COLLAB
+ * (2026-09-02): seven states, `blocker`, `partialBytes`, `activeModelId`,
+ * `deleteWeights(id) -> bytes reclaimed`. T1-c's `LocalModelPanel` stub was
+ * written against exactly this interface, so swapping the stub for this store
+ * is a delete plus two imports. Three things are additive on top, because the
+ * agent loop needs them and no UI field covers them: `generating`,
+ * `getEngine()` / `chat()` / `interrupt()`, and `toAgentModeStatus()` for
+ * T1-d's five-state consumer.
  *
  * ── The state machine ──────────────────────────────────────────────────────
  *
- *   unavailable ──init()──▶ not-downloaded ──download()──▶ downloading ──▶ ready
- *        ▲                       ▲   ▲                          │           │ ▲
- *        │                       │   └────── cancel / fail ─────┘   chat()  │ │
- *        └── no WebGPU, or       └── unload() / deleteWeights()          ▼   │
- *            no mirror on                                            running ┘
- *            this origin
+ *                     ┌──────────── clearError ────────────┐
+ *                     ▼                                    │
+ *   unavailable   not-downloaded ──download()──▶ downloading ──▶ error
+ *        ▲             ▲     ▲                    │      │
+ *        │             │     └─ cancelDownload ─▶ paused ┘
+ *        │        deleteWeights                   │ (download() resumes)
+ *        │             │                          ▼
+ *        └── no WebGPU │                        running ◀── load() ── ready
+ *            no mirror └──────────────────────────┴── unload() ──────┘
  *
- * The store starts at `unavailable` with `initialized: false` — "we have not
- * looked yet" rather than a sixth status, so the union stays exactly the five
- * states the spec names. The UI should show a spinner while `!initialized`.
+ *  - `ready`   — weights are on this device; the GPU is free.
+ *  - `running` — the model is resident on the GPU and can answer. `generating`
+ *                says whether it is mid-answer right now.
  *
- * `not-downloaded` means "not loaded onto the GPU". Whether that costs a
- * download or just a few seconds of cache-to-GPU loading is `weightsCached`,
- * and the copy the user sees should differ: "Download 1.63 GB" versus
- * "Load (already on this device)".
+ * `hardware === null` means "not probed yet"; the UI should show a spinner
+ * rather than any claim until `refresh()` resolves.
  *
  * ── Egress ─────────────────────────────────────────────────────────────────
  * Every request this store can cause is a GET to `/models/...` on the page's
- * own origin: `runtime.probeHostedWeights` fetches one small manifest, and
- * WebLLM fetches the shards. There is no third-party origin in the catalog and
- * `buildAppConfig()` throws if one ever appears, so the Seal's external counter
- * stays at 0 through a model download. Nothing about the user's data is
- * involved in any of it.
+ * own origin: one small manifest probe, then WebLLM's shard fetches. There is
+ * no third-party origin in the catalog and `buildAppConfig()` throws if one
+ * ever appears, so the Seal's external counter stays at 0 across a model
+ * download. Nothing about the user's data is involved in any of it.
  */
 
 import {
@@ -40,7 +50,6 @@ import {
   isLocalModelId,
   LOCAL_MODELS,
   type LocalModelId,
-  type LocalModelInfo,
 } from "./models";
 import {
   LoadAbortedError,
@@ -56,45 +65,60 @@ export type LocalModelStatus =
   | "unavailable"
   | "not-downloaded"
   | "downloading"
+  | "paused"
   | "ready"
-  | "running";
+  | "running"
+  | "error";
+
+/** Why local mode is unavailable — the two causes need different copy. */
+export type LocalModelBlocker = "none" | "no-webgpu" | "no-weights-hosted";
+
+/**
+ * The hardware report the UI renders. A superset of the four fields T1-c's
+ * panel reads, so it is assignable wherever that narrower type is expected.
+ */
+export type LocalHardwareReport = GpuReport;
+
+export interface LocalModelProgress {
+  /** 0..1, straight from the runtime. */
+  fraction: number;
+  /** Derived from `fraction × totalBytes` — WebLLM reports a fraction, not bytes. */
+  loadedBytes: number;
+  totalBytes: number;
+  /** The runtime's own status line, safe to show verbatim. */
+  label: string;
+  /** True = pulling weights over the (same-origin) network; false = warming the GPU. */
+  fetching: boolean;
+  elapsedMs: number;
+}
+
+export interface LocalModelCache {
+  /** Bytes in the browser's model cache, or null when it cannot be measured. */
+  bytesOnDisk: number | null;
+  cachedModelIds: LocalModelId[];
+}
 
 export interface LocalModelState {
   status: LocalModelStatus;
-  /** False until `init()` has finished its first probe. */
-  initialized: boolean;
-  /** The model the user has chosen. Always a valid catalog id. */
   selectedModelId: LocalModelId;
-  /** Catalog entry for `selectedModelId`, for convenience. */
-  selected: LocalModelInfo;
-  /** The model currently resident on the GPU, or null. */
-  activeModel: LocalModelId | null;
-  /** 0..1 while `downloading`; 1 once `ready`. */
-  progress: number;
-  /** WebLLM's status line, e.g. `"Fetching param cache[12/68]: ..."`. */
-  progressText: string;
-  /** True while bytes are moving; false while cached shards load onto the GPU. */
-  fetching: boolean;
-  /** True when the selected model's weights are already in this browser. */
-  weightsCached: boolean;
-  /** Whether this origin serves the weights. Null until probed. */
-  weightsHosted: boolean | null;
-  /** Plain-language reason for `unavailable`. Empty otherwise. */
-  unavailableReason: string;
-  /** Last failure. Cleared by the next successful transition. */
+  /** The model resident on the GPU (status `running`), else null. */
+  activeModelId: LocalModelId | null;
+  progress: LocalModelProgress | null;
+  /** Bytes kept from a cancelled download, so the UI can offer "resume". */
+  partialBytes: number;
+  /** Set iff `status === "error"`. */
   error: string | null;
-  /** GPU probe result. Null until `init()` runs. */
-  gpu: GpuReport | null;
-  /** Bytes WebLLM currently holds in the browser cache, or null if unknown. */
-  cachedBytes: number | null;
+  /** Set iff `status === "unavailable"`. */
+  unavailableReason: string | null;
+  blocker: LocalModelBlocker;
+  /** Null until the first hardware probe resolves. */
+  hardware: LocalHardwareReport | null;
+  cache: LocalModelCache;
   /**
-   * Bytes the selected model still needs to download: 0 when it is cached,
-   * otherwise the mirror's exact figure if the manifest gave us one, else the
-   * catalog estimate.
+   * Additive (T1-b): true while a completion is in flight. `status` stays
+   * `running` — the model is loaded either way; this is about the turn.
    */
-  downloadBytes: number;
-  /** True while a download can be cancelled. */
-  cancellable: boolean;
+  generating: boolean;
 }
 
 type Listener = () => void;
@@ -124,6 +148,25 @@ function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * Collapse the seven states onto the five `agent/agentMode.ts` accepts.
+ * `paused` and `error` are both "there is no model to talk to yet, but the
+ * machine is capable" — which is exactly `not-downloaded` from the mode
+ * indicator's point of view. Exported so the integration does not have to
+ * invent this mapping twice.
+ */
+export function toAgentModeStatus(
+  status: LocalModelStatus
+): "unavailable" | "not-downloaded" | "downloading" | "ready" | "running" {
+  switch (status) {
+    case "paused":
+    case "error":
+      return "not-downloaded";
+    default:
+      return status;
+  }
+}
+
 export class LocalModelStore {
   private state: LocalModelState;
   private snapshot: LocalModelState;
@@ -131,29 +174,23 @@ export class LocalModelStore {
 
   private engine: LoadedEngine | null = null;
   private abort: AbortController | null = null;
-  private initPromise: Promise<void> | null = null;
+  private refreshPromise: Promise<void> | null = null;
   /** Exact download size from the mirror manifest, when it published one. */
   private mirrorBytes = new Map<LocalModelId, number>();
 
   constructor(private adapter: LocalRuntimeAdapter = webllmAdapter) {
-    const selectedModelId = readSelection();
     this.state = {
-      status: "unavailable",
-      initialized: false,
-      selectedModelId,
-      selected: getModel(selectedModelId),
-      activeModel: null,
-      progress: 0,
-      progressText: "",
-      fetching: false,
-      weightsCached: false,
-      weightsHosted: null,
-      unavailableReason: "",
+      status: "not-downloaded",
+      selectedModelId: readSelection(),
+      activeModelId: null,
+      progress: null,
+      partialBytes: 0,
       error: null,
-      gpu: null,
-      cachedBytes: null,
-      downloadBytes: getModel(selectedModelId).downloadBytes,
-      cancellable: false,
+      unavailableReason: null,
+      blocker: "none",
+      hardware: null,
+      cache: { bytesOnDisk: null, cachedModelIds: [] },
+      generating: false,
     };
     this.snapshot = { ...this.state };
   }
@@ -172,147 +209,190 @@ export class LocalModelStore {
 
   private set(patch: Partial<LocalModelState>): void {
     this.state = { ...this.state, ...patch };
-    if (patch.selectedModelId) {
-      this.state.selected = getModel(patch.selectedModelId);
-    }
     this.emit();
   }
 
-  /** The full catalog, so a component does not have to import two modules. */
+  /** The full catalog, so a component needs one import rather than two. */
   readonly catalog = LOCAL_MODELS;
 
-  /** The engine T1-b drives. Null unless `status` is `ready` or `running`. */
+  /** The engine T1-b drives. Null unless `status === "running"`. */
   getEngine(): LoadedEngine | null {
     return this.engine;
   }
 
-  /**
-   * Probe the machine and this origin. Idempotent and safe to call from several
-   * components — concurrent callers share one probe.
-   */
-  init(): Promise<void> {
-    if (this.initPromise) return this.initPromise;
-    this.initPromise = this.runInit().finally(() => {
-      this.initPromise = null;
-    });
-    return this.initPromise;
-  }
-
-  private async runInit(): Promise<void> {
-    const gpu = await this.adapter.detectGpu();
-    if (!gpu.available) {
-      // Terminal for this session. No WebLLM import, no fetch, no console noise.
-      this.set({
-        gpu,
-        status: "unavailable",
-        unavailableReason: gpu.reason,
-        initialized: true,
-      });
-      return;
-    }
-    this.set({ gpu });
-    await this.refreshAvailability();
-    this.set({ initialized: true });
-    void this.refreshCacheSize();
-  }
-
-  /**
-   * Re-answer "can we run the selected model, and what will it cost". The cache
-   * check comes first on purpose: a browser that already holds the weights must
-   * not be blocked by a manifest probe that fails because the network is off.
-   */
-  private async refreshAvailability(): Promise<void> {
-    const id = this.state.selectedModelId;
-    const cached = await this.adapter.isCached(id);
-    if (cached) {
-      this.set({
-        weightsCached: true,
-        weightsHosted: true,
-        status: this.engine ? this.state.status : "not-downloaded",
-        unavailableReason: "",
-        downloadBytes: 0,
-      });
-      return;
-    }
-
-    const hosting = await this.adapter.probeHosted(id);
-    if (hosting.manifest) {
-      this.mirrorBytes.set(
-        id,
-        hosting.manifest.weightsBytes + hosting.manifest.libBytes
-      );
-    }
-    if (!hosting.hosted) {
-      this.set({
-        weightsCached: false,
-        weightsHosted: false,
-        status: "unavailable",
-        unavailableReason: hosting.reason,
-        downloadBytes: this.expectedBytes(id),
-      });
-      return;
-    }
-    this.set({
-      weightsCached: false,
-      weightsHosted: true,
-      // Never demote a model that is already resident on the GPU.
-      status: this.engine ? this.state.status : "not-downloaded",
-      unavailableReason: "",
-      downloadBytes: this.expectedBytes(id),
-    });
+  /** True while an operation would be disrupted by a state change underneath it. */
+  private get busy(): boolean {
+    const s = this.state.status;
+    return s === "downloading" || s === "paused" || s === "running";
   }
 
   private expectedBytes(id: LocalModelId): number {
     return this.mirrorBytes.get(id) ?? getModel(id).downloadBytes;
   }
 
-  /** Switch models. Refused while a download or a generation is in flight. */
-  async select(id: LocalModelId): Promise<void> {
-    if (this.state.status === "downloading" || this.state.status === "running") {
-      this.set({ error: "Finish or cancel the current model first." });
-      return;
-    }
-    if (id === this.state.selectedModelId && this.state.initialized) return;
-    if (this.engine) await this.unload();
-    writeSelection(id);
-    this.set({
-      selectedModelId: id,
-      error: null,
-      progress: 0,
-      progressText: "",
-      downloadBytes: this.expectedBytes(id),
+  /**
+   * Probe the GPU, the browser cache and — only when the selection is not
+   * already cached — this origin's weight mirror. Idempotent; concurrent
+   * callers share one probe.
+   */
+  refresh(): Promise<void> {
+    if (this.refreshPromise) return this.refreshPromise;
+    this.refreshPromise = this.runRefresh().finally(() => {
+      this.refreshPromise = null;
     });
-    if (this.state.gpu?.available) await this.refreshAvailability();
+    return this.refreshPromise;
   }
 
-  /**
-   * Download the weights if they are not cached, then load them onto the GPU.
-   * Ends at `ready`. Cancelling is not an error — already-fetched shards stay
-   * in the cache, so calling `download()` again resumes.
-   */
-  async download(): Promise<void> {
-    if (!this.state.initialized) await this.init();
-    if (this.state.status === "ready" || this.state.status === "running") return;
-    if (this.state.status === "downloading") return;
-    if (this.state.status === "unavailable") {
+  private async runRefresh(): Promise<void> {
+    const hardware = await this.adapter.detectGpu();
+    if (!hardware.available) {
+      // Terminal for this session: no WebLLM import, no fetch, no console noise.
       this.set({
-        error: this.state.unavailableReason || "Local mode is not available here.",
+        hardware,
+        blocker: "no-webgpu",
+        // Never yank the rug from under an operation already in flight.
+        status: this.busy ? this.state.status : "unavailable",
+        unavailableReason: hardware.reason,
       });
       return;
     }
 
+    const cachedModelIds = await this.listCached();
+    const bytesOnDisk = await this.measureCache();
     const id = this.state.selectedModelId;
+    const cached = cachedModelIds.includes(id);
+
+    let blocker: LocalModelBlocker = "none";
+    let unavailableReason: string | null = null;
+    if (!cached) {
+      // Only ask the network when we have to. A browser that already holds the
+      // weights must stay usable with the network off.
+      const hosting = await this.adapter.probeHosted(id);
+      if (hosting.manifest) {
+        this.mirrorBytes.set(
+          id,
+          hosting.manifest.weightsBytes + hosting.manifest.libBytes
+        );
+      }
+      if (!hosting.hosted) {
+        blocker = "no-weights-hosted";
+        unavailableReason = hosting.reason;
+      }
+    }
+
+    const status: LocalModelStatus = this.busy
+      ? this.state.status
+      : this.state.status === "error"
+        ? "error"
+        : cached
+          ? "ready"
+          : blocker === "none"
+            ? "not-downloaded"
+            : "unavailable";
+
+    this.set({
+      hardware,
+      blocker,
+      unavailableReason,
+      status,
+      cache: { bytesOnDisk, cachedModelIds },
+    });
+  }
+
+  private async listCached(): Promise<LocalModelId[]> {
+    const found: LocalModelId[] = [];
+    for (const m of LOCAL_MODELS) {
+      try {
+        if (await this.adapter.isCached(m.id)) found.push(m.id);
+      } catch {
+        /* an unreadable cache is the same as an empty one */
+      }
+    }
+    return found;
+  }
+
+  private async measureCache(): Promise<number | null> {
+    try {
+      return await this.adapter.cacheBytes();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Switch models. Synchronous, so the UI responds on the click; the mirror
+   * re-probe for the new selection runs behind it.
+   */
+  selectModel(id: LocalModelId): void {
+    if (this.state.status === "downloading" || this.state.status === "running") {
+      return;
+    }
+    if (id === this.state.selectedModelId) return;
+    const cached = this.state.cache.cachedModelIds.includes(id);
+    const noGpu = this.state.hardware !== null && !this.state.hardware.available;
+    writeSelection(id);
+    this.set({
+      selectedModelId: id,
+      partialBytes: 0,
+      progress: null,
+      error: null,
+      status: noGpu ? "unavailable" : cached ? "ready" : "not-downloaded",
+    });
+    void this.refresh();
+  }
+
+  /**
+   * Fetch the weights if they are not here yet, then bring the model onto the
+   * GPU. Ends at `running`.
+   *
+   * WebLLM has no download-without-loading primitive — `reload()` fetches and
+   * warms in one pass — so "download" and "load" are the same call with
+   * different copy. A resume after `cancelDownload()` costs nothing extra:
+   * shards already written to the Cache API are skipped.
+   */
+  download(): Promise<void> {
+    return this.warm("download");
+  }
+
+  /** Bring already-cached weights onto the GPU: `ready` → `running`. */
+  load(): Promise<void> {
+    return this.warm("load");
+  }
+
+  private async warm(intent: "download" | "load"): Promise<void> {
+    if (this.state.hardware === null) await this.refresh();
+    const s = this.state.status;
+    if (s === "downloading" || s === "running") return;
+    if (s === "unavailable") {
+      this.set({
+        status: "error",
+        error:
+          this.state.unavailableReason || "Local mode is not available here.",
+      });
+      return;
+    }
+    if (intent === "load" && s !== "ready") return;
+
+    const id = this.state.selectedModelId;
+    const cached = this.state.cache.cachedModelIds.includes(id);
+    const totalBytes = this.expectedBytes(id);
+    const startedAt = Date.now();
     const controller = new AbortController();
     this.abort = controller;
+
     this.set({
       status: "downloading",
-      progress: 0,
-      progressText: this.state.weightsCached
-        ? "Loading model onto the GPU…"
-        : "Starting download…",
-      fetching: !this.state.weightsCached,
       error: null,
-      cancellable: true,
+      progress: {
+        fraction: totalBytes > 0 ? this.state.partialBytes / totalBytes : 0,
+        loadedBytes: this.state.partialBytes,
+        totalBytes,
+        label: cached
+          ? "Loading the model onto your GPU…"
+          : "Starting the download…",
+        fetching: !cached,
+        elapsedMs: 0,
+      },
     });
 
     try {
@@ -322,52 +402,61 @@ export class LocalModelStore {
         onProgress: (p) => {
           // A late callback from a cancelled load must not repaint the UI.
           if (this.abort !== controller) return;
+          const fraction = Number.isFinite(p.progress) ? p.progress : 0;
           this.set({
-            progress: Number.isFinite(p.progress) ? p.progress : 0,
-            progressText: p.text,
-            fetching: p.fetching,
+            progress: {
+              fraction,
+              loadedBytes: Math.round(fraction * totalBytes),
+              totalBytes,
+              label: p.text,
+              fetching: p.fetching,
+              elapsedMs: Date.now() - startedAt,
+            },
           });
         },
       });
       this.engine = engine;
       this.set({
-        status: "ready",
-        activeModel: id,
-        progress: 1,
-        progressText: "",
-        fetching: false,
-        weightsCached: true,
-        downloadBytes: 0,
+        status: "running",
+        activeModelId: id,
+        progress: null,
+        partialBytes: 0,
         error: null,
-        cancellable: false,
       });
-      void this.refreshCacheSize();
+      void this.refreshCacheOnly();
     } catch (err) {
       this.engine = null;
       const aborted = err instanceof LoadAbortedError || controller.signal.aborted;
-      this.set({
-        status: "not-downloaded",
-        activeModel: null,
-        progress: 0,
-        progressText: "",
-        fetching: false,
-        cancellable: false,
-        // A cancel is a choice, not a failure. Anything else is reported.
-        error: aborted ? null : messageOf(err),
-      });
-      // Partial shards may have landed; re-derive what is actually on disk.
-      if (this.state.gpu?.available) await this.refreshAvailability();
+      if (aborted) {
+        // Cancelling is a choice, not a failure. Keep what landed so the UI can
+        // offer "resume" and the resumed download skips those shards.
+        this.set({
+          status: cached ? "ready" : "paused",
+          activeModelId: null,
+          partialBytes: cached ? 0 : (this.state.progress?.loadedBytes ?? 0),
+          progress: null,
+        });
+      } else {
+        this.set({
+          status: "error",
+          activeModelId: null,
+          progress: null,
+          error: messageOf(err),
+        });
+      }
+      void this.refreshCacheOnly();
     } finally {
       if (this.abort === controller) this.abort = null;
     }
   }
 
-  /** Cancel an in-flight download. No-op when nothing is downloading. */
-  cancel(): void {
+  /** Cancel an in-flight download. Cached shards survive → `paused`. */
+  cancelDownload(): void {
+    if (this.state.status !== "downloading") return;
     this.abort?.abort();
   }
 
-  /** Free the GPU. Weights stay cached, so reloading is fast and offline. */
+  /** Free the GPU, keep the weights on disk: `running` → `ready`. */
   async unload(): Promise<void> {
     const engine = this.engine;
     this.engine = null;
@@ -378,58 +467,103 @@ export class LocalModelStore {
         /* the GPU context is gone either way */
       }
     }
+    const noGpu = this.state.hardware !== null && !this.state.hardware.available;
     this.set({
-      status: this.state.gpu?.available ? "not-downloaded" : "unavailable",
-      activeModel: null,
-      progress: 0,
-      progressText: "",
-      fetching: false,
-      cancellable: false,
+      status: noGpu ? "unavailable" : "ready",
+      activeModelId: null,
+      generating: false,
+      progress: null,
     });
   }
 
-  /** Delete the cached weights and report the reclaimed space. */
-  async deleteWeights(): Promise<void> {
-    if (this.state.status === "downloading") this.cancel();
-    await this.unload();
+  /**
+   * Delete one model's cached weights. Resolves with the bytes actually
+   * reclaimed, measured before and after rather than assumed from the catalog —
+   * a partial download would otherwise be reported as a full one.
+   */
+  async deleteWeights(id: LocalModelId): Promise<number> {
+    if (this.state.status === "downloading") this.cancelDownload();
+    if (this.state.activeModelId === id) await this.unload();
+
+    const before = await this.measureCache();
     try {
-      await this.adapter.deleteWeights(this.state.selectedModelId);
-      this.set({ weightsCached: false, error: null });
+      await this.adapter.deleteWeights(id);
+      this.set({ error: null });
     } catch (err) {
-      this.set({ error: messageOf(err) });
+      this.set({ status: "error", error: messageOf(err) });
+      return 0;
     }
-    await this.refreshCacheSize();
-    if (this.state.gpu?.available) await this.refreshAvailability();
+    const after = await this.measureCache();
+
+    const cachedModelIds = this.state.cache.cachedModelIds.filter((x) => x !== id);
+    const hitSelection = this.state.selectedModelId === id;
+    const noGpu = this.state.hardware !== null && !this.state.hardware.available;
+    this.set({
+      cache: { bytesOnDisk: after, cachedModelIds },
+      partialBytes: hitSelection ? 0 : this.state.partialBytes,
+      progress: hitSelection ? null : this.state.progress,
+      activeModelId: this.state.activeModelId === id ? null : this.state.activeModelId,
+      status: hitSelection
+        ? noGpu
+          ? "unavailable"
+          : "not-downloaded"
+        : this.state.status,
+    });
+
+    if (before !== null && after !== null && before > after) return before - after;
+    // Cache size was unmeasurable; fall back to what we believed was there.
+    return this.state.cache.cachedModelIds.includes(id)
+      ? getModel(id).downloadBytes
+      : this.state.partialBytes;
   }
 
-  /** Re-measure the browser cache. Cheap; safe to call after any transition. */
-  async refreshCacheSize(): Promise<void> {
-    try {
-      this.set({ cachedBytes: await this.adapter.cacheBytes() });
-    } catch {
-      this.set({ cachedBytes: null });
+  /** Leave the `error` state without retrying. */
+  clearError(): void {
+    if (this.state.status !== "error") {
+      this.set({ error: null });
+      return;
     }
+    const cached = this.state.cache.cachedModelIds.includes(
+      this.state.selectedModelId
+    );
+    const noGpu = this.state.hardware !== null && !this.state.hardware.available;
+    this.set({
+      error: null,
+      status: noGpu
+        ? "unavailable"
+        : cached
+          ? "ready"
+          : this.state.partialBytes > 0
+            ? "paused"
+            : "not-downloaded",
+    });
+  }
+
+  /** Re-measure the cache without re-probing the GPU or the mirror. */
+  async refreshCacheOnly(): Promise<void> {
+    const cachedModelIds = await this.listCached();
+    const bytesOnDisk = await this.measureCache();
+    this.set({ cache: { bytesOnDisk, cachedModelIds } });
   }
 
   /**
-   * Generate. This is the only path that should reach the engine, because it is
-   * what makes `running` true — the ledger and the Seal both rely on the status
-   * being honest about whether the model is thinking.
+   * Generate. The only path that should reach the engine, because it is what
+   * keeps `generating` honest — the mode indicator and the ledger both rely on
+   * the store knowing whether the model is mid-turn.
    */
   async chat(request: LocalChatRequest): Promise<LocalChatResult> {
     const engine = this.engine;
-    if (!engine || this.state.status !== "ready") {
+    if (!engine || this.state.status !== "running") {
       throw new Error("The local model is not loaded.");
     }
-    this.set({ status: "running", error: null });
+    this.set({ generating: true, error: null });
     try {
       return await engine.chat(request);
     } catch (err) {
       this.set({ error: messageOf(err) });
       throw err;
     } finally {
-      // Unload may have raced us; do not resurrect a dead engine's status.
-      this.set({ status: this.engine ? "ready" : "not-downloaded" });
+      this.set({ generating: false });
     }
   }
 

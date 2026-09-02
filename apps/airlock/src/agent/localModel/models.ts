@@ -206,12 +206,19 @@ export function isLocalModelId(id: string): id is LocalModelId {
   return LOCAL_MODELS.some((m) => m.id === id);
 }
 
-/** GB-aware size string. `lib/format.ts#bytes` stops at MB; models are ~1.7 GB. */
+/**
+ * GB-aware size string. `lib/format.ts#bytes` stops at MB and models are
+ * ~1.7 GB. Byte-identical to the copy T1-c wrote in `LocalModelPanel`, which
+ * this replaces at integration — including the `"—"` guard, because the panel
+ * feeds it `cache.bytesOnDisk`, which is nullable.
+ */
 export function formatModelSize(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "—";
   const MB = 1024 * 1024;
   if (n >= 1024 * MB) return `${(n / (1024 * MB)).toFixed(2)} GB`;
   if (n >= MB) return `${Math.round(n / MB)} MB`;
-  return `${Math.round(n / 1024)} KB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${Math.round(n)} B`;
 }
 
 /**

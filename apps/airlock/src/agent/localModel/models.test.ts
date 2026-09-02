@@ -230,7 +230,15 @@ describe("formatModelSize", () => {
     [880_931_543, "840 MB"],
     [5_438_957, "5 MB"],
     [4096, "4 KB"],
+    [512, "512 B"],
+    [0, "0 B"],
   ])("formats %i as %s", (n, expected) => {
     expect(formatModelSize(n)).toBe(expected);
+  });
+
+  it("degrades to an em dash rather than NaN for an unmeasurable cache", () => {
+    // `cache.bytesOnDisk` is nullable; the panel pipes it straight in here.
+    expect(formatModelSize(Number.NaN)).toBe("—");
+    expect(formatModelSize(-1)).toBe("—");
   });
 });

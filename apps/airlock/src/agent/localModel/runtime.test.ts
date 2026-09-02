@@ -8,8 +8,14 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MockInstance } from "vitest";
-import { detectWebGpu, probeHostedWeights } from "./runtime";
-import { DEFAULT_MODEL_ID } from "./models";
+import {
+  deleteCachedWeights,
+  detectWebGpu,
+  hasCachedWeights,
+  listCachedModels,
+  probeHostedWeights,
+} from "./runtime";
+import { DEFAULT_MODEL_ID, getModel } from "./models";
 
 const MiB = 1024 * 1024;
 
@@ -251,5 +257,108 @@ describe("probeHostedWeights", () => {
     expect(r.hosted).toBe(false);
     expect(r.reason).toMatch(/Could not reach the weight mirror/);
     expectSilentConsole();
+  });
+});
+
+describe("cache inspection (no WebLLM import)", () => {
+  const ORIGIN = "https://airlock.test";
+  const DIR = `${ORIGIN}/models/${DEFAULT_MODEL_ID}/resolve/main/`;
+
+  /** Minimal CacheStorage double — enough for URL-keyed match/delete/keys. */
+  class FakeCache {
+    constructor(public entries = new Map<string, string>()) {}
+    async match(url: string) {
+      const body = this.entries.get(url);
+      return body === undefined ? undefined : new Response(body);
+    }
+    async delete(url: string) {
+      return this.entries.delete(url);
+    }
+    async keys() {
+      return [...this.entries.keys()].map((u) => new Request(u));
+    }
+  }
+
+  function stubCaches(scopes: Record<string, Map<string, string>>) {
+    const opened = new Map<string, FakeCache>();
+    vi.stubGlobal("location", { origin: ORIGIN, href: `${ORIGIN}/` });
+    vi.stubGlobal("caches", {
+      has: async (s: string) => s in scopes,
+      open: async (s: string) => {
+        if (!opened.has(s)) opened.set(s, new FakeCache(scopes[s] ?? new Map()));
+        return opened.get(s)!;
+      },
+    });
+    return scopes;
+  }
+
+  const tensorCache = (paths: string[]) =>
+    JSON.stringify({ records: paths.map((p) => ({ dataPath: p, nbytes: 1 })) });
+
+  it("says not-cached when nothing has been downloaded", async () => {
+    stubCaches({});
+    expect(await hasCachedWeights(DEFAULT_MODEL_ID)).toBe(false);
+    expect(await listCachedModels()).toEqual([]);
+  });
+
+  it("says cached only when every shard listed in tensor-cache.json is present", async () => {
+    stubCaches({
+      "webllm/model": new Map([
+        [`${DIR}tensor-cache.json`, tensorCache(["params_shard_0.bin", "params_shard_1.bin"])],
+        [`${DIR}params_shard_0.bin`, "a"],
+        [`${DIR}params_shard_1.bin`, "b"],
+      ]),
+    });
+    expect(await hasCachedWeights(DEFAULT_MODEL_ID)).toBe(true);
+    expect(await listCachedModels()).toEqual([DEFAULT_MODEL_ID]);
+  });
+
+  it("treats a half-finished download as not cached", async () => {
+    stubCaches({
+      "webllm/model": new Map([
+        [`${DIR}tensor-cache.json`, tensorCache(["params_shard_0.bin", "params_shard_1.bin"])],
+        [`${DIR}params_shard_0.bin`, "a"],
+      ]),
+    });
+    // A partial mirror that reported "ready" would fail deep inside a tensor
+    // parse instead of offering "resume".
+    expect(await hasCachedWeights(DEFAULT_MODEL_ID)).toBe(false);
+  });
+
+  it("survives a tensor-cache.json that is not what we expect", async () => {
+    stubCaches({
+      "webllm/model": new Map([[`${DIR}tensor-cache.json`, "<html>nope</html>"]]),
+    });
+    expect(await hasCachedWeights(DEFAULT_MODEL_ID)).toBe(false);
+  });
+
+  it("deletes the shards, the tokenizer, the config and the kernel library", async () => {
+    const model = new Map([
+      [`${DIR}tensor-cache.json`, tensorCache(["params_shard_0.bin"])],
+      [`${DIR}params_shard_0.bin`, "a"],
+      [`${DIR}tokenizer.json`, "t"],
+    ]);
+    const config = new Map([[`${DIR}mlc-chat-config.json`, "{}"]]);
+    const wasm = new Map([
+      [
+        `${ORIGIN}/models/lib/${getModel(DEFAULT_MODEL_ID).libFile}`,
+        "wasm",
+      ],
+    ]);
+    stubCaches({
+      "webllm/model": model,
+      "webllm/config": config,
+      "webllm/wasm": wasm,
+    });
+    await deleteCachedWeights(DEFAULT_MODEL_ID);
+    expect(model.size).toBe(0);
+    expect(config.size).toBe(0);
+    expect(wasm.size).toBe(0);
+    expect(await hasCachedWeights(DEFAULT_MODEL_ID)).toBe(false);
+  });
+
+  it("does not throw when asked to delete something that was never there", async () => {
+    stubCaches({});
+    await expect(deleteCachedWeights(DEFAULT_MODEL_ID)).resolves.toBeUndefined();
   });
 });

@@ -41,7 +41,10 @@ import type {
 import {
   buildAppConfig,
   getModel,
+  LOCAL_MODELS,
   manifestUrl,
+  modelDirUrl,
+  modelLibUrl,
   parseManifest,
   WEBLLM_CACHE_SCOPES,
   type LocalModelId,
@@ -517,6 +520,104 @@ function wrapEngine(engine: MLCEngine, modelId: LocalModelId): LoadedEngine {
   };
 }
 
+// ── Cache inspection, without importing WebLLM ──────────────────────────────
+//
+// These mirror WebLLM 0.2.84's own cache layout rather than calling
+// `hasModelInCache` / `deleteModelAllInfoInCache`, and the reason is not
+// stylistic: those helpers live in the 5.9 MB WebLLM bundle, and the local-model
+// panel probes the cache on every page load. Calling them would pull the whole
+// library into the initial load for every user, including the ones who never
+// run a model. Reading the Cache API directly keeps WebLLM behind the one thing
+// that genuinely needs it — actually loading a model onto the GPU.
+//
+// Layout being mirrored (`MLCEngine.reloadInternal` + `tvmjs.fetchTensorCache`):
+//   webllm/model   <dir>tensor-cache.json, every record's dataPath, tokenizer.*
+//   webllm/config  <dir>mlc-chat-config.json
+//   webllm/wasm    the model_lib .wasm
+
+const TOKENIZER_FILES = ["tokenizer.json", "tokenizer.model"];
+
+async function openIfPresent(scope: string): Promise<Cache | null> {
+  if (typeof caches === "undefined") return null;
+  return (await caches.has(scope)) ? caches.open(scope) : null;
+}
+
+/** Absolute URLs of a model's weight shards, per its cached `tensor-cache.json`. */
+async function cachedShardUrls(
+  cache: Cache,
+  modelId: LocalModelId
+): Promise<string[] | null> {
+  const dir = modelDirUrl(modelId);
+  const listed = await cache.match(new URL("tensor-cache.json", dir).href);
+  if (!listed) return null;
+  const body: unknown = await listed.json();
+  const records = (body as { records?: { dataPath?: string }[] } | null)?.records;
+  if (!Array.isArray(records)) return null;
+  return records
+    .map((r) => r.dataPath)
+    .filter((d): d is string => typeof d === "string" && d.length > 0)
+    .map((d) => new URL(d, dir).href);
+}
+
+/**
+ * True only when *every* shard is present. A half-finished download must read
+ * as "not downloaded", or a cancelled first run would look ready and then fail
+ * deep inside a tensor parse.
+ */
+export async function hasCachedWeights(modelId: LocalModelId): Promise<boolean> {
+  try {
+    const cache = await openIfPresent("webllm/model");
+    if (!cache) return false;
+    const shards = await cachedShardUrls(cache, modelId);
+    if (!shards || shards.length === 0) return false;
+    for (const url of shards) {
+      if (!(await cache.match(url))) return false;
+    }
+    return true;
+  } catch {
+    // "We cannot prove it is cached" is, for every caller, "not cached".
+    return false;
+  }
+}
+
+/** Which curated models this browser holds in full. */
+export async function listCachedModels(): Promise<LocalModelId[]> {
+  const found: LocalModelId[] = [];
+  for (const m of LOCAL_MODELS) {
+    if (await hasCachedWeights(m.id)) found.push(m.id);
+  }
+  return found;
+}
+
+/**
+ * Remove everything WebLLM wrote for one model. The kernel library is only
+ * removed when no other catalog model shares that file, so deleting one model
+ * cannot silently break another.
+ */
+export async function deleteCachedWeights(modelId: LocalModelId): Promise<void> {
+  const dir = modelDirUrl(modelId);
+  const modelCache = await openIfPresent("webllm/model");
+  if (modelCache) {
+    const shards = (await cachedShardUrls(modelCache, modelId)) ?? [];
+    for (const url of shards) await modelCache.delete(url);
+    await modelCache.delete(new URL("tensor-cache.json", dir).href);
+    for (const f of TOKENIZER_FILES) {
+      await modelCache.delete(new URL(f, dir).href);
+    }
+  }
+  const configCache = await openIfPresent("webllm/config");
+  await configCache?.delete(new URL("mlc-chat-config.json", dir).href);
+
+  const libFile = getModel(modelId).libFile;
+  const sharedWithAnother = LOCAL_MODELS.some(
+    (m) => m.id !== modelId && m.libFile === libFile
+  );
+  if (!sharedWithAnother) {
+    const wasmCache = await openIfPresent("webllm/wasm");
+    await wasmCache?.delete(modelLibUrl(modelId));
+  }
+}
+
 /**
  * Sum the `Content-Length` of everything WebLLM has cached. Reading headers off
  * a cached `Response` does not consume its body, so this stays cheap even for a
@@ -561,16 +662,7 @@ export const webllmAdapter: LocalRuntimeAdapter = {
 
   probeHosted: probeHostedWeights,
 
-  async isCached(modelId: LocalModelId): Promise<boolean> {
-    try {
-      const webllm = await import("@mlc-ai/web-llm");
-      return await webllm.hasModelInCache(modelId, buildAppConfig());
-    } catch {
-      // A cache probe that throws means "we cannot prove it is cached", which
-      // for every caller is the same as "not cached".
-      return false;
-    }
-  },
+  isCached: hasCachedWeights,
 
   async load({ modelId, onProgress, signal }: LoadOptions): Promise<LoadedEngine> {
     const model = getModel(modelId);
@@ -613,10 +705,7 @@ export const webllmAdapter: LocalRuntimeAdapter = {
     return wrapEngine(engine, modelId);
   },
 
-  async deleteWeights(modelId: LocalModelId): Promise<void> {
-    const webllm = await import("@mlc-ai/web-llm");
-    await webllm.deleteModelAllInfoInCache(modelId, buildAppConfig());
-  },
+  deleteWeights: deleteCachedWeights,
 
   cacheBytes: measureCacheBytes,
 };
