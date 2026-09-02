@@ -158,12 +158,28 @@ const FORBIDDEN_TOKENS =
 
 const NETWORKISH = /(?:https?|s3|gcs|azure|r2|hf|ftp|file):\/\//i;
 
-/** The two scan copies the rules run against, produced by one walk. */
+/** The three scan copies the rules run against, produced by one walk. */
 interface ScanCopies {
   /** Comments blanked; string / identifier literals left INTACT. */
   literalsIntact: string;
   /** Comments blanked AND every literal emptied. */
   neutralized: string;
+  /**
+   * Comments blanked, single- and dollar-quoted STRINGS emptied, double-quoted
+   * IDENTIFIERS kept verbatim.
+   *
+   * WHY A THIRD COPY EXISTS — do not "simplify" it away. The redaction guards
+   * need exactly this asymmetry and neither other copy has it:
+   *   - `neutralized` empties `"ssn"` to `""`, so a quoted redacted identifier
+   *     would sail through. Reusing it here would silently WEAKEN redaction.
+   *   - `literalsIntact` keeps `'dropped ssn from payroll'`, so an innocent row
+   *     value that merely mentions the column would false-trip. Redaction that
+   *     cries wolf gets switched off.
+   * A redacted column name is radioactive as an IDENTIFIER and inert as a
+   * VALUE, so the copy the redaction rules read drops values and keeps
+   * identifiers.
+   */
+  identifiersIntact: string;
 }
 
 /**
@@ -178,6 +194,9 @@ interface ScanCopies {
  * stacked `; DROP TABLE` — reached `conn.query()` untouched. Walking once with
  * exactly one state active closes that whole class.
  *
+ * The redaction guards below carried the identical defect one layer down and
+ * now read this same walk, through a third copy — see `identifiersIntact`.
+ *
  * Comments are emitted as a single space rather than deleted, because DuckDB's
  * own lexer replaces a comment with whitespace: a comment between two identifier
  * characters separates two tokens there, and must separate them here too.
@@ -189,6 +208,7 @@ interface ScanCopies {
 function scanCopies(sql: string): ScanCopies {
   let literalsIntact = "";
   let neutralized = "";
+  let identifiersIntact = "";
   let i = 0;
   const n = sql.length;
 
@@ -207,6 +227,7 @@ function scanCopies(sql: string): ScanCopies {
       i = nl === -1 ? n : nl;
       literalsIntact += " ";
       neutralized += " ";
+      identifiersIntact += " ";
       continue;
     }
 
@@ -230,6 +251,7 @@ function scanCopies(sql: string): ScanCopies {
       if (depth !== 0) throw unterminated("block comment");
       literalsIntact += " ";
       neutralized += " ";
+      identifiersIntact += " ";
       continue;
     }
 
@@ -256,6 +278,9 @@ function scanCopies(sql: string): ScanCopies {
       }
       literalsIntact += sql.slice(start, i);
       neutralized += ch === "'" ? "''" : '""';
+      // The asymmetry the redaction guards depend on: a string VALUE is dropped,
+      // a quoted IDENTIFIER survives so `"ssn"` is still caught.
+      identifiersIntact += ch === "'" ? "''" : sql.slice(start, i);
       continue;
     }
 
@@ -270,6 +295,7 @@ function scanCopies(sql: string): ScanCopies {
         if (end === -1) throw unterminated("dollar-quoted string");
         literalsIntact += sql.slice(i, end + tag.length);
         neutralized += "''";
+        identifiersIntact += "''";
         i = end + tag.length;
         continue;
       }
@@ -277,10 +303,11 @@ function scanCopies(sql: string): ScanCopies {
 
     literalsIntact += ch;
     neutralized += ch;
+    identifiersIntact += ch;
     i++;
   }
 
-  return { literalsIntact, neutralized };
+  return { literalsIntact, neutralized, identifiersIntact };
 }
 
 /** Trim, lex once, and apply the mutation / stacking / network rules. */
@@ -341,12 +368,6 @@ export function assertExpression(expr: string): string {
   return assertNoAbuse(expr).trimmed;
 }
 
-// Retained ONLY for the redaction guards below, which do their own lighter
-// neutralization. The abuse guard above no longer uses it: a regex pass over
-// comments cannot be composed safely with one over string literals.
-const stripComments = (sql: string): string =>
-  sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
-
 /** A bare column identifier (join keys). Letters, digits, underscore only. */
 export function assertIdentifier(id: string): string {
   const t = id.trim();
@@ -370,10 +391,16 @@ const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\
  * reconstructs one row, GROUP BY differencing peels values off one at a time.
  * So once a column is redacted its name is radioactive and may appear nowhere.
  *
- * Comments and single-quoted string literals are neutralized first so a row
- * value or a note that merely contains the word ("dropped from payroll") does
- * not false-trip. Double quotes are KEPT so a quoted identifier `"ssn"` is
- * still caught.
+ * Runs against `scanCopies().identifiersIntact` — comments blanked, string
+ * values emptied, quoted identifiers verbatim — so a note that merely contains
+ * the word ("dropped ssn from payroll") does not false-trip while a quoted
+ * `"ssn"` is still caught. It reads the SAME single-pass lexer as the abuse
+ * guard, deliberately: this guard used to strip comments with one regex and
+ * neutralize string literals with another, so a marker inside a literal
+ * (`WHERE note = '--' AND y = ssn`) erased the rest of the fragment from the
+ * scan copy while the original — still naming the blindfolded column — reached
+ * DuckDB. Two independent passes cannot get mutually exclusive lexical states
+ * right; one walk can.
  */
 export function assertNoRedactedColumns(
   sql: string,
@@ -381,7 +408,9 @@ export function assertNoRedactedColumns(
 ): string {
   const trimmed = sql.trim();
   if (redacted.length === 0) return trimmed;
-  const scan = ` ${stripComments(trimmed).replace(/'(?:[^']|'')*'/g, "''")} `;
+  // An unlexable fragment (unterminated quote or comment) throws out of
+  // `scanCopies` — fail closed, since we cannot know what DuckDB would read.
+  const scan = ` ${scanCopies(trimmed).identifiersIntact} `;
   for (const col of redacted) {
     // Manual identifier boundaries (a column name can contain spaces/hyphens),
     // optional surrounding double-quotes.
@@ -416,9 +445,13 @@ export function assertNoStarProjection(
   const trimmed = sql.trim();
   if (redacted.length === 0) return trimmed;
   const names = redacted.map((r) => `"${r}"`).join(", ");
-  const scan = stripComments(trimmed)
-    .replace(/'(?:[^']|'')*'/g, "''")
-    .replace(/\bcount\s*\(\s*\*\s*\)/gi, "count(0)");
+  // Same lexer-backed copy as `assertNoRedactedColumns`, for the same reason:
+  // a `--` or `/*` inside a string literal must not delete a `SELECT *` from
+  // the scan. `count(*)` is rewritten after lexing so it is not read as a star.
+  const scan = scanCopies(trimmed).identifiersIntact.replace(
+    /\bcount\s*\(\s*\*\s*\)/gi,
+    "count(0)"
+  );
   // `SUMMARIZE` reports min/max/quartiles/etc for EVERY column — real cell values.
   if (/\bsummarize\b/i.test(scan)) {
     throw new Error(
