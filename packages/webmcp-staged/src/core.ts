@@ -1,5 +1,5 @@
 /**
- * webmcp-staged — core
+ * webmcp-staged — WebMCP transport adapter
  *
  * Register WebMCP tools with an optional "staged approval" gate:
  *
@@ -14,10 +14,24 @@
  * agent proposes a change, your UI renders it as a pending diff, and nothing is
  * applied until a human clicks approve.
  *
+ * The authority contract itself (the gate, the store, the audit events) lives
+ * in `./authority` and is transport-agnostic — this file is the WebMCP binding
+ * of it. The same contract also ships with adapters for OpenAI-style tool
+ * loops (`./openai`) and plain MCP servers (`./mcp`).
+ *
  * It is framework-light: the core has zero dependencies and works in vanilla
  * JS. A thin React hook lives in `./react`.
  */
 
+import {
+  StagedAuthority,
+  commitNameFor,
+  proposeNameFor,
+  rejectNameFor,
+  type StagedAction,
+  type StagedAudit,
+} from "./authority";
+import { defaultProposalStore, ProposalStore, type Proposal } from "./store";
 import type {
   ModelContext,
   RegisterToolOptions,
@@ -38,35 +52,12 @@ export function isWebMCPAvailable(): boolean {
   return getModelContext() !== null;
 }
 
-let proposalCounterFallback = 0;
-function newProposalId(): string {
-  try {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
-  } catch {
-    /* ignore */
-  }
-  proposalCounterFallback += 1;
-  return `proposal-${Date.now()}-${proposalCounterFallback}`;
-}
-
-/** A pending change awaiting human approval. */
-export interface Proposal<TInput = Record<string, unknown>> {
-  id: string;
-  /** The staged tool this proposal belongs to. */
-  toolName: string;
-  /** Human-readable summary the agent produced (or we synthesized). */
-  summary: string;
-  /** The validated input the agent supplied. */
-  input: TInput;
-  /** A structured, UI-renderable preview of what will change. */
-  preview: unknown;
-  createdAt: number;
-  status: "pending" | "approved" | "rejected";
-}
-
-export type ProposalListener = (proposals: Proposal[]) => void;
+// The proposal store and its types are shared with the transport-agnostic
+// authority engine; re-exported here so existing imports keep working.
+export { ProposalStore, defaultProposalStore } from "./store";
+export type { Proposal, ProposalListener } from "./store";
+export { StagedAuthority } from "./authority";
+export type { StagedAudit, StagedAuditEvent } from "./authority";
 
 /**
  * A staged tool splits a mutating action into two WebMCP tools:
@@ -98,106 +89,10 @@ export interface StagedToolConfig<TInput extends Record<string, unknown>> {
   ) => Promise<ToolResult | string | void> | ToolResult | string | void;
 }
 
-function asToolResult(value: ToolResult | string | void): ToolResult {
-  if (value && typeof value === "object" && "content" in value) {
-    return value as ToolResult;
-  }
-  const text = typeof value === "string" ? value : "Done.";
-  return { content: [{ type: "text", text }] };
-}
-
-/**
- * Manages the set of pending proposals and notifies UI listeners. One store
- * typically backs an entire app so the review panel can show every pending
- * change across all staged tools.
- */
-export class ProposalStore {
-  private proposals = new Map<string, Proposal>();
-  private listeners = new Set<ProposalListener>();
-  /**
-   * A referentially-stable snapshot, rebuilt only when the set actually
-   * changes. `list()` must be safe to call from React's `useSyncExternalStore`
-   * getSnapshot on every render, so it can never return a fresh array.
-   */
-  private snapshot: Proposal[] = [];
-
-  private rebuild(): void {
-    this.snapshot = [...this.proposals.values()].sort(
-      (a, b) => a.createdAt - b.createdAt
-    );
-  }
-
-  list(): Proposal[] {
-    return this.snapshot;
-  }
-
-  pending(): Proposal[] {
-    return this.snapshot.filter((p) => p.status === "pending");
-  }
-
-  get(id: string): Proposal | undefined {
-    return this.proposals.get(id);
-  }
-
-  add(proposal: Proposal): void {
-    this.proposals.set(proposal.id, proposal);
-    this.emit();
-  }
-
-  setStatus(id: string, status: Proposal["status"]): void {
-    const p = this.proposals.get(id);
-    if (!p) return;
-    // Replace the object so referential-equality consumers see the change.
-    this.proposals.set(id, { ...p, status });
-    this.emit();
-  }
-
-  remove(id: string): void {
-    if (this.proposals.delete(id)) this.emit();
-  }
-
-  clearResolved(): void {
-    let changed = false;
-    for (const [id, p] of this.proposals) {
-      if (p.status !== "pending") {
-        this.proposals.delete(id);
-        changed = true;
-      }
-    }
-    if (changed) this.emit();
-  }
-
-  subscribe(listener: ProposalListener): () => void {
-    this.listeners.add(listener);
-    listener(this.snapshot);
-    return () => this.listeners.delete(listener);
-  }
-
-  private emit(): void {
-    this.rebuild();
-    for (const l of this.listeners) l(this.snapshot);
-  }
-}
-
-/** A default store so simple apps don't have to create one. */
-export const defaultProposalStore = new ProposalStore();
-
 export interface RegisterStagedToolResult {
   /** Abort to unregister every tool this staged action created. */
   unregister: () => void;
 }
-
-/**
- * Audit events for the paths the host UI never sees: an agent trying to commit
- * an unapproved / rejected / unknown proposal, or the agent withdrawing its own
- * proposal via `reject_<name>`. Wire this into your activity log so those
- * attempts leave a trace.
- */
-export type StagedAuditEvent =
-  | { type: "denied_commit"; toolName: string; proposalId: string; reason: string }
-  | { type: "rejected"; toolName: string; proposalId: string };
-
-export type StagedAudit = (event: StagedAuditEvent) => void;
 
 /**
  * Register a staged (propose/commit/reject) WebMCP tool trio.
@@ -205,6 +100,11 @@ export type StagedAudit = (event: StagedAuditEvent) => void;
  * The `propose_*` tool is annotated `readOnlyHint: true` because, from the
  * host's perspective, proposing does not change committed application state —
  * it only stages a reviewable change. The `commit_*` tool is a write.
+ *
+ * The gate itself is enforced by the shared `StagedAuthority` engine: pass
+ * `options.authority` to make several registrations (or several transports)
+ * share one store and one audit stream. When it is omitted, a fresh engine is
+ * created from `options.store` / `options.audit` / `options.requireApproval`.
  */
 export function registerStagedTool<TInput extends Record<string, unknown>>(
   config: StagedToolConfig<TInput>,
@@ -212,25 +112,46 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
     store?: ProposalStore;
     mc?: ModelContext | null;
     register?: RegisterToolOptions;
+    /** Share an existing authority engine (its store/audit settings win). */
+    authority?: StagedAuthority;
     /**
      * When true (default), a human must approve before commit succeeds. When
      * false, commit applies immediately — useful for non-sensitive tools that
-     * still want the propose/commit shape.
+     * still want the propose/commit shape. Ignored when `authority` is given.
      */
     requireApproval?: boolean;
     /** Called for denied-commit attempts and agent-side rejects (see `StagedAudit`). */
     audit?: StagedAudit;
   } = {}
 ): RegisterStagedToolResult {
-  const store = options.store ?? defaultProposalStore;
   const mc = options.mc ?? getModelContext();
-  const requireApproval = options.requireApproval ?? true;
-  const audit = options.audit;
 
   if (!mc) {
     // No-op in browsers without WebMCP. The app UI still works.
     return { unregister: () => {} };
   }
+
+  const authority =
+    options.authority ??
+    new StagedAuthority({
+      store: options.store ?? defaultProposalStore,
+      audit: options.audit,
+      requireApproval: options.requireApproval,
+    });
+
+  const action: StagedAction = {
+    name: config.name,
+    description: config.description,
+    inputSchema: config.inputSchema,
+    prepare: (input) => config.prepare(input as TInput),
+    commit: (input, proposal) =>
+      config.commit(input as TInput, proposal as Proposal<TInput>),
+  };
+  authority.register(action);
+
+  const proposeMethod = proposeNameFor(config.name);
+  const commitMethod = commitNameFor(config.name);
+  const rejectMethod = rejectNameFor(config.name);
 
   const controller = new AbortController();
   const registerOpts: RegisterToolOptions = {
@@ -240,53 +161,21 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
       : controller.signal,
   };
 
-  const proposeName = `propose_${config.name}`;
-  const commitName = `commit_${config.name}`;
-  const rejectName = `reject_${config.name}`;
-
   // 1) propose_<name>
   void mc.registerTool(
     {
-      name: proposeName,
+      name: proposeMethod,
       title: `Propose: ${config.name}`,
       description:
         `${config.description}\n\n` +
         `This stages the change for human review and returns a proposalId. ` +
-        `It does NOT apply the change. Call ${commitName} with the proposalId ` +
+        `It does NOT apply the change. Call ${commitMethod} with the proposalId ` +
         `after the user approves it in the UI.`,
       inputSchema: config.inputSchema,
       annotations: { readOnlyHint: true },
-      execute: async (input) => {
+      execute: (input) => {
         const typed = input as TInput;
-        const { summary, preview } = await config.prepare(typed);
-        const proposal: Proposal<TInput> = {
-          id: newProposalId(),
-          toolName: config.name,
-          summary,
-          input: typed,
-          preview,
-          createdAt: Date.now(),
-          status: requireApproval ? "pending" : "approved",
-        };
-        store.add(proposal as Proposal);
-
-        if (!requireApproval) {
-          const result = await config.commit(typed, proposal);
-          return asToolResult(result);
-        }
-
-        return {
-          content: [
-            {
-              type: "text",
-              text:
-                `Staged proposal ${proposal.id}: ${summary}\n\n` +
-                `Awaiting the user's approval in the review panel. ` +
-                `Once approved, call ${commitName} with { "proposalId": "${proposal.id}" }.`,
-            },
-          ],
-          structuredContent: { proposalId: proposal.id, summary, preview },
-        } satisfies ToolResult;
+        return authority.propose(config.name, typed);
       },
     },
     registerOpts
@@ -295,54 +184,28 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
   // 2) commit_<name>
   void mc.registerTool(
     {
-      name: commitName,
+      name: commitMethod,
       title: `Commit: ${config.name}`,
       description:
         `Apply a previously proposed "${config.name}" change. ` +
-        `Requires a proposalId returned by ${proposeName}. ` +
+        `Requires a proposalId returned by ${proposeMethod}. ` +
         `Only succeeds if the user has approved the proposal.`,
       inputSchema: {
         type: "object",
         properties: {
           proposalId: {
             type: "string",
-            description: `The id returned by ${proposeName}.`,
+            description: `The id returned by ${proposeMethod}.`,
           },
         },
         required: ["proposalId"],
       },
       annotations: { readOnlyHint: false },
-      execute: async (input) => {
+      execute: (input) => {
         const proposalId = String(
           (input as { proposalId?: unknown }).proposalId ?? ""
         );
-        const deny = (reason: string) => {
-          audit?.({ type: "denied_commit", toolName: config.name, proposalId, reason });
-          return errorResult(reason);
-        };
-        const proposal = store.get(proposalId) as Proposal<TInput> | undefined;
-        if (!proposal) {
-          return deny(`No proposal ${proposalId}. Call ${proposeName} first.`);
-        }
-        if (proposal.status === "rejected") {
-          return deny(`Proposal ${proposalId} was rejected by the user.`);
-        }
-        if (requireApproval && proposal.status !== "approved") {
-          return deny(
-            `Proposal ${proposalId} is still pending the user's approval. ` +
-              `Ask the user to approve it in the review panel before committing.`
-          );
-        }
-        // Remove first so a concurrent commit (e.g. the UI Approve button
-        // running the same handler) can't double-apply during the await.
-        store.remove(proposalId);
-        try {
-          const result = await config.commit(proposal.input, proposal);
-          return asToolResult(result);
-        } catch (e) {
-          store.add(proposal as Proposal); // restore for another attempt
-          throw e;
-        }
+        return authority.commit(config.name, proposalId);
       },
     },
     registerOpts
@@ -351,7 +214,7 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
   // 3) reject_<name> — lets the agent withdraw a bad proposal it made.
   void mc.registerTool(
     {
-      name: rejectName,
+      name: rejectMethod,
       title: `Reject: ${config.name}`,
       description: `Withdraw a pending "${config.name}" proposal by proposalId.`,
       inputSchema: {
@@ -366,12 +229,7 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
         const proposalId = String(
           (input as { proposalId?: unknown }).proposalId ?? ""
         );
-        if (!store.get(proposalId)) {
-          return errorResult(`No proposal ${proposalId}.`);
-        }
-        store.remove(proposalId);
-        audit?.({ type: "rejected", toolName: config.name, proposalId });
-        return `Withdrew proposal ${proposalId}.`;
+        return authority.reject(config.name, proposalId);
       },
     },
     registerOpts
@@ -380,10 +238,6 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
   return {
     unregister: () => controller.abort(),
   };
-}
-
-function errorResult(message: string): ToolResult {
-  return { content: [{ type: "text", text: message }], isError: true };
 }
 
 /**

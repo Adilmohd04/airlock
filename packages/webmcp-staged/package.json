@@ -1,13 +1,18 @@
 {
   "name": "webmcp-staged",
-  "version": "0.1.0",
-  "description": "Register WebMCP tools with staged human approval (propose -> review -> commit). A tiny, framework-light primitive for the agent-native web.",
+  "version": "0.2.0",
+  "description": "Staged Agent Authority for tool-calling agents: the agent may propose actions but only a human can commit them. One gate, three transports — WebMCP pages, OpenAI-compatible tool loops, and plain MCP servers.",
   "keywords": [
     "webmcp",
     "mcp",
-    "ai-agents",
     "model-context-protocol",
+    "ai-agents",
     "human-in-the-loop",
+    "staged-approval",
+    "agent-safety",
+    "tool-calling",
+    "function-calling",
+    "openai",
     "react"
   ],
   "license": "MIT",
@@ -27,6 +32,7 @@
   },
   "files": [
     "dist",
+    "examples",
     "README.md",
     "LICENSE"
   ],
@@ -50,5 +56,16 @@
     "@types/react": "^18.3.12",
     "vitest": "1.6.1",
     "fast-check": "3.23.2"
-  }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Adilmohd04/airlock.git",
+    "directory": "packages/webmcp-staged"
+  },
+  "homepage": "https://github.com/Adilmohd04/airlock/tree/main/packages/webmcp-staged",
+  "bugs": "https://github.com/Adilmohd04/airlock/issues"
 }

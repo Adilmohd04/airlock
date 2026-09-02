@@ -7,7 +7,7 @@
 ![Engine](https://img.shields.io/badge/engine-DuckDB--WASM-fff.svg)
 ![Stack](https://img.shields.io/badge/React_18-Vite_5-TypeScript_5-61dafb.svg)
 
-- **Live demo:** _TODO: add deployed URL_
+- **Live demo:** [https://airlock-webmcp.netlify.app](https://airlock-webmcp.netlify.app) · [offline receipt verifier](https://airlock-webmcp.netlify.app/verify.html)
 - **Devpost:** _TODO: add submission URL_ (OpenAI WebMCP Challenge)
 - **Reusable primitive:** [`packages/webmcp-staged`](packages/webmcp-staged/) — the `propose_* → human review → commit_*` contract, published-shaped, MIT.
 
@@ -114,7 +114,7 @@ Five things sit on top of the core stage-and-approve workspace:
   the UI, and every refused attempt is logged as `denied`.
   ([`engine/pii.ts`](apps/airlock/src/engine/pii.ts) suggests likely-PII
   columns on load; nothing is redacted automatically.)
-- **Real data in/out** — import CSV, TSV, JSON and Parquet (DuckDB-WASM's
+- **Real data in/out** — import CSV, TSV, JSON, Parquet, PDF and plain text (.md/.log) (DuckDB-WASM's
   natively linked reader — zero new dependencies), plus clipboard-pasted
   delimited text with delimiter auto-sniffing and a local file via the File
   System Access API. Export stays CSV-only through the single staged

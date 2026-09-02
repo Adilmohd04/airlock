@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Verify a Staged Agent Authority receipt</title>
+<!--
+  Standalone offline verifier for SAA/0.1 receipts (see docs/PROTOCOL.md §6).
+
+  This file has ZERO dependencies and makes ZERO network requests. It re-checks
+  a receipt's Ed25519 signature — and, given several, the hash chain — using
+  only the browser's built-in WebCrypto. You can save this page and run it with
+  no internet, on a machine that has never touched Airlock. That independence is
+  the point: the receipt is either intact and signed by the claimed install, or
+  it is rejected, and you did not have to trust the issuer to find out.
+
+  The canonicalization below MUST stay byte-identical to
+  apps/airlock/src/lib/signing.ts#canonicalize, or signatures won't verify.
+-->
+<style>
+  :root { color-scheme: dark; }
+  body {
+    font: 14px/1.6 system-ui, -apple-system, sans-serif;
+    background: #0b1220; color: #cbd5e1;
+    max-width: 720px; margin: 0 auto; padding: 2rem 1rem;
+  }
+  h1 { font-size: 1.15rem; color: #f1f5f9; }
+  p.lead { color: #94a3b8; }
+  .drop {
+    border: 1.5px dashed #334155; border-radius: 10px; padding: 2rem;
+    text-align: center; color: #94a3b8; cursor: pointer; transition: border-color .15s;
+  }
+  .drop.over { border-color: #38bdf8; color: #e2e8f0; }
+  input[type=file] { display: none; }
+  .result { margin-top: 1.5rem; border-radius: 10px; padding: 1rem 1.25rem; display: none; }
+  .result.show { display: block; }
+  .ok  { background: rgba(19,115,51,.15); border: 1px solid #137333; }
+  .bad { background: rgba(197,34,31,.15); border: 1px solid #c5221f; }
+  .verdict { font-size: 1.05rem; font-weight: 600; }
+  .ok .verdict  { color: #4ade80; }
+  .bad .verdict { color: #f87171; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: .75rem; }
+  td, th { border: 1px solid #1e293b; padding: 4px 8px; text-align: left; }
+  .mono { font-family: ui-monospace, monospace; word-break: break-all; }
+  .muted { color: #64748b; font-size: 12px; }
+  ul.checks { list-style: none; padding: 0; margin: .5rem 0; }
+  ul.checks li::before { content: "• "; }
+  ul.checks li.pass::before { content: "✓ "; color: #4ade80; }
+  ul.checks li.fail::before { content: "✗ "; color: #f87171; }
+</style>
+</head>
+<body>
+  <h1>Verify a Staged Agent Authority receipt</h1>
+  <p class="lead">
+    Drop an <span class="mono">airlock-attestation-*.json</span> file below (or a
+    JSON array of several, to check a chain). This page checks the Ed25519
+    signature entirely on your device — no network, no dependency on Airlock.
+    If any field of a receipt was altered, verification fails.
+  </p>
+
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept="application/json,.json" />
+    Drop a receipt here, or click to choose a file.
+  </label>
+
+  <div class="result" id="result"></div>
+
+  <p class="muted" style="margin-top:2rem">
+    Format <span class="mono">saa/0.1</span> · This verifier is self-contained;
+    view source to audit it. Signature algorithm: Ed25519 (WebCrypto).
+  </p>
+
+<script>
+"use strict";
+
+// ── canonicalization — MUST match lib/signing.ts#canonicalize exactly ─────────
+function canonicalize(v) {
+  if (v === null) return "null";
+  const t = typeof v;
+  if (t === "number") return Number.isFinite(v) ? String(v) : "null";
+  if (t === "boolean") return v ? "true" : "false";
+  if (t === "string") return JSON.stringify(v);
+  if (Array.isArray(v)) return "[" + v.map((x) => canonicalize(x == null ? null : x)).join(",") + "]";
+  if (t === "object") {
+    const keys = Object.keys(v).filter((k) => v[k] !== undefined && typeof v[k] !== "function").sort();
+    return "{" + keys.map((k) => JSON.stringify(k) + ":" + canonicalize(v[k])).join(",") + "}";
+  }
+  return "null";
+}
+
+// ── base64url → bytes ─────────────────────────────────────────────────────────
+function fromB64Url(s) {
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+  const bin = atob(b64 + pad);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+const enc = new TextEncoder();
+
+async function sha256Hex(str) {
+  const d = await crypto.subtle.digest("SHA-256", enc.encode(str));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function verifyOne(receipt) {
+  const checks = [];
+  const fmtOk = receipt && receipt.format === "saa/0.1";
+  checks.push({ label: "Format is saa/0.1", pass: fmtOk });
+  if (!fmtOk || !receipt.receipt || !receipt.signature) {
+    return { ok: false, checks, body: receipt && receipt.receipt };
+  }
+
+  const sig = receipt.signature;
+  const algOk = sig.alg === "Ed25519";
+  checks.push({ label: "Signature algorithm is Ed25519", pass: algOk });
+
+  let sigOk = false;
+  if (algOk) {
+    try {
+      const pub = await crypto.subtle.importKey(
+        "raw", fromB64Url(sig.publicKey), { name: "Ed25519" }, false, ["verify"]
+      );
+      sigOk = await crypto.subtle.verify(
+        { name: "Ed25519" }, pub, fromB64Url(sig.value), enc.encode(canonicalize(receipt.receipt))
+      );
+    } catch (e) { sigOk = false; }
+  }
+  checks.push({ label: "Signature verifies against the receipt body", pass: sigOk });
+
+  return { ok: fmtOk && algOk && sigOk, checks, body: receipt.receipt, publicKey: sig.publicKey };
+}
+
+async function verifyChain(receipts) {
+  // Each receipt.previousReceiptSha256 must equal SHA-256 of the prior body's
+  // canonical form. The first must be null.
+  const results = [];
+  let prevHash = null;
+  for (let i = 0; i < receipts.length; i++) {
+    const r = await verifyOne(receipts[i]);
+    let chainPass = true;
+    if (r.body) {
+      const expected = i === 0 ? null : prevHash;
+      chainPass = (r.body.previousReceiptSha256 ?? null) === expected;
+      r.checks.push({
+        label: i === 0 ? "First receipt has no previous link (null)" : "Chain link matches previous receipt",
+        pass: chainPass,
+      });
+      prevHash = await sha256Hex(canonicalize(r.body));
+    }
+    r.ok = r.ok && chainPass;
+    results.push(r);
+  }
+  return results;
+}
+
+function render(results) {
+  const el = document.getElementById("result");
+  const allOk = results.every((r) => r.ok);
+  el.className = "result show " + (allOk ? "ok" : "bad");
+  const parts = [];
+  parts.push('<div class="verdict">' +
+    (allOk
+      ? (results.length > 1 ? "✓ All " + results.length + " receipts verify — signatures and chain intact." : "✓ Receipt verifies — signature intact, nothing altered.")
+      : "✗ Verification FAILED — this receipt is not intact or not signed by the claimed key.") +
+    "</div>");
+
+  results.forEach((r, i) => {
+    if (results.length > 1) parts.push("<h3>Receipt " + (i + 1) + "</h3>");
+    parts.push('<ul class="checks">' +
+      r.checks.map((c) => '<li class="' + (c.pass ? "pass" : "fail") + '">' + c.label + "</li>").join("") +
+      "</ul>");
+    const b = r.body;
+    if (b) {
+      parts.push("<table>" +
+        row("Receipt id", b.id) +
+        row("Issued", b.issuedAt) +
+        row("App", (b.app && (b.app.name + " " + b.app.version + " @ " + b.app.gitSha)) || "—") +
+        row("Datasets", (b.dataset || []).map((d) => d.name + " (" + d.rows + "×" + d.columns + ")").join("; ") || "—") +
+        row("Redacted cols", (b.dataset || []).flatMap((d) => d.redactedColumns || []).join(", ") || "none") +
+        row("Agent modes", (b.agent && b.agent.modes || []).join(", ") || "—") +
+        row("Rows disclosed", b.disclosure && b.disclosure.rowsDisclosed) +
+        row("External egress", b.egress && (b.egress.externalRequests + " request(s), " + b.egress.bytesSent + " bytes")) +
+        row("Public key", '<span class="mono">' + (r.publicKey || "").slice(0, 32) + '…</span>') +
+        "</table>");
+    }
+  });
+  el.innerHTML = parts.join("");
+}
+
+function row(k, v) {
+  return "<tr><th>" + k + "</th><td>" + (v == null ? "—" : String(v)) + "</td></tr>";
+}
+
+async function handleText(text) {
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch (e) {
+    document.getElementById("result").className = "result show bad";
+    document.getElementById("result").innerHTML = '<div class="verdict">✗ Not valid JSON.</div>';
+    return;
+  }
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  const results = list.length > 1 ? await verifyChain(list) : [await verifyOne(list[0])];
+  render(results);
+}
+
+// ── wiring ────────────────────────────────────────────────────────────────────
+const drop = document.getElementById("drop");
+const fileInput = document.getElementById("file");
+
+fileInput.addEventListener("change", (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (f) f.text().then(handleText);
+});
+["dragenter", "dragover"].forEach((ev) =>
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); })
+);
+["dragleave", "drop"].forEach((ev) =>
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); })
+);
+drop.addEventListener("drop", (e) => {
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) f.text().then(handleText);
+});
+
+if (!(crypto && crypto.subtle)) {
+  document.getElementById("result").className = "result show bad";
+  document.getElementById("result").innerHTML =
+    '<div class="verdict">This browser has no WebCrypto; cannot verify here.</div>';
+}
+</script>
+</body>
+</html>

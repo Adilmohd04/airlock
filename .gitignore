@@ -20,3 +20,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# mirrored local-model weights — hundreds of MB, never committed.
+# Populate with: node scripts/fetch-models.mjs   (see the script header)
+apps/airlock/public/models/

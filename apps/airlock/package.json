@@ -14,11 +14,13 @@
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.29.0",
     "@mcp-b/webmcp-polyfill": "^4.0.0",
+    "@mlc-ai/web-llm": "0.2.84",
     "dompurify": "^3.2.2",
     "marked": "^14.1.4",
-    "recharts": "^2.13.3",
+    "pdfjs-dist": "^4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "recharts": "^2.13.3",
     "webmcp-staged": "*"
   },
   "devDependencies": {
@@ -26,11 +28,11 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "fast-check": "3.23.2",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
-    "vitest": "1.6.1",
-    "fast-check": "3.23.2"
+    "vitest": "1.6.1"
   }
 }

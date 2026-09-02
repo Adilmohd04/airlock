@@ -12,7 +12,7 @@ const DEMOS = [
   { url: "/demo/headcount.csv", name: "headcount.csv", label: "Headcount & managers (for the join demo)" },
 ];
 
-const ACCEPT = ".csv,.tsv,.json,.parquet,text/csv";
+const ACCEPT = ".csv,.tsv,.json,.parquet,.pdf,.md,.log,text/csv,application/pdf";
 
 export function FileDrop({ compact = false }: { compact?: boolean }) {
   const [busy, setBusy] = useState(false);

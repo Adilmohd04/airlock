@@ -7,10 +7,11 @@
   publish = "apps/airlock/dist"
 
 [build.environment]
-  # Pin Node explicitly — don't rely on Netlify's shifting default image.
-  # Matches the root package.json "engines.node": ">=20" requirement (Vite 5 /
-  # tsup / the workspace tooling all need >=20).
-  NODE_VERSION = "20"
+  # Pinned to the Node major the build was actually verified on (v22.23.2)
+  # rather than the floor in package.json (`engines.node: >=20`) — pinning a
+  # version nobody has run the build against just moves the risk to deploy day.
+  # Still not exercised on Netlify's build image; that needs a live deploy.
+  NODE_VERSION = "22"
 
 [context.production]
   # Production context
@@ -24,7 +25,22 @@
   # Branch deployments for feature testing
   environment = { NODE_ENV = "production" }
 
-# Redirect all non-file requests to index.html for SPA routing
+# Local model weights are served as real files under /models/. They MUST NOT be
+# swept into the SPA catch-all below: T1-a's runtime proved that a `/*` → 200
+# index.html rewrite makes a MISSING weight file resolve to the app shell
+# (`200 text/html`), and WebLLM then "downloads" the HTML page in place of a
+# tensor shard and dies deep in a parse — impossible to diagnose from a progress
+# bar. This passthrough forces a missing weight to return a genuine 404 (and a
+# present one to serve as-is), so the runtime's `probeHosted()` can tell
+# "not mirrored here" apart from "downloaded". `status = 200` with the same path
+# is Netlify's documented way to short-circuit later redirect rules for a prefix
+# while still serving the static file when it exists.
+[[redirects]]
+  from = "/models/*"
+  to = "/models/:splat"
+  status = 200
+
+# Redirect all OTHER non-file requests to index.html for SPA routing
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -48,6 +64,28 @@
   for = "/demo/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# Local model weights (served same-origin from /models/, mirrored by
+# scripts/fetch-models.mjs — never in git). Long-lived immutable cache: a
+# model directory is content-addressed by id, so once fetched it never changes.
+# The compiled WebGPU kernel libraries under /models/lib/* need the wasm MIME
+# because the site-wide `X-Content-Type-Options: nosniff` (in _headers) means a
+# wrong or missing Content-Type is REJECTED, not sniffed — see _headers for the
+# per-path rule.
+[[headers]]
+  for = "/models/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
+
+[[headers]]
+  for = "/models/lib/*"
+  [headers.values]
+    Content-Type = "application/wasm"
+    Cache-Control = "public, max-age=31536000, immutable"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
 
 # Ensure index.html is never cached (falls back for routing)
 [[headers]]
