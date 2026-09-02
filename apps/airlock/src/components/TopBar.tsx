@@ -2,6 +2,8 @@ import { useActiveDataset } from "../engine/useDataset";
 import { uiStore, useUI } from "../engine/uiStore";
 import { SealStatus } from "./SealStatus";
 import { WebMCPStatus } from "./WebMCPStatus";
+import { LocalModelPanel } from "./LocalModelPanel";
+import { ModelDownloadDialog } from "./ModelDownloadDialog";
 import { SessionMenu } from "./SessionMenu";
 import { MobileGate } from "./MobileGate";
 import { num } from "../lib/format";
@@ -29,6 +31,7 @@ export function TopBar() {
       <div className="ml-2 flex items-center gap-2">
         <SealStatus />
         <WebMCPStatus />
+        <LocalModelPanel />
       </div>
 
       <div className="ml-auto flex items-center gap-3 text-xs">
@@ -53,6 +56,7 @@ export function TopBar() {
         </button>
       </div>
     </header>
+    <ModelDownloadDialog />
     </>
   );
 }

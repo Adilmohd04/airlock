@@ -12,6 +12,10 @@ interface UIState {
   loading: { active: boolean; datasetName: string | null };
   // Last load failure; message is a sanitized Error.message, never a stack.
   loadError: { datasetName: string; message: string } | null;
+  // T1-c: visibility of the local-model surfaces only. The runtime and its
+  // state machine live in the LocalModelStore (T1-a) — this is purely which
+  // panel/dialog the human has open.
+  localModel: { panelOpen: boolean; dialogOpen: boolean };
 }
 
 type Listener = () => void;
@@ -23,6 +27,7 @@ class UIStore {
     consoleOpen: false,
     loading: { active: false, datasetName: null },
     loadError: null,
+    localModel: { panelOpen: false, dialogOpen: false },
   };
   private listeners = new Set<Listener>();
 
@@ -58,6 +63,25 @@ class UIStore {
       loading: { active: false, datasetName: null },
       loadError: { datasetName, message },
     });
+  }
+  // ── T1-c: local-model panel + download dialog visibility ──
+  setLocalModelPanel(panelOpen: boolean): void {
+    this.set({ localModel: { ...this.state.localModel, panelOpen } });
+  }
+  toggleLocalModelPanel(): void {
+    this.set({
+      localModel: {
+        ...this.state.localModel,
+        panelOpen: !this.state.localModel.panelOpen,
+      },
+    });
+  }
+  // Opening the dialog closes the dropdown so the two never stack.
+  openLocalModelDialog(): void {
+    this.set({ localModel: { panelOpen: false, dialogOpen: true } });
+  }
+  closeLocalModelDialog(): void {
+    this.set({ localModel: { ...this.state.localModel, dialogOpen: false } });
   }
 }
 
