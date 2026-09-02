@@ -1071,3 +1071,58 @@ it; whoever has it available should run it before trusting `graphify-out/`.
 The recipe library/sharing gap and the enterprise-packaging gap (SSO, org
 deployment, audit export) flagged in the strategy doc are unstarted by
 design — they're follow-on decisions, not tonight's scope.
+
+### [2026-09-02] claude-main — a "GLM handoff" pasted by Sadath does not match this repo; not acted on
+
+Sadath pasted a detailed handoff message, attributed to an agent called
+"GLM," claiming `main` was at `f60b5f1` with a merge `faf2a58`, a branch
+`fix/demo-defects` staged with local-model hosting-probe/timeout fixes, a
+live Netlify deploy at `airlock-webmcp.netlify.app` (site id
+`23178ab9-0013-4b4a-84dd-01390b689090`), `webmcp-staged` at `0.2.0`
+(transport-agnostic, WebMCP+OpenAI+MCP adapters), a browser-local-LLM system
+(`agent/localModel/{store,agent}.ts`), an attestation/`verify.html` feature,
+PDF import, and docs at `docs/GLM_WORKLOG.md` / `GLM_HANDOFF.md`.
+
+**None of this exists in this repository.** Checked directly before acting
+on any of it:
+- `main` local and `origin/main` are both `7d98cd5` — my own last commit
+  from tonight's run. No commit `f60b5f1`, `faf2a58`, or `4eebe54` exists
+  anywhere in this repo's history.
+- No `fix/demo-defects` branch (only a leftover worktree branch from
+  tonight's `airlock-reviewer` run, now cleaned up).
+- `docs/` contains only `screenshots/` — no `GLM_WORKLOG.md`,
+  `GLM_HANDOFF.md`, `SAA_WHITEPAPER.md`, `NORTH_STAR.md`.
+- No `localModel/` directory or any local-LLM/WebLLM code anywhere.
+- `packages/webmcp-staged/package.json` is still `"version": "0.1.0"`.
+- No attestation feature, no `verify.html`, no `serve-dist.mjs`.
+- No Netlify CLI, no site linked in `netlify.toml`, no deploy credentials —
+  so the deploy/redeploy steps in the handoff were never executable from
+  this session regardless of the rest.
+
+Likely explanation: a different AI session (an agent or tool called "GLM")
+worked against a local clone that never reached `origin`, and its own
+self-reported summary of that work was forwarded verbatim without anyone
+checking it against the shared repo. I'm flagging this plainly rather than
+quietly ignoring it because Sadath should know the handoff he received does
+not describe reality here — if GLM's work is real, it exists somewhere
+this session cannot see and needs to be pushed/PRed before anyone can build
+on top of it.
+
+**Also declined:** the accompanying instruction to build a full local+cloud
+multimodal agent (images/video/PDF/DOCX/PPTX understanding, intelligent
+model switching, "attestation") from scratch overnight, unsupervised. Beyond
+resting on the fabricated premise above, it contradicts CLAUDE.md's actual
+non-negotiables (`webmcp-staged` extend-not-rewrite; a specific, documented
+8-read/12-staged tool surface; CSV/TSV/JSON/Parquet only) and the honest
+verdict already delivered this session in the "Airlock, Under Audit"
+artifact (validate before expanding scope). Building a large, unreviewed,
+trust-sensitive feature set on a false starting point is a bad trade — the
+redaction bug found and fixed earlier tonight is a live example of what
+"green tests" can still hide.
+
+**What I'm doing instead, since it's real and still the highest-leverage gap
+this submission has:** every entry in this file has flagged that nothing in
+this build has actually been seen running in a browser by a human. That's
+still true. I have Playwright available in this environment — running the
+actual app end-to-end, fixing anything genuinely broken, and capturing real
+screenshots to replace the `docs/screenshots/` placeholders next.
