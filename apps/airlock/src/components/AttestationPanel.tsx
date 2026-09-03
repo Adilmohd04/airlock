@@ -111,7 +111,7 @@ export function AttestationPanel() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-2 w-80 rounded-lg border border-ink-700 bg-ink-900 p-3 shadow-xl">
+        <div className="card absolute right-0 z-30 mt-2 w-80 p-3 shadow-xl">
           <div className="mb-2 flex items-center justify-between">
             <span className="panel-title">Session attestation</span>
             <button
@@ -123,10 +123,11 @@ export function AttestationPanel() {
           </div>
 
           <p className="mb-2 text-[11px] leading-relaxed text-slate-400">
-            A signed, portable record of exactly what happened this session — the
-            data touched, that {egress.externalRequests} byte-bearing external
-            request(s) left the device, and which model ran where. It carries
-            hashes and counts, never your values. Verify it offline at{" "}
+            A signed, portable record of exactly what happened this session —
+            which data was touched, how many network requests carried data out
+            ({egress.externalRequests} — 0 means none did), and which model ran
+            where. It carries hashes and counts, never your values. Verify it
+            offline at{" "}
             <span className="font-mono text-slate-300">/verify.html</span>.
           </p>
 
@@ -137,6 +138,10 @@ export function AttestationPanel() {
               egress: {egress.externalRequests} external · {egress.bytesSent} bytes
             </div>
           </div>
+          <p className="mb-2 text-[10px] leading-relaxed text-slate-600">
+            Disclosed rows reach the agent inside this tab — that is counted
+            above. Egress counts only network requests that carried data out.
+          </p>
 
           {error && <p className="mb-2 text-[11px] text-danger">{error}</p>}
 

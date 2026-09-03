@@ -8,12 +8,14 @@
  * only reached once a format is known — see `engine/duckdb.ts`.
  */
 
-export type ImportFormat = "csv" | "tsv" | "json" | "parquet" | "pdf";
+export type ImportFormat = "csv" | "tsv" | "json" | "parquet" | "pdf" | "docx" | "image";
 
 /** Formats that arrive as binary bytes rather than decodable text. */
 export const BINARY_FORMATS: ReadonlySet<ImportFormat> = new Set<ImportFormat>([
   "parquet",
   "pdf",
+  "docx",
+  "image",
 ]);
 
 const EXT_TO_FORMAT: Record<string, ImportFormat> = {
@@ -28,6 +30,13 @@ const EXT_TO_FORMAT: Record<string, ImportFormat> = {
   parquet: "parquet",
   pq: "parquet",
   pdf: "pdf",
+  docx: "docx",
+  png: "image",
+  jpg: "image",
+  jpeg: "image",
+  webp: "image",
+  bmp: "image",
+  gif: "image",
 };
 
 // MIME is a weak hint (drag-drop and the FS Access API often report
@@ -39,6 +48,12 @@ const MIME_TO_FORMAT: Record<string, ImportFormat> = {
   "application/x-parquet": "parquet",
   "application/parquet": "parquet",
   "application/pdf": "pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "image/png": "image",
+  "image/jpeg": "image",
+  "image/webp": "image",
+  "image/bmp": "image",
+  "image/gif": "image",
 };
 
 /** File extension, lower-cased, without the dot. `""` when there is none. */

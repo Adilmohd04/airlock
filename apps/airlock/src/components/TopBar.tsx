@@ -34,9 +34,9 @@ export function TopBar() {
   return (
     <>
     <MobileGate />
-    <header className="flex h-12 shrink-0 items-center gap-3 overflow-hidden border-b border-ink-800 bg-ink-900 px-4">
+    <header className="flex h-12 shrink-0 items-center gap-3 overflow-hidden border-b border-ink-700/80 bg-gradient-to-b from-ink-850/90 to-ink-900/90 px-4 shadow-lift backdrop-blur">
       <div className="flex shrink-0 items-center gap-2">
-        <div className="grid h-6 w-6 place-items-center rounded-md bg-airlock-500 text-ink-950">
+        <div className="grid h-6 w-6 place-items-center rounded-lg bg-airlock-500 text-ink-950 shadow-glow">
           <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
             <path d="M8 1a4 4 0 0 0-4 4v2H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V5a4 4 0 0 0-4-4Zm2 6H6V5a2 2 0 1 1 4 0v2Z" />
           </svg>

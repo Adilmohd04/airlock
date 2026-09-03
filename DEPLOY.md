@@ -148,6 +148,20 @@ claim that's worth re-checking after every `@duckdb/duckdb-wasm` version bump,
 since a future version's tree-shaking behavior or default bundle-selection
 code path could change.
 
+## WebMCP origin trial (Chrome-stable without the flag)
+
+ChatGPT's browser and `chrome://flags/#enable-webmcp-testing` need nothing.
+Plain Chrome-stable only exposes `document.modelContext` under the WebMCP
+origin trial (Chrome 149+), so a public deploy should enroll:
+
+1. Register the trial for the deploy origin at
+   `developer.chrome.com/origintrials` (trial 4163014905550602241).
+2. Set the token as a build-time env var — never in git:
+   `VITE_WEBMCP_ORIGIN_TRIAL_TOKEN=<token> npm run build`
+3. `main.tsx` injects it as an `origin-trial` meta tag at boot. The token is
+   origin-bound and public by design; it grants no capability beyond the API
+   surface, and without it the app falls back to the polyfill + Agent console.
+
 ## Local model weights (Tier 1 — the fully-local agent)
 
 Local mode runs an in-browser LLM (WebLLM + WebGPU) that drives Airlock's tools

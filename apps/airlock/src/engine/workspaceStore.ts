@@ -23,6 +23,8 @@ import {
 import { gridToCsv, parseDelimited, rowsToCsv } from "../lib/csv";
 import { detectFormat, sniffDelimiter } from "../lib/importFormats";
 import { extractPdf } from "../lib/pdf";
+import { extractDocx } from "../lib/docx";
+import { extractImageText } from "../lib/ocr";
 
 export interface DatasetHandle {
   id: string;
@@ -236,7 +238,7 @@ class WorkspaceStore {
     const fmt = detectFormat(file.name, file.type);
     if (!fmt) {
       throw new Error(
-        `Airlock can't read "${file.name}". Supported: .csv, .tsv, .json, .parquet, .pdf, .md, .log.`
+        `Airlock can't read "${file.name}". Supported: .csv, .tsv, .json, .parquet, .pdf, .docx, .png/.jpg/.webp, .md, .log.`
       );
     }
 
@@ -272,6 +274,40 @@ class WorkspaceStore {
         extracted = await extractPdf(bytes);
       } catch {
         throw new Error("That PDF could not be parsed (is it password-protected?)");
+      }
+      await registerCsv(tableName, extracted.csv);
+      return { kind: "csv", text: extracted.csv };
+    }
+
+    if (fmt === "docx") {
+      // Same shape as PDF: paragraphs ride the normal CSV path as (para, text).
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let extracted;
+      try {
+        extracted = await extractDocx(bytes);
+      } catch {
+        throw new Error("That DOCX could not be parsed (is it corrupt?)");
+      }
+      if (extracted.paras === 0) {
+        throw new Error("That DOCX contained no readable text.");
+      }
+      await registerCsv(tableName, extracted.csv);
+      return { kind: "csv", text: extracted.csv };
+    }
+
+    if (fmt === "image") {
+      // OCR on-device, then the normal CSV path as (line, text).
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let extracted;
+      try {
+        extracted = await extractImageText(bytes);
+      } catch (e) {
+        throw new Error(
+          e instanceof Error ? e.message : "That image could not be read."
+        );
+      }
+      if (extracted.lines === 0) {
+        throw new Error("No readable text was found in that image — try a sharper photo or a scan.");
       }
       await registerCsv(tableName, extracted.csv);
       return { kind: "csv", text: extracted.csv };
@@ -374,6 +410,15 @@ class WorkspaceStore {
 
   /** Load a bundled demo dataset from /public — still entirely client-side. */
   async loadDemo(url: string, fileName: string): Promise<DatasetHandle> {
+    // Double-clicking a demo button (or a double-fired drop) must not clone
+    // the dataset: same file name already here means just show it.
+    const existing = this.datasets.find(
+      (h) => h.store.getState().fileName === fileName
+    );
+    if (existing) {
+      this.setActive(existing.id);
+      return existing;
+    }
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Could not load demo data (${res.status}).`);
     const text = await res.text();
@@ -549,6 +594,10 @@ class WorkspaceStore {
     activeId: string | null
   ): Promise<void> {
     for (const d of datasets) {
+      // Idempotent: a double boot (StrictMode dev double-effects) or a
+      // double restore must never append the same id twice — that surfaces
+      // as duplicate React keys in DatasetSwitcher.
+      if (this.datasets.some((x) => x.id === d.id)) continue;
       try {
         await this.registerSource(d.tableName, d.payload);
         const store = createDatasetStore({

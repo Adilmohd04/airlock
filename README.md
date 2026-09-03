@@ -114,8 +114,10 @@ Five things sit on top of the core stage-and-approve workspace:
   the UI, and every refused attempt is logged as `denied`.
   ([`engine/pii.ts`](apps/airlock/src/engine/pii.ts) suggests likely-PII
   columns on load; nothing is redacted automatically.)
-- **Real data in/out** — import CSV, TSV, JSON, Parquet, PDF and plain text (.md/.log) (DuckDB-WASM's
-  natively linked reader — zero new dependencies), plus clipboard-pasted
+- **Real data in/out** — import CSV, TSV, JSON, Parquet, PDF (per-line `(page, text)` via self-hosted pdfjs),
+  DOCX (per-paragraph `(para, text)` via self-hosted mammoth), images (`.png/.jpg/.webp/.bmp/.gif` OCR'd
+  on-device into `(line, text)` via self-hosted tesseract.js + same-origin `/tessdata/`, `node scripts/fetch-tessdata.mjs`)
+  and plain text (.md/.log), plus clipboard-pasted
   delimited text with delimiter auto-sniffing and a local file via the File
   System Access API. Export stays CSV-only through the single staged
   `export_view` tool — there is deliberately no second, ungated export path.
@@ -286,8 +288,9 @@ landing screen:
 - **`compensation.csv`** — Compensation review (812 synthetic employees)
 - **`headcount.csv`** — Headcount & managers, for the `join_datasets` demo
 
-Supported inputs: CSV, TSV, JSON (an array of records, or a single object) and
-Parquet. Files are read from your local `File` object and handed straight to
+Supported inputs: CSV, TSV, JSON (an array of records, or a single object),
+Parquet, PDF (text tables), DOCX (paragraph tables) and images (on-device OCR;
+needs `node scripts/fetch-tessdata.mjs` once for `/tessdata/`). Files are read from your local `File` object and handed straight to
 DuckDB-WASM — nothing is uploaded. (`.xlsx` is not supported — see
 [What's built](#whats-built) for why.)
 

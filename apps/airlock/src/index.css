@@ -14,8 +14,10 @@ body,
 
 body {
   margin: 0;
-  background: #0a0c10;
-  color: #e6e9ef;
+  background:
+    radial-gradient(1200px 500px at 50% -10%, rgb(29 187 172 / 0.07), transparent 60%),
+    #06090e;
+  color: #e8ebf1;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
@@ -24,15 +26,18 @@ body {
 /* Thin, unobtrusive scrollbars for the data-dense panels. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a3140 transparent;
+  scrollbar-color: #2c3544 transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #2a3140;
+  background: #2c3544;
   border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #3d4759;
 }
 
 @layer components {
@@ -40,8 +45,8 @@ body {
      amber edge + faint outward glow while it waits for a human. */
   .agent-pending {
     box-shadow:
-      inset 2px 0 0 0 theme("colors.pending"),
-      -2px 0 14px -4px rgb(245 166 35 / 0.3);
+      inset 3px 0 0 0 theme("colors.pending"),
+      -4px 0 20px -6px rgb(245 166 35 / 0.35);
   }
   /* One green flash when an approved change lands, then it settles. */
   .agent-committed {
@@ -91,23 +96,23 @@ body {
   }
 
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-md border border-ink-700
-      bg-ink-850 px-2 py-1 font-mono text-xs text-slate-300;
+    @apply inline-flex items-center gap-1.5 rounded-lg border border-ink-700
+      bg-ink-850 px-2 py-1 font-mono text-xs text-slate-300 shadow-lift;
   }
   .chip-agent {
     @apply border-airlock-700/60 bg-airlock-700/10 text-airlock-300;
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5
-      text-sm font-medium transition-colors disabled:opacity-40
-      disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5
+      text-sm font-medium transition-all disabled:opacity-40
+      disabled:pointer-events-none active:scale-[0.98];
   }
   .btn-primary {
-    @apply bg-airlock-500 text-ink-950 hover:bg-airlock-400;
+    @apply bg-airlock-500 text-ink-950 shadow-glow hover:bg-airlock-400;
   }
   .btn-ghost {
-    @apply border border-ink-700 text-slate-300 hover:bg-ink-800 hover:text-white;
+    @apply border border-ink-700 bg-ink-850/60 text-slate-300 hover:border-ink-500 hover:bg-ink-800 hover:text-white;
   }
   .btn-approve {
     @apply bg-commit/90 text-ink-950 hover:bg-commit;
@@ -117,7 +122,12 @@ body {
   }
 
   .panel-title {
-    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500;
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400;
+  }
+
+  /* Raised card for popovers, dialogs and staged diffs. */
+  .card {
+    @apply rounded-xl border border-ink-700 bg-ink-900 shadow-lift;
   }
 }
 
@@ -125,7 +135,7 @@ body {
 .airlock-prose {
   font-size: 13.5px;
   line-height: 1.65;
-  color: #d5dae3;
+  color: #dbe0e9;
 }
 .airlock-prose h1,
 .airlock-prose h2,
@@ -158,14 +168,14 @@ body {
 .airlock-prose code {
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 0.9em;
-  background: #161b24;
-  border: 1px solid #1e2430;
+  background: #141a24;
+  border: 1px solid #1e2632;
   border-radius: 4px;
   padding: 0.1em 0.35em;
 }
 .airlock-prose pre {
-  background: #12161f;
-  border: 1px solid #1e2430;
+  background: #0f141c;
+  border: 1px solid #1e2632;
   border-radius: 8px;
   padding: 0.9em 1em;
   overflow-x: auto;
@@ -177,10 +187,10 @@ body {
   padding: 0;
 }
 .airlock-prose blockquote {
-  border-left: 2px solid #2a3140;
+  border-left: 2px solid #2c3544;
   margin: 0.9em 0;
   padding-left: 1em;
-  color: #9aa4b2;
+  color: #a7b0bf;
 }
 .airlock-prose table {
   border-collapse: collapse;
@@ -189,15 +199,15 @@ body {
 }
 .airlock-prose th,
 .airlock-prose td {
-  border: 1px solid #1e2430;
+  border: 1px solid #1e2632;
   padding: 0.4em 0.7em;
   text-align: left;
 }
 .airlock-prose th {
-  background: #12161f;
+  background: #0f141c;
 }
 .airlock-prose a {
-  color: #3dd7c4;
+  color: #4ce0cd;
   text-decoration: underline;
 }
 
@@ -212,10 +222,10 @@ body {
   min-width: 1.15em;
   margin: 0 0.15em;
   padding: 0 0.3em;
-  border: 1px solid #0e8d80;
+  border: 1px solid #129488;
   border-radius: 999px;
-  background: rgba(23, 179, 163, 0.16);
-  color: #7fe9dc;
+  background: rgba(29, 187, 172, 0.16);
+  color: #8df0e2;
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 0.68em;
   font-weight: 700;
@@ -224,7 +234,7 @@ body {
   cursor: pointer;
 }
 .airlock-prose [data-citation-id]:hover {
-  background: rgba(23, 179, 163, 0.32);
+  background: rgba(29, 187, 172, 0.32);
 }
 .airlock-prose [data-citation-ok="false"] {
   border-color: rgba(229, 87, 92, 0.6);
@@ -272,7 +282,7 @@ select:enabled:focus-visible {
     gap: 0.85rem;
     padding: 2rem;
     text-align: center;
-    background: #0a0c10;
+    background: #06090e;
   }
 }
 

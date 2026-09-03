@@ -162,81 +162,91 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
   };
 
   // 1) propose_<name>
-  void mc.registerTool(
-    {
-      name: proposeMethod,
-      title: `Propose: ${config.name}`,
-      description:
-        `${config.description}\n\n` +
-        `This stages the change for human review and returns a proposalId. ` +
-        `It does NOT apply the change. Call ${commitMethod} with the proposalId ` +
-        `after the user approves it in the UI.`,
-      inputSchema: config.inputSchema,
-      annotations: { readOnlyHint: true },
-      execute: (input) => {
-        const typed = input as TInput;
-        return authority.propose(config.name, typed);
+  // Registration rejections for ABORTS are expected (React StrictMode
+  // double-mounts effects in dev, so every cleanup unregisters) — swallow
+  // those, report anything else instead of an unhandled rejection.
+  // `Promise.resolve` because fakes (and some hosts) return undefined.
+  trackRegistration(
+    mc.registerTool(
+      {
+        name: proposeMethod,
+        title: `Propose: ${config.name}`,
+        description:
+          `${config.description}\n\n` +
+          `This stages the change for human review and returns a proposalId. ` +
+          `It does NOT apply the change. Call ${commitMethod} with the proposalId ` +
+          `after the user approves it in the UI.`,
+        inputSchema: config.inputSchema,
+        annotations: { readOnlyHint: true, untrustedContentHint: true },
+        execute: (input) => {
+          const typed = input as TInput;
+          return authority.propose(config.name, typed);
+        },
       },
-    },
-    registerOpts
+      registerOpts
+    )
   );
 
   // 2) commit_<name>
-  void mc.registerTool(
-    {
-      name: commitMethod,
-      title: `Commit: ${config.name}`,
-      description:
-        `Apply a previously proposed "${config.name}" change. ` +
-        `Requires a proposalId returned by ${proposeMethod}. ` +
-        `Only succeeds if the user has approved the proposal.`,
-      inputSchema: {
-        type: "object",
-        properties: {
-          proposalId: {
-            type: "string",
-            description: `The id returned by ${proposeMethod}.`,
+  trackRegistration(
+    mc.registerTool(
+      {
+        name: commitMethod,
+        title: `Commit: ${config.name}`,
+        description:
+          `Apply a previously proposed "${config.name}" change. ` +
+          `Requires a proposalId returned by ${proposeMethod}. ` +
+          `Only succeeds if the user has approved the proposal.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            proposalId: {
+              type: "string",
+              description: `The id returned by ${proposeMethod}.`,
+            },
           },
+          required: ["proposalId"],
         },
-        required: ["proposalId"],
+        annotations: { readOnlyHint: false },
+        execute: (input) => {
+          const proposalId = String(
+            (input as { proposalId?: unknown }).proposalId ?? ""
+          );
+          return authority.commit(config.name, proposalId);
+        },
       },
-      annotations: { readOnlyHint: false },
-      execute: (input) => {
-        const proposalId = String(
-          (input as { proposalId?: unknown }).proposalId ?? ""
-        );
-        return authority.commit(config.name, proposalId);
-      },
-    },
-    registerOpts
+      registerOpts
+    )
   );
 
   // 3) reject_<name> — lets the agent withdraw a bad proposal it made.
-  void mc.registerTool(
-    {
-      name: rejectMethod,
-      title: `Reject: ${config.name}`,
-      description: `Withdraw a pending "${config.name}" proposal by proposalId.`,
-      inputSchema: {
-        type: "object",
-        properties: {
-          proposalId: { type: "string" },
+  trackRegistration(
+    mc.registerTool(
+      {
+        name: rejectMethod,
+        title: `Reject: ${config.name}`,
+        description: `Withdraw a pending "${config.name}" proposal by proposalId.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            proposalId: { type: "string" },
+          },
+          required: ["proposalId"],
         },
-        required: ["proposalId"],
+        annotations: { readOnlyHint: false },
+        execute: (input) => {
+          const proposalId = String(
+            (input as { proposalId?: unknown }).proposalId ?? ""
+          );
+          return authority.reject(config.name, proposalId);
+        },
       },
-      annotations: { readOnlyHint: false },
-      execute: (input) => {
-        const proposalId = String(
-          (input as { proposalId?: unknown }).proposalId ?? ""
-        );
-        return authority.reject(config.name, proposalId);
-      },
-    },
-    registerOpts
+      registerOpts
+    )
   );
 
   return {
-    unregister: () => controller.abort(),
+    unregister: () => controller.abort(UNREGISTER_REASON),
   };
 }
 
@@ -258,8 +268,36 @@ export function registerTool(
       ? anySignal([options.register.signal, controller.signal])
       : controller.signal,
   };
-  void mc.registerTool(tool, registerOpts);
-  return { unregister: () => controller.abort() };
+  void trackRegistration(mc.registerTool(tool, registerOpts));
+  return { unregister: () => controller.abort(UNREGISTER_REASON) };
+}
+
+/**
+ * Watch a registration call without awaiting it. Abort rejections are routine
+ * cleanup (StrictMode double-effects in dev unregister every tool) — swallow
+ * those, surface anything else. `Promise.resolve` because fakes and some
+ * hosts return undefined instead of a promise.
+ */
+function trackRegistration(result: unknown): void {
+  void Promise.resolve(result).catch(swallowAbort);
+}
+
+/**
+ * Abort reason for `unregister()` so the host's rejection names the cause
+ * instead of "signal is aborted without reason". Abort rejections are
+ * routine cleanup (StrictMode double-effects in dev unmount every tool) —
+ * swallow those, surface anything else.
+ */
+const UNREGISTER_REASON =
+  typeof DOMException !== "undefined"
+    ? new DOMException("tool unregistered", "AbortError")
+    : undefined;
+
+function swallowAbort(e: unknown): void {
+  const name =
+    e instanceof DOMException ? e.name : (e as { name?: unknown })?.name;
+  if (name === "AbortError") return;
+  console.error("[webmcp-staged] registerTool failed", e);
 }
 
 /** Combine multiple AbortSignals into one (aborts when any input aborts). */

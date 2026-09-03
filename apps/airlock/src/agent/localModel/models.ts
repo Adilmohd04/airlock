@@ -377,3 +377,132 @@ export const WEBLLM_CACHE_SCOPES = [
   "webllm/wasm",
   "webllm/config",
 ] as const;
+
+// ── User-supplied models ─────────────────────────────────────────────────────
+// A user preference, not the catalog: any MLC-converted instruct model reachable
+// over https. These are NEVER same-origin — the whole point is the user picks
+// the weights — so they deliberately bypass `assertSameOrigin()`. The honesty
+// is carried elsewhere instead:
+//   - the UI consent copy names the external host before anything is fetched;
+//   - the egress monitor counts the one-time download like any other external
+//     request, so the Seal shows it;
+//   - `buildCustomAppConfig()` requires https and refuses anything else.
+// After the one download the weights live in the same Cache API buckets and
+// every later session is offline, exactly like a catalog model.
+
+export interface CustomModelEntry {
+  /** Display label, user-chosen. Also the WebLLM model_id (`custom/<label>`). */
+  label: string;
+  /** https base URL of the MLC model dir (mlc-chat-config.json + shards). */
+  modelUrl: string;
+  /** https URL of the compiled `-webgpu.wasm` kernel library. */
+  libUrl: string;
+  addedAt: string;
+}
+
+const CUSTOM_MODELS_KEY = "airlock.customModels.v1";
+
+function customId(label: string): string {
+  return `custom/${label}`;
+}
+
+/** The WebLLM model_id for a custom entry. Kept in one place (store + panel). */
+export function customModelId(label: string): string {
+  return customId(label.trim());
+}
+
+function isHttpsUrl(u: string): boolean {
+  try {
+    return new URL(u).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validate user input for a custom model. Throws with UI-safe copy on anything
+ * wrong. Only MLC-converted (`mlc-chat-config.json`-shaped) models can run:
+ * anything else fails deep in WebLLM, so we say so up front.
+ */
+export function validateCustomModel(input: {
+  label: string;
+  modelUrl: string;
+  libUrl: string;
+}): CustomModelEntry {
+  const label = input.label.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9 _.-]{0,39}$/.test(label)) {
+    throw new Error(
+      "Name it with 1–40 letters, numbers, spaces, dots, dashes or underscores."
+    );
+  }
+  const modelUrl = input.modelUrl.trim().replace(/\/+$/, "") + "/";
+  const libUrl = input.libUrl.trim();
+  if (!isHttpsUrl(modelUrl) || !isHttpsUrl(libUrl)) {
+    throw new Error("Both URLs must be https — plain http is refused.");
+  }
+  if (!libUrl.endsWith(".wasm")) {
+    throw new Error("The library URL must be a compiled -webgpu.wasm file.");
+  }
+  return { label, modelUrl, libUrl, addedAt: new Date().toISOString() };
+}
+
+export function readCustomModels(): CustomModelEntry[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_MODELS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(
+      (e): e is CustomModelEntry =>
+        !!e &&
+        typeof (e as CustomModelEntry).label === "string" &&
+        typeof (e as CustomModelEntry).modelUrl === "string" &&
+        typeof (e as CustomModelEntry).libUrl === "string"
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeCustomModels(list: CustomModelEntry[]): void {
+  try {
+    localStorage.setItem(CUSTOM_MODELS_KEY, JSON.stringify(list));
+  } catch {
+    /* the entry just will not survive a reload; not worth failing over */
+  }
+}
+
+export function saveCustomModel(entry: CustomModelEntry): CustomModelEntry[] {
+  const list = readCustomModels().filter((e) => e.label !== entry.label);
+  list.push(entry);
+  writeCustomModels(list);
+  return list;
+}
+
+export function removeCustomModel(label: string): CustomModelEntry[] {
+  const list = readCustomModels().filter((e) => e.label !== label);
+  writeCustomModels(list);
+  return list;
+}
+
+/**
+ * One-off AppConfig for a custom model. No same-origin assertion by design
+ * (see above) — but https-only, and the ONLY config in the repo allowed to
+ * leave this origin. Everything else still goes through `buildAppConfig()`.
+ */
+export function buildCustomAppConfig(entry: CustomModelEntry): AppConfig {
+  if (!isHttpsUrl(entry.modelUrl) || !isHttpsUrl(entry.libUrl)) {
+    throw new Error("Custom models must live on https URLs.");
+  }
+  const model_list: ModelRecord[] = [
+    {
+      model: entry.modelUrl,
+      model_id: customModelId(entry.label),
+      model_lib: entry.libUrl,
+      vram_required_MB: undefined,
+      low_resource_required: true,
+      overrides: { context_window_size: 4096 },
+    } as ModelRecord,
+  ];
+  return { model_list, cacheBackend: "cache" };
+}

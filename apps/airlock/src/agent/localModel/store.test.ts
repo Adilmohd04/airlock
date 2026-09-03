@@ -707,3 +707,53 @@ describe("toAgentModeStatus", () => {
     expect(toAgentModeStatus(from)).toBe(to);
   });
 });
+
+describe("custom models", () => {
+  const INPUT = {
+    label: "My 7B",
+    modelUrl: "https://hf.example/org/model/resolve/main",
+    libUrl: "https://hf.example/org/model/model-webgpu.wasm",
+  };
+
+  it("starts empty and rejects invalid input without touching state", () => {
+    const { store } = makeStore();
+    expect(store.getState().customModels).toEqual([]);
+    expect(() => store.addCustomModel({ ...INPUT, modelUrl: "http://a/b/" })).toThrow(
+      /https/
+    );
+    expect(store.getState().customModels).toEqual([]);
+  });
+
+  it("downloads a custom model through the adapter with its own URLs", async () => {
+    const { adapter, store } = makeStore();
+    store.addCustomModel(INPUT);
+    expect(store.getState().customModels).toHaveLength(1);
+    await store.downloadCustom("My 7B");
+    await settle();
+    const s = store.getState();
+    expect(s.status).toBe("running");
+    expect(s.customActiveLabel).toBe("My 7B");
+    expect(adapter.lastLoad?.custom?.modelUrl).toContain("https://hf.example/");
+    expect(adapter.lastLoad?.custom?.libUrl).toContain(".wasm");
+  });
+
+  it("errors honestly on an unknown custom label", async () => {
+    const { store } = makeStore();
+    await store.downloadCustom("Nope");
+    expect(store.getState().status).toBe("error");
+  });
+
+  it("forgets a custom model and clears the active label", async () => {
+    const { adapter, store } = makeStore();
+    store.addCustomModel(INPUT);
+    await store.downloadCustom("My 7B");
+    await settle();
+    expect(store.getState().customActiveLabel).toBe("My 7B");
+    await store.removeCustomModel("My 7B");
+    await settle();
+    const s = store.getState();
+    expect(s.customModels).toEqual([]);
+    expect(s.customActiveLabel).toBeNull();
+    expect(adapter.lastLoad?.custom?.modelUrl).toContain("https://hf.example/");
+  });
+});

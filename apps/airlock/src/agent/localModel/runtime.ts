@@ -40,6 +40,7 @@ import type {
 } from "@mlc-ai/web-llm";
 import {
   buildAppConfig,
+  buildCustomAppConfig,
   getModel,
   LOCAL_MODELS,
   manifestUrl,
@@ -50,6 +51,11 @@ import {
   type LocalModelId,
   type MirrorManifest,
 } from "./models";
+
+/** `custom/<label>` back to the label. Inverse of `customModelId()` in models. */
+function customLabelFromId(modelId: string): string {
+  return modelId.startsWith("custom/") ? modelId.slice("custom/".length) : modelId;
+}
 
 // ── WebGPU detection ────────────────────────────────────────────────────────
 
@@ -368,6 +374,13 @@ export interface LoadOptions {
   onProgress?: (p: LoadProgress) => void;
   /** Abort mid-download. Already-cached shards survive, so a retry resumes. */
   signal?: AbortSignal;
+  /**
+   * Load a user-supplied model instead of a catalog one. The AppConfig is
+   * built from these URLs (https-only, enforced in `buildCustomAppConfig`)
+   * and the one-time download is external — counted by the egress monitor
+   * like anything else, so the Seal stays honest.
+   */
+  custom?: { modelUrl: string; libUrl: string; contextWindow: number };
 }
 
 /**
@@ -385,6 +398,8 @@ export interface LocalRuntimeAdapter {
   deleteWeights(modelId: LocalModelId): Promise<void>;
   /** Bytes held in the WebLLM caches, or null when it cannot be determined. */
   cacheBytes(): Promise<number | null>;
+  /** URL-keyed delete for user-supplied models (catalog path can't name them). */
+  deleteCustomWeights?(modelUrl: string, libUrl: string): Promise<void>;
 }
 
 /** Thrown when a load is cancelled, so the store can report it as "not an error". */
@@ -664,11 +679,17 @@ export const webllmAdapter: LocalRuntimeAdapter = {
 
   isCached: hasCachedWeights,
 
-  async load({ modelId, onProgress, signal }: LoadOptions): Promise<LoadedEngine> {
-    const model = getModel(modelId);
+  async load({ modelId, onProgress, signal, custom }: LoadOptions): Promise<LoadedEngine> {
     // Throws before a single byte moves if the catalog was edited to point off
-    // this origin.
-    const appConfig = buildAppConfig();
+    // this origin. Custom models take the explicit external path instead.
+    const appConfig = custom
+      ? buildCustomAppConfig({
+          label: customLabelFromId(modelId),
+          modelUrl: custom.modelUrl,
+          libUrl: custom.libUrl,
+          addedAt: "",
+        })
+      : buildAppConfig();
     const webllm = await import("@mlc-ai/web-llm");
     const engine = new webllm.MLCEngine({
       appConfig,
@@ -691,7 +712,9 @@ export const webllmAdapter: LocalRuntimeAdapter = {
     };
     signal?.addEventListener("abort", onAbort, { once: true });
     try {
-      await engine.reload(modelId, { context_window_size: model.contextWindow });
+      await engine.reload(modelId, {
+        context_window_size: custom?.contextWindow ?? getModel(modelId).contextWindow,
+      });
     } catch (err) {
       if (signal?.aborted) throw new LoadAbortedError();
       throw err;
@@ -708,4 +731,17 @@ export const webllmAdapter: LocalRuntimeAdapter = {
   deleteWeights: deleteCachedWeights,
 
   cacheBytes: measureCacheBytes,
+
+  async deleteCustomWeights(modelUrl: string, libUrl: string): Promise<void> {
+    const base = modelUrl.endsWith("/") ? modelUrl : `${modelUrl}/`;
+    for (const scope of WEBLLM_CACHE_SCOPES) {
+      const cache = await openIfPresent(scope);
+      if (!cache) continue;
+      for (const request of await cache.keys()) {
+        if (request.url.startsWith(base)) await cache.delete(request);
+      }
+    }
+    const wasmCache = await openIfPresent("webllm/wasm");
+    await wasmCache?.delete(libUrl);
+  },
 };

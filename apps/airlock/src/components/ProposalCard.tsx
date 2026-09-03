@@ -32,8 +32,8 @@ export function ProposalCard({
 
   return (
     <div
-      className={`agent-pending animate-slide-in rounded-lg border bg-ink-900 p-3 ${
-        primary ? "border-pending/50" : "border-ink-800"
+      className={`agent-pending animate-slide-in rounded-xl border bg-ink-850 p-3 shadow-lift ${
+        primary ? "border-pending/50" : "border-ink-700"
       }`}
     >
       <div className="mb-2 flex items-center justify-between gap-2">

@@ -301,6 +301,144 @@ export function ModelChooser({
 
 // ── The panel ───────────────────────────────────────────────────────────────
 
+/**
+ * Bring-your-own-model: any MLC-converted instruct model over https. Unlike
+ * the catalog, the one-time download is external by definition — the consent
+ * checkbox names that before anything is fetched, the egress monitor counts
+ * it so the Seal shows it, and after that the weights live in the same Cache
+ * API buckets and run fully on-device.
+ */
+export function CustomModelSection({ state }: { state: LocalModelState }) {
+  const [label, setLabel] = useState("");
+  const [modelUrl, setModelUrl] = useState("");
+  const [libUrl, setLibUrl] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [busyLabel, setBusyLabel] = useState<string | null>(null);
+  const locked = state.status === "downloading" || state.status === "running";
+
+  const add = () => {
+    setFormError(null);
+    try {
+      localModelStore.addCustomModel({ label, modelUrl, libUrl });
+      setLabel("");
+      setModelUrl("");
+      setLibUrl("");
+      setConsent(false);
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const run = async (l: string) => {
+    setBusyLabel(l);
+    try {
+      await localModelStore.downloadCustom(l);
+    } finally {
+      setBusyLabel(null);
+    }
+  };
+
+  return (
+    <div>
+      <p className="panel-title mb-1">Your own model</p>
+      {state.customModels.length > 0 && (
+        <ul className="mb-2 space-y-1">
+          {state.customModels.map((m) => {
+            const active = state.customActiveLabel === m.label;
+            return (
+              <li
+                key={m.label}
+                className="flex items-center justify-between gap-2 rounded-md bg-ink-850 px-2 py-1.5"
+              >
+                <span className="min-w-0 truncate font-mono text-[11px] text-slate-300">
+                  {m.label}
+                  {active && (
+                    <span className="ml-1.5 text-airlock-300">on GPU</span>
+                  )}
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  {!active && (
+                    <button
+                      type="button"
+                      className="text-[11px] text-airlock-300 hover:underline disabled:opacity-40"
+                      disabled={locked || busyLabel !== null}
+                      onClick={() => void run(m.label)}
+                    >
+                      {busyLabel === m.label ? "loading…" : "load"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="shrink-0 text-[11px] text-slate-500 hover:text-danger disabled:opacity-40"
+                    disabled={locked}
+                    onClick={() => void localModelStore.removeCustomModel(m.label)}
+                  >
+                    delete
+                  </button>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="space-y-1.5">
+        <input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Name — e.g. My Qwen 7B"
+          aria-label="Custom model name"
+          className="w-full rounded border border-ink-700 bg-ink-950 px-2 py-1 font-mono text-[11px] text-slate-200"
+        />
+        <input
+          value={modelUrl}
+          onChange={(e) => setModelUrl(e.target.value)}
+          placeholder="https://huggingface.co/…/resolve/main/"
+          aria-label="Custom model weights URL"
+          inputMode="url"
+          className="w-full rounded border border-ink-700 bg-ink-950 px-2 py-1 font-mono text-[11px] text-slate-200"
+        />
+        <input
+          value={libUrl}
+          onChange={(e) => setLibUrl(e.target.value)}
+          placeholder="https://…/model-webgpu.wasm"
+          aria-label="Custom model library URL"
+          inputMode="url"
+          className="w-full rounded border border-ink-700 bg-ink-950 px-2 py-1 font-mono text-[11px] text-slate-200"
+        />
+        <label className="flex cursor-pointer items-start gap-1.5 text-[11px] leading-snug text-slate-500">
+          <input
+            type="checkbox"
+            className="mt-0.5 accent-airlock-500"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+          />
+          <span>
+            I understand the weights download once from that external URL —
+            the Seal will count it — and only MLC-converted models
+            (mlc-chat-config.json + shards) can run.
+          </span>
+        </label>
+        {formError && <p className="text-[11px] text-danger">{formError}</p>}
+        <button
+          type="button"
+          className="btn btn-ghost text-[11px]"
+          disabled={
+            locked ||
+            !consent ||
+            !label.trim() ||
+            !modelUrl.trim() ||
+            !libUrl.trim()
+          }
+          onClick={add}
+        >
+          Add custom model
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function LocalModelPanel() {
   const s = useLocalModelStore();
   const ui = useUI();
@@ -558,6 +696,13 @@ export function LocalModelPanel() {
             </div>
           )}
 
+          {/* ── your own model ── */}
+          {s.blocker !== "no-webgpu" && (
+            <div className="mt-3 border-t border-ink-800 pt-3">
+              <CustomModelSection state={s} />
+            </div>
+          )}
+
           {/* ── storage ── */}
           <div className="mt-3 border-t border-ink-800 pt-3">
             <p className="panel-title mb-1">Storage</p>
@@ -627,9 +772,11 @@ export function LocalModelPanel() {
           </div>
 
           <p className="mt-3 border-t border-ink-800 pt-2 text-[10px] leading-relaxed text-slate-600">
-            The model is downloaded once, from this site — the same origin as the
-            app itself, counted as an asset load, not external traffic. After
-            that it lives in this browser and runs on your GPU.
+            Catalog models download once, from this site — the same origin as
+            the app itself, counted as an asset load, not external traffic.
+            Your own models download once from the URL you gave (external, and
+            counted). After that every model lives in this browser and runs on
+            your GPU.
           </p>
         </div>
       )}

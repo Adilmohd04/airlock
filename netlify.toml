@@ -40,6 +40,14 @@
   to = "/models/:splat"
   status = 200
 
+# OCR language data (same-origin /tessdata/, mirrored by
+# scripts/fetch-tessdata.mjs — never in git). Same SPA-catch-all hazard as
+# /models/*: a missing traineddata file must 404, not return index.html.
+[[redirects]]
+  from = "/tessdata/*"
+  to = "/tessdata/:splat"
+  status = 200
+
 # Redirect all OTHER non-file requests to index.html for SPA routing
 [[redirects]]
   from = "/*"
@@ -83,6 +91,15 @@
   for = "/models/lib/*"
   [headers.values]
     Content-Type = "application/wasm"
+    Cache-Control = "public, max-age=31536000, immutable"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
+
+# OCR language data (same-origin /tessdata/, mirrored by
+# scripts/fetch-tessdata.mjs). Immutable once mirrored.
+[[headers]]
+  for = "/tessdata/*"
+  [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Embedder-Policy = "require-corp"

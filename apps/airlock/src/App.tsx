@@ -22,7 +22,13 @@ export function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "`" && (e.metaKey || e.ctrlKey)) {
+      // e.code (physical key) instead of e.key (layout character): on some
+      // layouts backtick is a dead key and never equals "`" — the console
+      // shortcut silently did nothing there.
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        (e.code === "Backquote" || e.key === "`")
+      ) {
         e.preventDefault();
         uiStore.toggleConsole();
       }

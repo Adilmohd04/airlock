@@ -9,6 +9,8 @@ import {
 } from "../agent/agentMode";
 import { uiStore } from "../engine/uiStore";
 import { getEgress, subscribeEgress, type EgressState } from "../lib/egress";
+import { activityLog } from "../agent/activity";
+import { useActivity } from "../agent/hooks";
 
 // Static because `tools.tsx` is frozen and registers the surface
 // unconditionally. Keep in step with `agent/tools.tsx`: 8 `registerTool`
@@ -41,6 +43,10 @@ export function WebMCPStatus() {
   const [egress, setEgress] = useState<EgressState>(getEgress);
 
   useEffect(() => subscribeEgress(() => setEgress(getEgress())), []);
+  // Re-render when tools are called so the badge can flip from "no calls yet"
+  // to the connected-host copy on the first call.
+  useActivity();
+  const hasCalls = activityLog.list().length > 0;
 
   // The store's initial snapshot is built before `main.tsx`'s bootstrap sets
   // `window.__airlockWebMCP` / attaches the polyfill (module evaluation runs
@@ -57,7 +63,7 @@ export function WebMCPStatus() {
     };
   }, []);
 
-  const badge = describeMode(mode);
+  const badge = describeMode(mode, { hasCalls });
   const tone = toneFor(mode);
   const localAvail = agentModeStore.availability("local");
 
@@ -65,7 +71,7 @@ export function WebMCPStatus() {
   // the egress monitor actually reads zero (COLLAB rule 5). Otherwise it falls
   // back to `describeMode` and the Seal shows any breach in red.
   const egressClear = egress.externalRequests === 0 && egress.bytesSent === 0;
-  const headline = measuredHeadline(mode, egressClear);
+  const headline = measuredHeadline(mode, egressClear, { hasCalls });
 
   const commitByo = () => {
     agentModeStore.setByoConfig(
@@ -91,7 +97,7 @@ export function WebMCPStatus() {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-9 z-30 w-96 animate-slide-in rounded-lg border border-ink-700 bg-ink-900 p-4 text-xs shadow-2xl">
+        <div className="card absolute left-0 top-9 z-30 w-96 animate-slide-in p-4 text-xs shadow-2xl">
           <p className="mb-1 font-semibold text-white">Agent mode</p>
           <p className="mb-3 leading-relaxed text-slate-400">{badge.detail}</p>
 

@@ -15,7 +15,9 @@ import type { AppConfig } from "@mlc-ai/web-llm";
 import {
   assertSameOrigin,
   buildAppConfig,
+  buildCustomAppConfig,
   currentOrigin,
+  customModelId,
   DEFAULT_MODEL_ID,
   formatModelSize,
   getModel,
@@ -26,6 +28,7 @@ import {
   modelDirUrl,
   modelLibUrl,
   parseManifest,
+  validateCustomModel,
 } from "./models";
 
 const ORIGIN = "https://airlock.example";
@@ -240,5 +243,36 @@ describe("formatModelSize", () => {
     // `cache.bytesOnDisk` is nullable; the panel pipes it straight in here.
     expect(formatModelSize(Number.NaN)).toBe("—");
     expect(formatModelSize(-1)).toBe("—");
+  });
+});
+
+describe("custom models", () => {
+  const GOOD = {
+    label: "My 7B",
+    modelUrl: "https://hf.example/org/model/resolve/main",
+    libUrl: "https://hf.example/org/model/model-webgpu.wasm",
+  };
+
+  it("validates input with UI-safe errors", () => {
+    expect(() => validateCustomModel({ ...GOOD, label: "" })).toThrow(/1–40/);
+    expect(() =>
+      validateCustomModel({ ...GOOD, modelUrl: "http://a/b/" })
+    ).toThrow(/https/);
+    expect(() =>
+      validateCustomModel({ ...GOOD, libUrl: "https://a/b.bin" })
+    ).toThrow(/wasm/);
+    const e = validateCustomModel(GOOD);
+    expect(e.modelUrl.endsWith("/")).toBe(true);
+    expect(customModelId(e.label)).toBe("custom/My 7B");
+  });
+
+  it("builds an https-only external config that assertSameOrigin refuses", () => {
+    const config = buildCustomAppConfig(validateCustomModel(GOOD));
+    expect(config.model_list).toHaveLength(1);
+    expect(config.model_list[0].model_id).toBe("custom/My 7B");
+    // Documents the bargain: custom configs are external by design, so the
+    // same-origin gate that guards every catalog config rejects them — the
+    // honesty lives in the consent copy + the egress count, not the gate.
+    expect(() => assertSameOrigin(config, ORIGIN)).toThrow();
   });
 });

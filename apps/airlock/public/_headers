@@ -58,6 +58,15 @@
   Cross-Origin-Embedder-Policy: require-corp
   Cross-Origin-Resource-Policy: cross-origin
 
+# OCR language data (same-origin /tessdata/, mirrored by
+# scripts/fetch-tessdata.mjs — never in git). Immutable once mirrored; the
+# runtime probes for eng.traineddata.gz and degrades honestly when absent.
+/tessdata/*
+  Cache-Control: public, max-age=31536000, immutable
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: cross-origin
+
 # Catch-all: guarantees COOP/COEP + security headers on every path, including
 # SPA deep links with no file extension (e.g. /workspace/report) that the /*
 # redirect below serves index.html for. Netlify evaluates header rules against

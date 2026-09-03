@@ -47,13 +47,23 @@ describe("detectFormat", () => {
   });
 
   it("returns null for genuinely unsupported files", () => {
-    expect(detectFormat("photo.png", "image/png")).toBeNull();
     expect(detectFormat("archive.zip")).toBeNull();
     expect(detectFormat("mystery")).toBeNull();
   });
 
-  it("marks parquet as binary, csv/tsv/json as text", () => {
+  it("routes documents and images to their importers", () => {
+    expect(detectFormat("report.pdf")).toBe("pdf");
+    expect(detectFormat("report.docx")).toBe("docx");
+    expect(detectFormat("photo.png", "image/png")).toBe("image");
+    expect(detectFormat("photo.jpg")).toBe("image");
+    expect(detectFormat("scan.webp", "image/webp")).toBe("image");
+  });
+
+  it("marks parquet/pdf/docx/image as binary, csv/tsv/json as text", () => {
     expect(BINARY_FORMATS.has("parquet")).toBe(true);
+    expect(BINARY_FORMATS.has("pdf")).toBe(true);
+    expect(BINARY_FORMATS.has("docx")).toBe(true);
+    expect(BINARY_FORMATS.has("image")).toBe(true);
     expect(BINARY_FORMATS.has("csv")).toBe(false);
     expect(BINARY_FORMATS.has("tsv")).toBe(false);
     expect(BINARY_FORMATS.has("json")).toBe(false);

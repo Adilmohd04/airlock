@@ -461,6 +461,19 @@ export async function ensurePersistentStorage(): Promise<boolean | null> {
 }
 
 export async function bootSession(): Promise<void> {
+  // Re-entry guard: StrictMode double-invokes effects in dev, and two
+  // concurrent boots would restore (hydrate) the same snapshot twice with
+  // the same dataset ids. Share the in-flight boot instead.
+  if (bootPromise) return bootPromise;
+  bootPromise = bootSessionInner().finally(() => {
+    bootPromise = null;
+  });
+  return bootPromise;
+}
+
+let bootPromise: Promise<void> | null = null;
+
+async function bootSessionInner(): Promise<void> {
   if (!snapshot.available) {
     suspended = false;
     return;

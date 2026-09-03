@@ -27,7 +27,7 @@ export interface McpToolDefinition {
   name: string;
   description: string;
   inputSchema: JSONSchema;
-  annotations?: { readOnlyHint?: boolean };
+  annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
 }
 
 /**
@@ -48,7 +48,7 @@ export function toMcpToolDefinitions(authority: StagedAuthority): McpToolDefinit
         `It does NOT apply the change. Call ${action.methods.commit} with the ` +
         `proposalId after the user approves it in the UI.`,
       inputSchema: action.inputSchema ?? { type: "object", properties: {} },
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
     });
     tools.push({
       name: action.methods.commit,

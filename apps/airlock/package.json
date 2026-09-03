@@ -16,11 +16,13 @@
     "@mcp-b/webmcp-polyfill": "^4.0.0",
     "@mlc-ai/web-llm": "0.2.84",
     "dompurify": "^3.2.2",
+    "mammoth": "^1.12.2",
     "marked": "^14.1.4",
     "pdfjs-dist": "^4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.13.3",
+    "tesseract.js": "^7.0.0",
     "webmcp-staged": "*"
   },
   "devDependencies": {

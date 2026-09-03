@@ -172,7 +172,7 @@ export function useAirlockTools(): void {
           name: "list_datasets",
           description:
             "List every dataset loaded in the workspace with row/column counts, its SQL table name, and which one is active. The active dataset's base table is also always queryable as `dataset`.",
-          annotations: { readOnlyHint: true },
+          annotations: { readOnlyHint: true, untrustedContentHint: true },
           execute: () =>
             read("list_datasets", {}, async () => {
               const list = workspaceStore.list().map((h) => {
@@ -203,7 +203,7 @@ export function useAirlockTools(): void {
           name: "get_dataset_summary",
           description:
             "Summarize the active dataset: file name, SQL table name, row count, and every column with its type. Start here. In run_sql you can refer to this table as `dataset` or by its real `tableName`.",
-          annotations: { readOnlyHint: true },
+          annotations: { readOnlyHint: true, untrustedContentHint: true },
           execute: () =>
             read("get_dataset_summary", {}, async () => {
               const store = activeStore();
@@ -256,7 +256,7 @@ export function useAirlockTools(): void {
           name: "list_columns",
           description:
             "List the active dataset's columns with type, null fraction and distinct count.",
-          annotations: { readOnlyHint: true },
+          annotations: { readOnlyHint: true, untrustedContentHint: true },
           execute: () =>
             read("list_columns", {}, async () => {
               const store = activeStore();
@@ -299,7 +299,7 @@ export function useAirlockTools(): void {
             },
             required: ["column"],
           },
-          annotations: { readOnlyHint: true },
+          annotations: { readOnlyHint: true, untrustedContentHint: true },
           execute: (input) => {
             const column = String((input as { column?: unknown }).column ?? "");
             return read("profile_column", { column }, async () => {
@@ -349,7 +349,7 @@ export function useAirlockTools(): void {
               },
             },
           },
-          annotations: { readOnlyHint: true },
+          annotations: { readOnlyHint: true, untrustedContentHint: true },
           execute: (input) => {
             const limit = Math.min(
               100,
@@ -398,7 +398,7 @@ export function useAirlockTools(): void {
             properties: { query: { type: "string" } },
             required: ["query"],
           },
-          annotations: { readOnlyHint: true },
+          annotations: { readOnlyHint: true, untrustedContentHint: true },
           execute: (input) => {
             const query = String((input as { query?: unknown }).query ?? "");
             return read("run_sql", { query }, async () => {
@@ -429,7 +429,7 @@ export function useAirlockTools(): void {
           name: "describe_workspace",
           description:
             "List everything currently applied to the active dataset: filters, derived columns, renames, charts, flag sets, and redaction state — plus how many are agent-originated. Check `redaction` here so you know what you cannot see rather than guessing.",
-          annotations: { readOnlyHint: true },
+          annotations: { readOnlyHint: true, untrustedContentHint: true },
           execute: () =>
             read("describe_workspace", {}, async () => {
               const store = activeStore();
@@ -483,7 +483,7 @@ export function useAirlockTools(): void {
           name: "get_activity_log",
           description:
             "Return the transparency ledger: every tool call this session, what it did, and a summary of the data returned to the agent. Each entry's `id` is what a write_report [cite:<id>] marker points at — cite the read entry that produced each number.",
-          annotations: { readOnlyHint: true },
+          annotations: { readOnlyHint: true, untrustedContentHint: true },
           execute: () =>
             read("get_activity_log", {}, async () => {
               const entries = activityLog.list().slice(-40);

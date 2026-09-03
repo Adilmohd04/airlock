@@ -65,11 +65,14 @@ export async function pickLocalFile(): Promise<File | null> {
         multiple: false,
         types: [
           {
-            description: "Tabular data",
+            description: "Tabular data + documents",
             accept: {
               "text/csv": [".csv", ".tsv"],
               "application/json": [".json"],
               "application/octet-stream": [".parquet"],
+              "application/pdf": [".pdf"],
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+              "image/png": [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"],
             },
           },
         ],
@@ -86,7 +89,7 @@ export async function pickLocalFile(): Promise<File | null> {
   return new Promise<File | null>((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".csv,.tsv,.json,.parquet";
+    input.accept = ".csv,.tsv,.json,.parquet,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp,.gif";
     input.onchange = () => resolve(input.files?.[0] ?? null);
     input.oncancel = () => resolve(null);
     input.click();

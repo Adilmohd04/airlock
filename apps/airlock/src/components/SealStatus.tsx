@@ -34,7 +34,10 @@ export function SealStatus() {
   const breached = egress.externalRequests > 0 || egress.bytesSent > 0;
   const hostConnected = mode.host.kind === "native";
   const hostName = mode.host.name || "the connected AI host";
-  const tone = toneFor(breached, hostConnected);
+  // API presence is not activity: with the testing flag on and nothing
+  // attached, zero calls have happened — say so instead of "connected".
+  const hostCalls = activityLog.list().length;
+  const tone = toneFor(breached, hostConnected && hostCalls > 0);
 
   const rows = activityLog.rowsDisclosed();
   const cols = activityLog.seenColumns();
@@ -56,24 +59,28 @@ export function SealStatus() {
         {breached
           ? `${egress.externalRequests} external · ${bytes(egress.bytesSent)}`
           : hostConnected
-            ? rows > 0
-              ? `Host connected · ${rows.toLocaleString()} rows disclosed`
-              : "Host connected · 0 rows so far"
+            ? hostCalls > 0
+              ? rows > 0
+                ? `Host connected · ${rows.toLocaleString()} rows disclosed`
+                : "Host connected · 0 rows so far"
+              : "WebMCP ready · no calls yet"
             : "Sealed · 0 bytes out"}
       </button>
 
       {open && (
-        <div className="absolute left-0 top-9 z-30 w-80 animate-slide-in rounded-lg border border-ink-700 bg-ink-900 p-4 text-xs shadow-2xl">
+        <div className="card absolute left-0 top-9 z-30 w-80 animate-slide-in p-4 text-xs shadow-2xl">
           <p className="mb-2 font-semibold text-white">
             {breached
               ? "Data has left the page"
               : hostConnected
-                ? "Nothing left over the network — but a connected host reads results"
+                ? hostCalls > 0
+                  ? "Nothing left over the network — but a connected host reads results"
+                  : "WebMCP API present — no host calls yet"
                 : "Nothing has left this page"}
           </p>
 
           <p className="leading-relaxed text-slate-400">
-            {hostConnected && !breached ? (
+            {hostConnected && !breached && hostCalls > 0 ? (
               <>
                 This monitor watches this page's own network calls —{" "}
                 <code className="text-slate-300">fetch</code>,{" "}
@@ -83,6 +90,14 @@ export function SealStatus() {
                 read zero. It cannot see the separate channel {hostName} uses to
                 call tools and receive their results. That is a real, separate
                 disclosure, counted below and itemised in the activity ledger.
+              </>
+            ) : hostConnected && !breached ? (
+              <>
+                The WebMCP API is present in this browser — a connected host, or
+                just the testing flag with nothing attached. No tool has been
+                called yet, so the ledger below is empty. The Inspector saying
+                "no active page" means the same thing from its side: press
+                Refresh there, or open this page in a real host.
               </>
             ) : (
               <>

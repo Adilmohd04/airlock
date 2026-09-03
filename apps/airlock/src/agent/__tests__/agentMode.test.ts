@@ -144,6 +144,25 @@ describe("describeMode — the honesty rule", () => {
     );
     expect(b.headline.startsWith("Cloud")).toBe(true);
   });
+
+  it("says API-present (not connected) when no tool has been called yet", () => {
+    const b = describeMode(
+      state({ host: { kind: "native", name: GENERIC_HOST_NAME } }),
+      { hasCalls: false }
+    );
+    expect(b.headline.startsWith("Cloud")).toBe(true);
+    expect(b.headline).toMatch(/no host calls yet/i);
+    expect(b.headline).not.toMatch(/connected AI host is driving/i);
+    const text = `${b.headline}\n${b.detail}`;
+    for (const re of FORBIDDEN) expect(text).not.toMatch(re);
+    expect(b.detail).toMatch(/ledger/i);
+    expect(b.detail).toMatch(/no tool has been called yet/i);
+  });
+
+  it("default (no opts) keeps the established connected-host copy", () => {
+    const b = describeMode(state({ host: { kind: "native", name: "ChatGPT" } }));
+    expect(b.headline).toContain("ChatGPT");
+  });
 });
 
 describe("describeMode — local + byo + cloud", () => {

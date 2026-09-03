@@ -83,17 +83,17 @@ export function DataGrid() {
       )}
 
       <div className="min-h-0 flex-1 overflow-auto">
-        <table className="w-full border-collapse font-mono text-xs">
-          <thead className="sticky top-0 z-10 bg-ink-900">
+        <table className="w-full border-collapse font-mono text-xs tabular-nums">
+          <thead className="sticky top-0 z-10 bg-ink-900/95 backdrop-blur">
             <tr>
-              <th className="border-b border-ink-700 px-2 py-1.5 text-right text-slate-600">
+              <th className="border-b border-ink-600 px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                 #
               </th>
               {view.columns.map((c) => (
                 <th
                   key={c}
-                  className={`whitespace-nowrap border-b border-ink-700 px-3 py-1.5 text-left font-medium ${
-                    derivedSet.has(c) ? "text-airlock-300" : "text-slate-300"
+                  className={`whitespace-nowrap border-b border-ink-600 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider ${
+                    derivedSet.has(c) ? "text-airlock-300" : "text-slate-400"
                   }`}
                 >
                   {redactedSet.has(c) && (
@@ -118,7 +118,7 @@ export function DataGrid() {
               return (
                 <tr
                   key={i}
-                  className={`border-b border-ink-850 hover:bg-ink-900 ${
+                  className={`border-b border-ink-850 transition-colors odd:bg-ink-900/40 hover:bg-ink-800/70 ${
                     flagged ? "bg-pending/[0.06]" : ""
                   }`}
                 >
@@ -148,9 +148,9 @@ export function DataGrid() {
           </tbody>
         </table>
       </div>
-      <div className="shrink-0 border-t border-ink-800 bg-ink-900 px-3 py-1.5 text-[11px] text-slate-500">
-        Showing {rows.length.toLocaleString()} of{" "}
-        {state.totalRows.toLocaleString()} matching rows
+      <div className="shrink-0 border-t border-ink-700 bg-ink-900 px-3 py-1.5 text-[11px] text-slate-500">
+        Showing <span className="text-slate-300">{rows.length.toLocaleString()}</span> of{" "}
+        <span className="text-slate-300">{state.totalRows.toLocaleString()}</span> matching rows
         {state.totalRows > MAX_RENDER && " · scroll cap 500"}
       </div>
     </div>

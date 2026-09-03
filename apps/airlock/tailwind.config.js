@@ -5,26 +5,32 @@ export default {
     extend: {
       colors: {
         ink: {
-          950: "#0a0c10",
-          900: "#0f1219",
-          850: "#12161f",
-          800: "#161b24",
-          700: "#1e2430",
-          600: "#2a3140",
-          500: "#3a4354",
+          // Control-room neutrals: cooler and more separated than before so
+          // nested surfaces (page < rail < card < popover) read as layers.
+          950: "#06090e",
+          900: "#0b0f16",
+          850: "#0f141c",
+          800: "#141a24",
+          700: "#1e2632",
+          600: "#2c3544",
+          500: "#3d4759",
         },
         airlock: {
-          // signal color: a calm, trustworthy teal-cyan for the "sealed" theme
-          300: "#7fe9dc",
-          400: "#3dd7c4",
-          500: "#17b3a3",
-          600: "#0e8d80",
-          700: "#0b6b62",
+          // signal color: a brighter, cleaner teal-cyan for the "sealed" theme
+          300: "#8df0e2",
+          400: "#4ce0cd",
+          500: "#1dbbac",
+          600: "#129488",
+          700: "#0d6f66",
         },
-        // semantic — each means exactly one thing
+        // semantic — each means exactly one thing (unchanged by the retheme)
         pending: "#f5a623", // a proposal awaiting human approval
         commit: "#3dd68c", // a change that has been applied
         danger: "#e5575c", // reject / destructive
+      },
+      boxShadow: {
+        lift: "0 10px 28px -14px rgb(0 0 0 / 0.65)",
+        glow: "0 0 26px -8px rgb(76 224 205 / 0.4)",
       },
       fontFamily: {
         mono: [

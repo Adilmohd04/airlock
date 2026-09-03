@@ -24,3 +24,10 @@ Thumbs.db
 # mirrored local-model weights — hundreds of MB, never committed.
 # Populate with: node scripts/fetch-models.mjs   (see the script header)
 apps/airlock/public/models/
+
+# mirrored Tesseract OCR language data — ~14 MB, never committed.
+# Populate with: node scripts/fetch-tessdata.mjs   (see the script header)
+apps/airlock/public/tessdata/
+
+# Netlify local deploy cache — regenerable
+apps/airlock/.netlify/

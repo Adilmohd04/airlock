@@ -22,6 +22,7 @@ const MIME = {
   ".json": "application/json",
   ".wasm": "application/wasm",
   ".bin": "application/octet-stream",
+  ".gz": "application/gzip",
   ".csv": "text/csv",
   ".png": "image/png",
   ".svg": "image/svg+xml",
@@ -41,10 +42,16 @@ createServer(async (req, res) => {
     try {
       body = await readFile(file);
     } catch {
-      // /models/* must 404 like production: WebLLM's probe distinguishes a
-      // real mirror from the SPA shell by content type — an HTML fallback
-      // here reads as a broken mirror (see runtime.ts probeHostedWeights).
-      if (rel === "/models" || rel.startsWith("/models/")) {
+      // /models/* and /tessdata/* must 404 like production: the runtimes
+      // distinguish a real mirror from the SPA shell by content type — an
+      // HTML fallback here reads as a broken mirror (see runtime.ts
+      // probeHostedWeights and lib/ocr.ts tessdata probe).
+      if (
+        rel === "/models" ||
+        rel.startsWith("/models/") ||
+        rel === "/tessdata" ||
+        rel.startsWith("/tessdata/")
+      ) {
         res.writeHead(404, { "Content-Type": "text/plain" }).end("not found");
         return;
       }

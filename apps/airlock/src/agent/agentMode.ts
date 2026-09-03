@@ -153,8 +153,10 @@ export function computeAvailability(
     return {
       available: false,
       reason:
-        "A connected AI host is already driving this page. Local mode can't run " +
-        "alongside it — disconnect that host to go fully on-device.",
+        "The WebMCP API is present in this browser — a connected AI host, or just " +
+        "the testing flag with no agent attached — so a host could call Airlock's " +
+        "tools at any time. Turn the testing flag off / disconnect that host and " +
+        "reload to go fully on-device.",
     };
   }
   if (!state.webgpu) {
@@ -193,7 +195,16 @@ export interface ModeBadge {
  * reads the live egress monitor. Here the local-running headline is
  * "Fully local · on-device model".
  */
-export function describeMode(state: AgentModeState): ModeBadge {
+export function describeMode(
+  state: AgentModeState,
+  opts?: { hasCalls?: boolean }
+): ModeBadge {
+  // Whether any tool has actually been called this session. The native flag
+  // means the WebMCP *API* is present (a real host, or just the testing flag
+  // with nothing attached) — not that a host is driving. Callers that can see
+  // the activity ledger pass hasCalls explicitly; default stays true so
+  // existing callers keep the established copy.
+  const hasCalls = opts?.hasCalls ?? true;
   // A native host can call any registered tool over its own channel regardless
   // of which mode is selected here (`tools.tsx` registers unconditionally).
   // Its presence is ground truth and always wins the status copy — otherwise
@@ -201,6 +212,17 @@ export function describeMode(state: AgentModeState): ModeBadge {
   // live connection behind an unrelated preference.
   if (state.host.kind === "native") {
     const n = state.host.name || GENERIC_HOST_NAME;
+    if (!hasCalls) {
+      return {
+        headline: "Cloud · no host calls yet",
+        detail:
+          `The WebMCP API is present in this browser — ${n} may be listening, ` +
+          `or it may be just the testing flag with nothing attached. No tool has ` +
+          `been called yet, so the ledger is empty and no queried slices have ` +
+          `gone anywhere. Open this page in a host (or press Refresh in the ` +
+          `WebMCP Inspector) and make a call; the ledger will record it.`,
+      };
+    }
     return {
       headline: `Cloud · ${n}`,
       detail:
@@ -277,14 +299,15 @@ export function describeMode(state: AgentModeState): ModeBadge {
  */
 export function measuredHeadline(
   state: AgentModeState,
-  egressClear: boolean
+  egressClear: boolean,
+  opts?: { hasCalls?: boolean }
 ): string {
   const localRunning =
     state.host.kind !== "native" &&
     state.mode === "local" &&
     (state.localModelStatus === "running" || state.localModelStatus === "ready");
   if (localRunning && egressClear) return "Fully local · 0 bytes out";
-  return describeMode(state).headline;
+  return describeMode(state, opts).headline;
 }
 
 /**

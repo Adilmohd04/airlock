@@ -19,7 +19,32 @@ import "./index.css";
 
 installEgressMonitor();
 
+/**
+ * Opt into Chrome's WebMCP origin trial when a token is supplied at build
+ * time (`VITE_WEBMCP_ORIGIN_TRIAL_TOKEN`). Without it, Chrome-stable has no
+ * WebMCP API and the app runs on the polyfill; with the testing flag or a
+ * native host, this is a no-op extra tag. The token is origin-bound and
+ * public by design — it carries no secret, so committing the *plumbing* is
+ * safe; the value itself stays in the deploy environment, never in git.
+ */
+function installOriginTrialToken(): void {
+  const token = import.meta.env.VITE_WEBMCP_ORIGIN_TRIAL_TOKEN as
+    | string
+    | undefined;
+  if (!token || document.querySelector('meta[http-equiv="origin-trial"]')) return;
+  const meta = document.createElement("meta");
+  meta.httpEquiv = "origin-trial";
+  meta.content = token;
+  document.head.append(meta);
+}
+
+installOriginTrialToken();
+
 async function bootstrap() {
+  // Presence of the API is NOT a connected host: with
+  // chrome://flags/#enable-webmcp-testing on, `modelContext` exists with zero
+  // agents attached. Status copy must key "connected" off actual tool calls
+  // (the activity ledger), never off this flag — see agentMode.describeMode.
   const hasNativeWebMCP =
     typeof document !== "undefined" &&
     "modelContext" in document &&

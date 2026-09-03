@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import { StagedAuthority } from "../authority";
+import { registerStagedTool } from "../core";
 import {
   toOpenAITools,
   toOpenAICommitTools,
@@ -134,14 +135,14 @@ describe("MCP adapter", () => {
     ]);
     expect(tools.find((t) => t.name === "propose_rename_column")!.annotations).toEqual({
       readOnlyHint: true,
+      untrustedContentHint: true,
     });
     expect(tools.find((t) => t.name === "commit_rename_column")!.annotations).toEqual({
       readOnlyHint: false,
     });
   });
 
-  it("propose -> commit flow preserves refusal and approval semantics", async () => {
-    const { authority, store } = makeAuthority();
+  it("propose -> commit flow preserves refusal and approval semantics", async () => {    const { authority, store } = makeAuthority();
     const staged = await callMcpTool(authority, "propose_rename_column", PROPOSAL_ARGS);
     expect(staged.isError).toBeUndefined();
     expect(staged.content[0]!.text).toContain("Staged proposal");
@@ -165,5 +166,34 @@ describe("MCP adapter", () => {
     // commit with no proposalId in arguments -> "No proposal ." refusal.
     const noArgs = await callMcpTool(authority, "commit_rename_column", undefined);
     expect(noArgs.isError).toBe(true);
+  });
+});
+
+describe("registration robustness", () => {
+  const CONFIG = {
+    name: "rename_column",
+    description: "Rename a column.",
+    inputSchema: { type: "object", properties: {} },
+    prepare: () => ({ summary: "s", preview: {} }),
+    commit: () => "done",
+  };
+
+  it("tolerates hosts/fakes whose registerTool returns undefined", () => {
+    const mc = { registerTool: () => undefined };
+    expect(() =>
+      registerStagedTool(CONFIG, { mc: mc as never })
+    ).not.toThrow();
+  });
+
+  it("swallows AbortError rejections (effect-cleanup unregisters)", async () => {
+    const mc = {
+      registerTool: () =>
+        Promise.reject(new DOMException("tool unregistered", "AbortError")),
+    };
+    expect(() =>
+      registerStagedTool(CONFIG, { mc: mc as never })
+    ).not.toThrow();
+    // Let the tracked rejection settle — an unhandled rejection would fail the run.
+    await new Promise((r) => setTimeout(r, 10));
   });
 });

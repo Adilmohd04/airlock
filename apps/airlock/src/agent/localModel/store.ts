@@ -47,9 +47,15 @@
 import {
   DEFAULT_MODEL_ID,
   DEPLOY_DEFAULT_MODEL_ID,
+  customModelId,
   getModel,
   isLocalModelId,
   LOCAL_MODELS,
+  readCustomModels,
+  removeCustomModel as persistRemoveCustom,
+  saveCustomModel as persistSaveCustom,
+  validateCustomModel,
+  type CustomModelEntry,
   type LocalModelId,
 } from "./models";
 import {
@@ -120,6 +126,10 @@ export interface LocalModelState {
    * `running` — the model is loaded either way; this is about the turn.
    */
   generating: boolean;
+  /** User-supplied models (localStorage). Driven via downloadCustom*, never the catalog path. */
+  customModels: CustomModelEntry[];
+  /** Label of the custom model on the GPU (status `running`), else null. */
+  customActiveLabel: string | null;
 }
 
 type Listener = () => void;
@@ -219,6 +229,8 @@ export class LocalModelStore {
       hardware: null,
       cache: { bytesOnDisk: null, cachedModelIds: [] },
       generating: false,
+      customModels: readCustomModels(),
+      customActiveLabel: null,
     };
     this.snapshot = { ...this.state };
   }
@@ -581,6 +593,7 @@ export class LocalModelStore {
     this.set({
       status: noGpu ? "unavailable" : "ready",
       activeModelId: null,
+      customActiveLabel: null,
       generating: false,
       progress: null,
     });
@@ -654,6 +667,127 @@ export class LocalModelStore {
     const cachedModelIds = await this.listCached();
     const bytesOnDisk = await this.measureCache();
     this.set({ cache: { bytesOnDisk, cachedModelIds } });
+  }
+
+  // ── User-supplied models ────────────────────────────────────────────────
+  // Parallel to the catalog path, deliberately separate: custom weights are
+  // external-by-definition (consented, egress-counted, then cached offline),
+  // so they never flow through the mirror probe or `assertSameOrigin`.
+
+  /** Validate + persist a user-supplied model. Throws UI-safe copy. */
+  addCustomModel(input: { label: string; modelUrl: string; libUrl: string }): void {
+    const entry = validateCustomModel(input);
+    this.set({ customModels: persistSaveCustom(entry), error: null });
+  }
+
+  /** Forget a custom model and delete its cached weights. */
+  async removeCustomModel(label: string): Promise<void> {
+    const entry = this.state.customModels.find((e) => e.label === label);
+    if (this.state.customActiveLabel === label) await this.unload();
+    if (entry) {
+      try {
+        await this.adapter.deleteCustomWeights?.(entry.modelUrl, entry.libUrl);
+      } catch {
+        /* a half-present cache deletes best-effort */
+      }
+    }
+    this.set({
+      customModels: persistRemoveCustom(label),
+      customActiveLabel:
+        this.state.customActiveLabel === label ? null : this.state.customActiveLabel,
+    });
+    void this.refreshCacheOnly();
+  }
+
+  /**
+   * Fetch a custom model's weights (one external, consented download — the
+   * egress monitor counts it, so the Seal shows it) and bring it onto the
+   * GPU. Ends at `running` with `customActiveLabel` set. Cached shards are
+   * skipped, so re-load after the first download is offline.
+   */
+  async downloadCustom(label: string): Promise<void> {
+    const entry = this.state.customModels.find((e) => e.label === label);
+    if (!entry) {
+      this.set({ status: "error", error: `Unknown custom model "${label}".` });
+      return;
+    }
+    if (this.state.hardware === null) await this.refresh();
+    if (!this.state.hardware?.available) {
+      this.set({
+        status: "error",
+        error: "Local mode needs WebGPU — try a recent Chrome or Edge on desktop.",
+      });
+      return;
+    }
+    const s = this.state.status;
+    if (s === "downloading" || s === "running") return;
+
+    const id = customModelId(entry.label) as unknown as LocalModelId;
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    this.abort = controller;
+    this.set({
+      status: "downloading",
+      error: null,
+      customActiveLabel: null,
+      progress: {
+        fraction: 0,
+        loadedBytes: 0,
+        totalBytes: 0,
+        label: `Fetching ${entry.label} (external, one-time)…`,
+        fetching: true,
+        elapsedMs: 0,
+      },
+    });
+
+    try {
+      const engine = await this.adapter.load({
+        modelId: id,
+        signal: controller.signal,
+        custom: { modelUrl: entry.modelUrl, libUrl: entry.libUrl, contextWindow: 4096 },
+        onProgress: (p) => {
+          if (this.abort !== controller) return;
+          const fraction = Number.isFinite(p.progress) ? p.progress : 0;
+          this.set({
+            progress: {
+              fraction,
+              loadedBytes: 0,
+              totalBytes: 0,
+              label: p.text,
+              fetching: p.fetching,
+              elapsedMs: Date.now() - startedAt,
+            },
+          });
+        },
+      });
+      this.engine = engine;
+      this.set({
+        status: "running",
+        activeModelId: id,
+        customActiveLabel: entry.label,
+        progress: null,
+        partialBytes: 0,
+        error: null,
+      });
+      void this.refreshCacheOnly();
+    } catch (err) {
+      this.engine = null;
+      const aborted = err instanceof LoadAbortedError || controller.signal.aborted;
+      if (aborted) {
+        this.set({ status: "not-downloaded", activeModelId: null, customActiveLabel: null, progress: null });
+      } else {
+        this.set({
+          status: "error",
+          activeModelId: null,
+          customActiveLabel: null,
+          progress: null,
+          error: messageOf(err),
+        });
+      }
+      void this.refreshCacheOnly();
+    } finally {
+      if (this.abort === controller) this.abort = null;
+    }
   }
 
   /**

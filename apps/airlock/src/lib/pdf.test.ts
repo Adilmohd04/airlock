@@ -26,7 +26,7 @@ describe("format detection accepts documents", () => {
   });
 
   it("still rejects unknown types honestly", () => {
-    expect(detectFormat("photo.png")).toBeNull();
+    expect(detectFormat("archive.zip")).toBeNull();
   });
 });
 

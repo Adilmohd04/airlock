@@ -12,7 +12,7 @@ const DEMOS = [
   { url: "/demo/headcount.csv", name: "headcount.csv", label: "Headcount & managers (for the join demo)" },
 ];
 
-const ACCEPT = ".csv,.tsv,.json,.parquet,.pdf,.md,.log,text/csv,application/pdf";
+const ACCEPT = ".csv,.tsv,.json,.parquet,.pdf,.docx,.png,.jpg,.jpeg,.webp,.bmp,.gif,.md,.log,text/csv,application/pdf,image/png,image/jpeg,image/webp";
 
 export function FileDrop({ compact = false }: { compact?: boolean }) {
   const [busy, setBusy] = useState(false);
@@ -88,9 +88,9 @@ export function FileDrop({ compact = false }: { compact?: boolean }) {
         }}
         onClick={() => inputRef.current?.click()}
         tabIndex={0}
-        className={`cursor-pointer rounded-xl border border-dashed px-6 text-center outline-none transition-colors focus-visible:border-airlock-400 ${
+        className={`cursor-pointer rounded-2xl border border-dashed px-6 text-center shadow-lift outline-none transition-all focus-visible:border-airlock-400 ${
           compact ? "py-4" : "py-10"
-        } ${over ? "border-airlock-400 bg-airlock-700/10" : "border-ink-600 hover:border-ink-500 hover:bg-ink-900"}`}
+        } ${over ? "border-airlock-400 bg-airlock-700/10 shadow-glow" : "border-ink-500 bg-ink-900/60 hover:border-ink-500 hover:bg-ink-850"}`}
       >
         <input
           ref={inputRef}
@@ -105,10 +105,10 @@ export function FileDrop({ compact = false }: { compact?: boolean }) {
         ) : (
           <>
             <p className={`font-medium text-slate-200 ${compact ? "text-sm" : ""}`}>
-              Drop a CSV, TSV, JSON or Parquet file
+              Drop a CSV, TSV, JSON, Parquet, PDF, DOCX or image file
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              Or click to browse, or paste table data. Read in this tab. Never uploaded.
+              Or click to browse, or paste table data. PDF/DOCX extract as text tables, images OCR on-device. Read in this tab. Never uploaded.
             </p>
           </>
         )}
