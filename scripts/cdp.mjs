@@ -4,6 +4,7 @@
  *
  *   node scripts/cdp.mjs '<js expression>'              # evaluate in the app tab
  *   node scripts/cdp.mjs --url <substr> '<expr>'        # pick tab by URL substring
+ *   node scripts/cdp.mjs shot <out.png> [url-substr]    # viewport screenshot
  *   node scripts/cdp.mjs --raw '<cdp json>'             # raw CDP command
  */
 import net from "node:net";
@@ -103,7 +104,13 @@ const pages = await fetch("http://127.0.0.1:9222/json").then((r) => r.json());
 let target;
 let expr;
 const argv = process.argv.slice(2);
-if (argv[0] === "--url") {
+// node scripts/cdp.mjs shot <out.png> [url-substr]
+let shotOut = null;
+if (argv[0] === "shot") {
+  shotOut = argv[1];
+  const sub = argv[2] ?? "4173";
+  target = pages.find((p) => p.type === "page" && p.url.includes(sub));
+} else if (argv[0] === "--url") {
   target = pages.find((p) => p.type === "page" && p.url.includes(argv[1]));
   expr = argv[2];
 } else {
@@ -122,9 +129,13 @@ if (!target) {
 
 const ws = await wsConnect(target.webSocketDebuggerUrl);
 const id = 1;
-ws.send({ id, method: "Runtime.evaluate", params: {
-  expression: expr, awaitPromise: true, returnByValue: true, userGesture: true,
-} });
+if (shotOut) {
+  ws.send({ id, method: "Page.captureScreenshot", params: { format: "png" } });
+} else {
+  ws.send({ id, method: "Runtime.evaluate", params: {
+    expression: expr, awaitPromise: true, returnByValue: true, userGesture: true,
+  } });
+}
 const msg = await new Promise((res, rej) => {
   const check = () => {
     const m = ws.messages.find((x) => x.id === id);
@@ -135,6 +146,18 @@ const msg = await new Promise((res, rej) => {
   setTimeout(() => rej(new Error("cdp timeout")), 120000);
 });
 ws.close();
+if (shotOut) {
+  if (msg.error) {
+    console.error("CDP ERROR:", JSON.stringify(msg.error).slice(0, 300));
+    process.exit(1);
+  }
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(shotOut, Buffer.from(msg.result?.data ?? "", "base64"));
+  // Screenshots render at the device pixel ratio (1.5 on the reference
+  // machine): divide pixel dims by DPR for CSS px in Input dispatches.
+  console.log("wrote " + shotOut);
+  process.exit(0);
+}
 if (msg.result?.exceptionDetails) {
   console.error("PAGE ERROR:", JSON.stringify(msg.result.exceptionDetails).slice(0, 800));
   process.exit(1);
