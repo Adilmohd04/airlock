@@ -275,6 +275,13 @@ class WorkspaceStore {
       } catch {
         throw new Error("That PDF could not be parsed (is it password-protected?)");
       }
+      if (extracted.pages === 0 || extracted.csv.trim().split("\n").length < 2) {
+        throw new Error(
+          extracted.emptyPages.length > 0
+            ? "That PDF has no readable text (scanned image-only pages carry none) — nothing to import."
+            : "That PDF contained no readable text — nothing to import."
+        );
+      }
       await registerCsv(tableName, extracted.csv);
       return { kind: "csv", text: extracted.csv };
     }
