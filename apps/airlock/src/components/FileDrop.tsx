@@ -1,11 +1,11 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   loadDemo as loadDemoDataset,
   loadFile as loadFileDataset,
   loadPastedText,
   pickLocalFile,
 } from "../engine/loadFile";
-import { sniffDelimiter } from "../lib/importFormats";
+import { looksTabularText, sniffDelimiter } from "../lib/importFormats";
 
 const DEMOS = [
   { url: "/demo/compensation.csv", name: "compensation.csv", label: "Compensation review (812 employees)" },
@@ -66,6 +66,32 @@ export function FileDrop({ compact = false }: { compact?: boolean }) {
 
   const pasteGuess = pasteText.trim() ? sniffDelimiter(pasteText) : null;
 
+  // Table-shaped clipboard paste imports from anywhere on the page, not just the
+  // dropzone: the copy promises "paste data", and focus is rarely on the zone
+  // when a spreadsheet is copied. Editable fields keep their own paste, so the
+  // filter box, goal box and paste textarea are never hijacked.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (
+        t.tagName === "INPUT" ||
+        t.tagName === "TEXTAREA" ||
+        t.tagName === "SELECT" ||
+        t.isContentEditable
+      ) {
+        return;
+      }
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      if (looksTabularText(text)) {
+        e.preventDefault();
+        importPaste(text);
+      }
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [importPaste]);
+
   return (
     <div className={compact ? "" : "w-full max-w-lg"}>
       <div
@@ -78,13 +104,6 @@ export function FileDrop({ compact = false }: { compact?: boolean }) {
           e.preventDefault();
           setOver(false);
           void handleFiles(e.dataTransfer.files);
-        }}
-        onPaste={(e) => {
-          const text = e.clipboardData.getData("text/plain");
-          if (text.trim()) {
-            e.preventDefault();
-            importPaste(text);
-          }
         }}
         onClick={() => inputRef.current?.click()}
         tabIndex={0}

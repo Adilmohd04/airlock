@@ -139,3 +139,13 @@ export function sniffDelimiter(sample: string): DelimiterGuess {
 
   return best ?? { delimiter: ",", label: "comma", columns: 1, consistent: true };
 }
+
+/**
+ * Gate for the global clipboard-paste import: table-shaped paste (spreadsheet
+ * or CSV rows) always carries tabs or line breaks, while plain prose and URLs
+ * don't — so a window-level paste listener can import the former everywhere and
+ * never hijack the latter.
+ */
+export function looksTabularText(text: string): boolean {
+  return /[\t\r\n]/.test(text);
+}

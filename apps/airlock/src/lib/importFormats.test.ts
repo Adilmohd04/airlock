@@ -8,6 +8,7 @@ import {
   BINARY_FORMATS,
   detectFormat,
   fileExtension,
+  looksTabularText,
   sniffDelimiter,
 } from "./importFormats";
 
@@ -118,5 +119,25 @@ describe("sniffDelimiter", () => {
     const g = sniffDelimiter("a\tb\n\n1\t2\n\n3\t4\n");
     expect(g.delimiter).toBe("\t");
     expect(g.consistent).toBe(true);
+  });
+});
+
+describe("looksTabularText", () => {
+  it("accepts tab-separated spreadsheet rows", () => {
+    expect(looksTabularText("name\tbase_salary\nAda\t120000")).toBe(true);
+  });
+
+  it("accepts newline-separated rows", () => {
+    expect(looksTabularText("Ada\nBob\nCara")).toBe(true);
+  });
+
+  it("rejects plain prose and URLs", () => {
+    expect(looksTabularText("hello world")).toBe(false);
+    expect(looksTabularText("https://example.com/a/b?q=1")).toBe(false);
+  });
+
+  it("rejects empty and whitespace-only input", () => {
+    expect(looksTabularText("")).toBe(false);
+    expect(looksTabularText("   ")).toBe(false);
   });
 });
