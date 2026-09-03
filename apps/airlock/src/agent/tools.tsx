@@ -111,6 +111,24 @@ function guardRedaction(sql: string): void {
   assertNoRedactedColumns(sql, ids);
 }
 
+/**
+ * assertExpression, but with the rule small models keep tripping on spelled
+ * out: `where`/`expression` is ONE boolean/scalar expression — GROUP BY,
+ * ORDER BY and LIMIT live in run_sql's `query`, never here. Without the hint
+ * the model retries the same bad fragment until the step cap.
+ */
+function checkFragment(fragment: string): void {
+  try {
+    assertExpression(fragment);
+  } catch (e) {
+    throw new Error(
+      `${e instanceof Error ? e.message : String(e)} ` +
+        `(The where/expression must be ONE expression only — no SELECT, GROUP BY, ` +
+        `ORDER BY or LIMIT. Example: base_salary < market_median * 0.85.)`
+    );
+  }
+}
+
 /** Drop any result column that matches a redacted identifier (final safety net). */
 function scrubRedactedColumns(
   columns: string[],
@@ -291,7 +309,7 @@ export function useAirlockTools(): void {
         {
           name: "profile_column",
           description:
-            "Full profile of one column: type, non-null count, nulls, distinct count, numeric min/max/mean, and up to 5 example values. A redacted column returns shape only (count / nulls / distinct) — no min/max, no examples.",
+            "Full profile of one column: type, non-null count, nulls, distinct count, numeric min/max/mean, and up to 5 example values. Pass the column as `column` (`column_name` also works). A redacted column returns shape only (count / nulls / distinct) — no min/max, no examples.",
           inputSchema: {
             type: "object",
             properties: {
@@ -301,7 +319,10 @@ export function useAirlockTools(): void {
           },
           annotations: { readOnlyHint: true, untrustedContentHint: true },
           execute: (input) => {
-            const column = String((input as { column?: unknown }).column ?? "");
+            // Small models often send `column_name`; accept it rather than
+            // burning a turn on a schema lecture.
+            const args = input as { column?: unknown; column_name?: unknown; name?: unknown };
+            const column = String(args.column ?? args.column_name ?? args.name ?? "");
             return read("profile_column", { column }, async () => {
               const store = activeStore();
               const st = store.getState();
@@ -362,7 +383,7 @@ export function useAirlockTools(): void {
               // from one are already gone before the query runs.
               let sql = store.buildAgentViewSql();
               if (where) {
-                assertExpression(where);
+                checkFragment(where);
                 guardRedaction(where);
                 sql = `SELECT * FROM (${sql}) WHERE (${where})`;
               }
@@ -603,7 +624,7 @@ export function useAirlockTools(): void {
         required: ["expression"],
       },
       prepare: async ({ expression, label }) => {
-        assertExpression(expression);
+        checkFragment(expression);
         guardRedaction(expression);
         const store = activeStore();
         const st = store.getState();
@@ -721,7 +742,7 @@ export function useAirlockTools(): void {
         required: ["name", "expression"],
       },
       prepare: async ({ name, expression }) => {
-        assertExpression(expression);
+        checkFragment(expression);
         guardRedaction(expression);
         const store = activeStore();
         const st = store.getState();
@@ -909,7 +930,7 @@ export function useAirlockTools(): void {
         required: ["where", "reason"],
       },
       prepare: async ({ where, reason }) => {
-        assertExpression(where);
+        checkFragment(where);
         guardRedaction(where);
         const store = activeStore();
         const st = store.getState();

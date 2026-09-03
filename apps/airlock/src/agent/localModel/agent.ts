@@ -278,10 +278,17 @@ export class LocalAgent {
     let malformed = 0;
     // Small models loop: they re-call the same read tool because the context
     // window dropped the evidence they already have it. Track recent call
-    // signatures and how many reads have gone by without an action, and push
-    // back before executing a repeat or letting the model stall.
+    // signatures (and each one's result) so a blocked repeat can be answered
+    // with the data instead of a bare "you already did this" — a stuck model
+    // otherwise invents a false reason ("gender is not a column") to justify
+    // the loop.
     const recentCalls: string[] = [];
+    const lastResultFor = new Map<string, string>();
     let readsSinceAction = 0;
+    // Consecutive blocked repeats. Corrections alone don't redirect a stuck
+    // small model (seen: 10 identical list_columns against the same notice),
+    // so the third consecutive block fails fast instead of burning the cap.
+    let blockedStreak = 0;
 
     for (let step = 0; step < this.state.stepCap; step++) {
       if (this.aborted) return;
@@ -379,14 +386,26 @@ export class LocalAgent {
           tool: toolName,
           text: `Already called ${toolName} — skipping the repeat.`,
         });
+        const cached = lastResultFor.get(sig);
         history.push({
           role: "user",
           content:
-            `You already called ${toolName} with those arguments and its result is above. ` +
-            `Do not call it again. The goal is: ${goal}\n` +
-            `You have enough to act — call a propose_* tool now, or give final_answer.`,
+            `You already called ${toolName} with those arguments. Its result was:\n` +
+            `${cached ? clip(cached, 900) : "(see above)"}\n\n` +
+            `That is the answer — do not call it again, and do not claim it returned ` +
+            `something it didn't. The goal is: ${goal}\n` +
+            `Act now: call a propose_* tool, or give final_answer.`,
         });
         readsSinceAction++;
+        blockedStreak++;
+        if (blockedStreak >= 3) {
+          this.push({
+            kind: "error",
+            text: "Stopping: the same call was repeated after three corrections. The dataset may lack a needed column — try a narrower goal, or the 3B model.",
+          });
+          this.set({ status: "error" });
+          return;
+        }
         continue;
       }
 
@@ -402,13 +421,23 @@ export class LocalAgent {
 
       if (outcome.error) {
         this.push({ kind: "tool-result", tool: toolName, text: `Error: ${outcome.error}` });
-        history.push({ role: "user", content: `Tool ${toolName} failed: ${outcome.error}` });
+        history.push({
+          role: "user",
+          content:
+            `Tool ${toolName} failed: ${outcome.error}\n` +
+            `Fix the arguments and try a DIFFERENT call. You may re-run a read tool ` +
+            `now to recover — the repeat guard is cleared after an error.`,
+        });
+        // An error means the model needs to re-orient; let it re-read.
+        recentCalls.length = 0;
+        blockedStreak = 0;
         continue;
       }
 
       // A propose_* call: staged a diff. Stop and wait for the human.
       if (isPropose && outcome.proposalId) {
         readsSinceAction = 0;
+        blockedStreak = 0;
         const summary = outcome.summary || "change";
         this.push({
           kind: "waiting",
@@ -441,7 +470,9 @@ export class LocalAgent {
       // A read tool: feed the (summarized) result back.
       recentCalls.push(sig);
       readsSinceAction++;
+      blockedStreak = 0;
       const resultText = clip(outcome.text ?? "(no output)", MAX_RESULT_CHARS);
+      lastResultFor.set(sig, resultText);
       this.push({ kind: "tool-result", tool: toolName, text: resultText });
       history.push({ role: "user", content: `Result of ${toolName}:\n${resultText}` });
 
