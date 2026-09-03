@@ -46,6 +46,7 @@
 
 import {
   DEFAULT_MODEL_ID,
+  DEPLOY_DEFAULT_MODEL_ID,
   getModel,
   isLocalModelId,
   LOCAL_MODELS,
@@ -259,7 +260,7 @@ export class LocalModelStore {
 
     const cachedModelIds = await this.listCached();
     const bytesOnDisk = await this.measureCache();
-    const id = this.state.selectedModelId;
+    let id = this.state.selectedModelId;
     const cached = cachedModelIds.includes(id);
 
     let blocker: LocalModelBlocker = "none";
@@ -267,7 +268,31 @@ export class LocalModelStore {
     if (!cached) {
       // Only ask the network when we have to. A browser that already holds the
       // weights must stay usable with the network off.
-      const hosting = await this.adapter.probeHosted(id);
+      let hosting = await this.adapter.probeHosted(id);
+      if (!hosting.hosted) {
+        // The selected model is not mirrored on this deployment. A mirror of a
+        // DIFFERENT catalog model (the deploy default, usually) must not read
+        // as "local is impossible" — fall back to one that is actually hosted
+        // before declaring local mode dead. Each probe is one small manifest
+        // GET; a deployment hosting nothing pays four of them, once.
+        const others = [
+          DEPLOY_DEFAULT_MODEL_ID,
+          ...LOCAL_MODELS.map((m) => m.id).filter(
+            (x) => x !== id && x !== DEPLOY_DEFAULT_MODEL_ID
+          ),
+        ];
+        for (const candidate of others) {
+          if (candidate === id) continue;
+          const alt = await this.adapter.probeHosted(candidate);
+          if (alt.hosted) {
+            writeSelection(candidate);
+            id = candidate;
+            this.set({ selectedModelId: id });
+            hosting = alt;
+            break;
+          }
+        }
+      }
       if (hosting.manifest) {
         this.mirrorBytes.set(
           id,

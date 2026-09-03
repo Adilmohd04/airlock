@@ -57,8 +57,11 @@ import {
 
 /** Max model turns per run before we stop and report. */
 const DEFAULT_STEP_CAP = 12;
-/** Per-turn wall-clock budget. A small model on a slow GPU is still well under. */
-const STEP_DEADLINE_MS = 90_000;
+/** Per-turn wall-clock budget. Measured on an Intel gen-12lp iGPU (~5-10 tok/s
+ * for a 1.5B q4f16), a full 640-token turn can approach two minutes — the old
+ * 90s deadline aborted turns mid-JSON and read as "malformed output". Slow
+ * iGPUs are exactly the hardware god mode targets, so the budget assumes them. */
+const STEP_DEADLINE_MS = 240_000;
 /** How many malformed turns in a row we tolerate before giving up. */
 const MAX_MALFORMED_RETRIES = 2;
 /** Longest tool-result text we replay verbatim; longer is truncated (context). */

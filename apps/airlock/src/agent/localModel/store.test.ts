@@ -10,7 +10,12 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { LocalModelStore, toAgentModeStatus, type LocalModelStatus } from "./store";
-import { DEFAULT_MODEL_ID, LOCAL_MODELS, type LocalModelId } from "./models";
+import {
+  DEFAULT_MODEL_ID,
+  DEPLOY_DEFAULT_MODEL_ID,
+  LOCAL_MODELS,
+  type LocalModelId,
+} from "./models";
 import {
   LoadAbortedError,
   type GpuReport,
@@ -76,6 +81,8 @@ function deferred<T>() {
 class FakeAdapter implements LocalRuntimeAdapter {
   gpu: GpuReport = GOOD_GPU;
   hosting: HostingReport = HOSTED;
+  /** Per-model override; wins over `hosting` when set for that id. */
+  hostingByModel: Map<LocalModelId, HostingReport> | null = null;
   cachedIds = new Set<LocalModelId>();
   bytes: number | null = 0;
   /** Hold `load()` open so a cancel can be observed mid-flight. */
@@ -84,7 +91,9 @@ class FakeAdapter implements LocalRuntimeAdapter {
   lastLoad: LoadOptions | null = null;
 
   detectGpu = vi.fn(async () => this.gpu);
-  probeHosted = vi.fn(async () => this.hosting);
+  probeHosted = vi.fn(async (id: LocalModelId) =>
+    this.hostingByModel?.get(id) ?? this.hosting
+  );
   isCached = vi.fn(async (id: LocalModelId) => this.cachedIds.has(id));
   deleteWeights = vi.fn(async (id: LocalModelId) => {
     this.cachedIds.delete(id);
@@ -223,6 +232,33 @@ describe("refresh", () => {
     expect(s.unavailableReason).toMatch(/does not host/);
     // The GPU is fine — the UI must be able to say so.
     expect(s.hardware?.available).toBe(true);
+  });
+
+  it("falls back to a hosted catalog model when the selected mirror is absent", async () => {
+    // The deployment mirrors the deploy default (1.5B), not the UI default (3B).
+    const { store, adapter } = makeStore((a) => {
+      a.hostingByModel = new Map([
+        [DEFAULT_MODEL_ID, NOT_HOSTED],
+        [DEPLOY_DEFAULT_MODEL_ID, { ...HOSTED, manifest: { ...HOSTED.manifest!, modelId: DEPLOY_DEFAULT_MODEL_ID } }],
+      ]);
+    });
+    await store.refresh();
+    const st = store.getState();
+    expect(st.selectedModelId).toBe(DEPLOY_DEFAULT_MODEL_ID);
+    expect(st.blocker).toBe("none");
+    expect(st.status).toBe("not-downloaded");
+    expect(st.unavailableReason).toBeNull();
+    expect(adapter.probeHosted).toHaveBeenCalledTimes(2);
+  });
+
+  it("stays unavailable when NO catalog model is hosted", async () => {
+    const { store } = makeStore((a) => {
+      a.hostingByModel = new Map(LOCAL_MODELS.map((m) => [m.id, NOT_HOSTED]));
+    });
+    await store.refresh();
+    const st = store.getState();
+    expect(st.status).toBe("unavailable");
+    expect(st.blocker).toBe("no-weights-hosted");
   });
 
   it("shares one probe between concurrent callers", async () => {
