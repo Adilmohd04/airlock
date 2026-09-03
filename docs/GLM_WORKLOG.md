@@ -284,3 +284,66 @@ regression tests.
 
 See `docs/GLM_HANDOFF.md` — written for the next agent (Claude), includes the
 divergence-reconciliation recipe and the remaining demo steps.
+
+---
+
+## [2026-09-03] Claude — reconciliation, TopBar fix, local-agent JSON robustness
+
+**What I did**
+
+1. **Reconciled the diverged lines and pushed.** `main` had diverged from
+   `origin/main` (a parallel dispatcher session merged the mission line, ran
+   `/code-review high` → fixed a critical `verify.html` XSS + 3 local-model bugs,
+   added real browser verification). Merged `origin/main` in: took origin's
+   `store.ts`/`store.test.ts` (superset — epoch-counter concurrency fix), kept
+   local's `agent.ts` STEP_DEADLINE bump; the two combined cleanly. Also landed
+   GLM's two demo-defect fixes (`b3b780b`). `main` == `origin/main`, pushed.
+
+2. **Fixed the TopBar overflow** (`a702365`). The 48px status bar wrapped to 3
+   stacked rows at ≤1440px — no `whitespace-nowrap`/`shrink-0` guards on the
+   wordmark + tagline + 3 status pills + dataset facts + 3 buttons. className-only
+   fix: nowrap every pill, tagline only shows ≥1600px + truncates, dataset
+   filename truncates. Verified headless at 1280 and 1440 — clean single row.
+
+3. **Fixed the local agent dead-ending on JSON shape** (`242cf71`). The 1.5B
+   deploy-default kept killing the run with "output wasn't valid JSON" — it emits
+   the right data in the wrong shape and `parseTurn` only took the exact schema.
+   Now recovers: **flattened arguments** (args as siblings of `tool` — the #1
+   small-model mistake, previously dropped them), key aliases (`name`/`action`
+   for tool, `args`/`params` for arguments, `reason` for reasoning, `final`/
+   `summary` for final_answer), stringified args objects, `<think>` blocks,
+   fences, array wrappers, and token-cap-truncated turns (close braces, salvage
+   the tool name). Loop: `maxTokens` 640→1024, malformed tolerance 2→4, and
+   after 2 malformed it drops the strict JSON schema for plain `json_object`
+   (an XGrammar-unhold­able schema yields worse output than a loose one). +12
+   tests. 495 airlock + webmcp-staged green.
+
+**Gate results:** typecheck clean, build clean, 495 airlock tests + 29
+webmcp-staged, `npm audit --omit=dev` clean.
+
+**What I learned**
+
+- Only the **1.5B is mirrored** in `apps/airlock/public/models/`. That is the
+  weakest catalog model and the one that breaks JSON shape. `node
+  scripts/fetch-models.mjs` (no flag = the 3B) mirrors the better one; the UI
+  default is already the 3B, it just needs the weights on disk / the deploy.
+- This sandbox has **no external network** (proxy 403 on CONNECT) — cannot
+  mirror models, cannot deploy, cannot reach the live URL. Those steps are
+  dev-box only.
+- A parallel session is mid-flight on **DOCX + OCR import** (`lib/docx.ts`,
+  `lib/ocr.ts`, tessdata) — uncommitted in the primary worktree. Its drop-zone
+  copy ("…PDF, DOCX or image file") is already live on the dev server. Left
+  entirely alone.
+
+**State:** `main` @ `242cf71`, pushed, == `origin/main`. Dev server running on
+`localhost:5173` with all three fixes (HMR'd). TopBar branch `fix/topbar-overflow`
+and agent branch `fix/local-agent-json-robustness` both merged, can be deleted.
+
+**Still not done** (unchanged from GLM_HANDOFF.md): one complete god-mode run
+recorded on camera + attestation exported/verified; redeploy with the fixes;
+`docs/SAA_WHITEPAPER.md` (Task 4); BYO-endpoint wiring; Devpost form.
+
+**For the next run:** mirror the 3B (`node scripts/fetch-models.mjs`), serve on
+`127.0.0.1` (not localhost) via `node scripts/serve-dist.mjs`, and the pay-gap
+demo should now complete — the JSON-shape wall is gone and the 3B is a far more
+reliable tool caller than the 1.5B.
