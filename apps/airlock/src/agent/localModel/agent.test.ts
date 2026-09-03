@@ -13,6 +13,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { defaultProposalStore, type Proposal } from "webmcp-staged";
+import { activityLog } from "../activity";
 import { LocalAgent } from "./agent";
 import { parseTurn } from "./systemPrompt";
 import type {
@@ -294,6 +295,34 @@ describe("LocalAgent loop", () => {
     // The commit tool was never actually executed.
     expect(calls.some((c) => c.name === "commit_flag_rows")).toBe(false);
     expect(agent.getState().status).toBe("done");
+  });
+
+  it("logs a hallucinated commit_*/reject_* attempt to activityLog as denied", async () => {
+    // A hallucinated commit call never reaches mc.executeTool (it's
+    // intercepted before that), so nothing else would append to the
+    // ledger — but attestation.ts's disclosure.denied count reads
+    // straight from activityLog, and the same class of denial from a
+    // cloud host or the manual console IS logged there.
+    activityLog.clear();
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    const mc = makeMc({
+      tools: [...READ_TOOLS, PROPOSE_TOOL, COMMIT_TOOL],
+      calls,
+      onExecute: () => ({ content: [{ type: "text", text: "ok" }] }),
+    });
+    const model = new FakeModel([
+      '{"reasoning":"cheat","tool":"commit_flag_rows","arguments":{"proposalId":"x"}}',
+      '{"reasoning":"ok","final_answer":"Fine."}',
+    ]);
+    const agent = new LocalAgent(model as never, () => mc as never);
+
+    await agent.run("try to commit");
+
+    const denied = activityLog.list().filter((e) => e.kind === "denied");
+    expect(denied).toHaveLength(1);
+    expect(denied[0].tool).toBe("commit_flag_rows");
+    expect(denied[0].args).toEqual({ proposalId: "x" });
+    activityLog.clear();
   });
 
   it("errors cleanly when the model is not loaded", async () => {

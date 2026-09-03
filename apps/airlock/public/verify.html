@@ -156,6 +156,14 @@ async function verifyChain(receipts) {
   return results;
 }
 
+// Every value below comes from the dropped receipt file — untrusted by
+// definition, since this page exists specifically to be run by a third
+// party (an auditor, a counterparty) against a file someone else handed
+// them. Escape before it ever reaches innerHTML.
+function esc(s) {
+  return String(s).replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c]));
+}
+
 function render(results) {
   const el = document.getElementById("result");
   const allOk = results.every((r) => r.ok);
@@ -168,9 +176,9 @@ function render(results) {
     "</div>");
 
   results.forEach((r, i) => {
-    if (results.length > 1) parts.push("<h3>Receipt " + (i + 1) + "</h3>");
+    if (results.length > 1) parts.push("<h3>Receipt " + esc(i + 1) + "</h3>");
     parts.push('<ul class="checks">' +
-      r.checks.map((c) => '<li class="' + (c.pass ? "pass" : "fail") + '">' + c.label + "</li>").join("") +
+      r.checks.map((c) => '<li class="' + (c.pass ? "pass" : "fail") + '">' + esc(c.label) + "</li>").join("") +
       "</ul>");
     const b = r.body;
     if (b) {
@@ -183,15 +191,20 @@ function render(results) {
         row("Agent modes", (b.agent && b.agent.modes || []).join(", ") || "—") +
         row("Rows disclosed", b.disclosure && b.disclosure.rowsDisclosed) +
         row("External egress", b.egress && (b.egress.externalRequests + " request(s), " + b.egress.bytesSent + " bytes")) +
-        row("Public key", '<span class="mono">' + (r.publicKey || "").slice(0, 32) + '…</span>') +
+        row("Public key", '<span class="mono">' + esc((r.publicKey || "").slice(0, 32)) + '…</span>', true) +
         "</table>");
     }
   });
   el.innerHTML = parts.join("");
 }
 
-function row(k, v) {
-  return "<tr><th>" + k + "</th><td>" + (v == null ? "—" : String(v)) + "</td></tr>";
+// `v` is untrusted receipt content and must be escaped — UNLESS `preEscaped`
+// is true, meaning the caller already built a small trusted HTML fragment
+// (e.g. the public-key <span>) with every dynamic piece run through esc()
+// itself.
+function row(k, v, preEscaped) {
+  const value = v == null ? "—" : preEscaped ? String(v) : esc(String(v));
+  return "<tr><th>" + esc(k) + "</th><td>" + value + "</td></tr>";
 }
 
 async function handleText(text) {

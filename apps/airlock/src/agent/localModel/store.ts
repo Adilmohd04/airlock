@@ -127,14 +127,29 @@ type Listener = () => void;
 /** Remembers the user's model choice. localStorage only, never the network. */
 const SELECTION_KEY = "airlock.localModel.v1";
 
-function readSelection(): LocalModelId {
+/**
+ * The stored model id, and whether that entry was actually there (as
+ * opposed to `id` being `DEFAULT_MODEL_ID` only because nothing is stored
+ * yet — one localStorage read, one validation rule, used by both readers
+ * below so they cannot silently disagree).
+ */
+function readSelectionState(): { id: LocalModelId; wasStored: boolean } {
   try {
     const raw = localStorage.getItem(SELECTION_KEY);
-    if (raw && isLocalModelId(raw)) return raw;
+    if (raw && isLocalModelId(raw)) return { id: raw, wasStored: true };
   } catch {
     /* private window / storage blocked — the default is fine */
   }
-  return DEFAULT_MODEL_ID;
+  return { id: DEFAULT_MODEL_ID, wasStored: false };
+}
+
+function readSelection(): LocalModelId {
+  return readSelectionState().id;
+}
+
+/** True only if the user (or a prior fallback) actually chose a model. */
+function hasStoredSelection(): boolean {
+  return readSelectionState().wasStored;
 }
 
 function writeSelection(id: LocalModelId): void {
@@ -176,8 +191,20 @@ export class LocalModelStore {
   private engine: LoadedEngine | null = null;
   private abort: AbortController | null = null;
   private refreshPromise: Promise<void> | null = null;
+  /** Which selection `refreshPromise` is (eventually) probing — see `refresh()`. */
+  private refreshingForId: LocalModelId | null = null;
+  /** Bumped on every new (non-shared) `refresh()` call — see `refresh()`. */
+  private epoch = 0;
   /** Exact download size from the mirror manifest, when it published one. */
   private mirrorBytes = new Map<LocalModelId, number>();
+  /**
+   * False on a fresh browser (no localStorage entry yet) — meaning
+   * `selectedModelId` is only `DEFAULT_MODEL_ID` by fallback, not by an
+   * actual choice, so `runRefresh` is free to swap it for
+   * `DEPLOY_DEFAULT_MODEL_ID` if this origin only mirrors that one.
+   * Flips true forever once the user (or that swap) picks a model.
+   */
+  private hadStoredSelection = hasStoredSelection();
 
   constructor(private adapter: LocalRuntimeAdapter = webllmAdapter) {
     this.state = {
@@ -233,19 +260,42 @@ export class LocalModelStore {
 
   /**
    * Probe the GPU, the browser cache and — only when the selection is not
-   * already cached — this origin's weight mirror. Idempotent; concurrent
-   * callers share one probe.
+   * already cached — this origin's weight mirror. Idempotent for the same
+   * selection: concurrent callers share one probe. If `selectModel()` picks
+   * a different model while a probe is in flight, that probe's result is
+   * stale for the new selection (`runRefresh` detects and discards it —
+   * see the epoch check there) and starts a fresh, independent probe for the
+   * new selection right away rather than leaving it unprobed.
    */
   refresh(): Promise<void> {
-    if (this.refreshPromise) return this.refreshPromise;
-    this.refreshPromise = this.runRefresh().finally(() => {
-      this.refreshPromise = null;
+    const currentId = this.state.selectedModelId;
+    if (this.refreshPromise && this.refreshingForId === currentId) {
+      return this.refreshPromise;
+    }
+    // A new generation: whichever runRefresh() calls are mid-flight for an
+    // older generation must not apply their (now possibly stale) result —
+    // each checks `myEpoch === this.epoch` right before writing state, so
+    // only the most recent refresh() ever wins, however many overlap.
+    const myEpoch = ++this.epoch;
+    this.refreshingForId = currentId;
+    const p = this.runRefresh(myEpoch).finally(() => {
+      // Only clear the shared "in flight" bookkeeping if nothing newer has
+      // already claimed it — an old generation's finally must not erase a
+      // newer generation's still-running probe.
+      if (this.epoch === myEpoch) {
+        this.refreshPromise = null;
+        this.refreshingForId = null;
+      }
     });
-    return this.refreshPromise;
+    this.refreshPromise = p;
+    return p;
   }
 
-  private async runRefresh(): Promise<void> {
+  private async runRefresh(myEpoch: number): Promise<void> {
+    const superseded = () => myEpoch !== this.epoch;
+
     const hardware = await this.adapter.detectGpu();
+    if (superseded()) return;
     if (!hardware.available) {
       // Terminal for this session: no WebLLM import, no fetch, no console noise.
       this.set({
@@ -260,39 +310,17 @@ export class LocalModelStore {
 
     const cachedModelIds = await this.listCached();
     const bytesOnDisk = await this.measureCache();
+    if (superseded()) return;
     let id = this.state.selectedModelId;
-    const cached = cachedModelIds.includes(id);
+    let cached = cachedModelIds.includes(id);
 
     let blocker: LocalModelBlocker = "none";
     let unavailableReason: string | null = null;
     if (!cached) {
       // Only ask the network when we have to. A browser that already holds the
       // weights must stay usable with the network off.
-      let hosting = await this.adapter.probeHosted(id);
-      if (!hosting.hosted) {
-        // The selected model is not mirrored on this deployment. A mirror of a
-        // DIFFERENT catalog model (the deploy default, usually) must not read
-        // as "local is impossible" — fall back to one that is actually hosted
-        // before declaring local mode dead. Each probe is one small manifest
-        // GET; a deployment hosting nothing pays four of them, once.
-        const others = [
-          DEPLOY_DEFAULT_MODEL_ID,
-          ...LOCAL_MODELS.map((m) => m.id).filter(
-            (x) => x !== id && x !== DEPLOY_DEFAULT_MODEL_ID
-          ),
-        ];
-        for (const candidate of others) {
-          if (candidate === id) continue;
-          const alt = await this.adapter.probeHosted(candidate);
-          if (alt.hosted) {
-            writeSelection(candidate);
-            id = candidate;
-            this.set({ selectedModelId: id });
-            hosting = alt;
-            break;
-          }
-        }
-      }
+      const hosting = await this.adapter.probeHosted(id);
+      if (superseded()) return;
       if (hosting.manifest) {
         this.mirrorBytes.set(
           id,
@@ -300,8 +328,47 @@ export class LocalModelStore {
         );
       }
       if (!hosting.hosted) {
-        blocker = "no-weights-hosted";
-        unavailableReason = hosting.reason;
+        // The untouched default (DEFAULT_MODEL_ID, the 3B) is what real
+        // hardware should run, but a size-constrained public deploy may only
+        // mirror DEPLOY_DEFAULT_MODEL_ID (the 1.5B) — see models.ts. Only a
+        // fallback that was never an explicit user choice may be swapped;
+        // once the user (or this swap) has picked a model, respect it and
+        // report honestly if it is not hosted.
+        if (
+          !this.hadStoredSelection &&
+          id === DEFAULT_MODEL_ID &&
+          DEPLOY_DEFAULT_MODEL_ID !== DEFAULT_MODEL_ID
+        ) {
+          const deployHosting = await this.adapter.probeHosted(
+            DEPLOY_DEFAULT_MODEL_ID
+          );
+          // Re-check after the second await: a selectModel() during this
+          // probe must not have its localStorage entry clobbered by a
+          // fallback decision that started before the user's real choice.
+          if (superseded()) return;
+          if (deployHosting.hosted) {
+            id = DEPLOY_DEFAULT_MODEL_ID;
+            cached = cachedModelIds.includes(id);
+            writeSelection(id);
+            this.hadStoredSelection = true;
+            if (deployHosting.manifest) {
+              this.mirrorBytes.set(
+                id,
+                deployHosting.manifest.weightsBytes +
+                  deployHosting.manifest.libBytes
+              );
+            }
+          } else {
+            // Neither model is hosted — `id` stays DEFAULT_MODEL_ID (the
+            // fallback never took), so the reason shown must be about that
+            // one, not the fallback candidate that was only being scouted.
+            blocker = "no-weights-hosted";
+            unavailableReason = hosting.reason;
+          }
+        } else {
+          blocker = "no-weights-hosted";
+          unavailableReason = hosting.reason;
+        }
       }
     }
 
@@ -317,6 +384,7 @@ export class LocalModelStore {
 
     this.set({
       hardware,
+      selectedModelId: id,
       blocker,
       unavailableReason,
       status,
@@ -356,6 +424,11 @@ export class LocalModelStore {
     const cached = this.state.cache.cachedModelIds.includes(id);
     const noGpu = this.state.hardware !== null && !this.state.hardware.available;
     writeSelection(id);
+    // An explicit pick — even of DEFAULT_MODEL_ID itself — must stick. Without
+    // this, switching back to the 3B on a deploy that only mirrors the 1.5B
+    // would get silently overridden by the deploy-default fallback on the
+    // next refresh(), the same class of bug that fallback exists to avoid.
+    this.hadStoredSelection = true;
     this.set({
       selectedModelId: id,
       partialBytes: 0,

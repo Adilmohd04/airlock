@@ -45,6 +45,7 @@
 
 import { defaultProposalStore, getModelContext, type Proposal } from "webmcp-staged";
 import type { ModelContext } from "webmcp-staged";
+import { activityLog } from "../activity";
 import { localModelStore, type LocalModelStore } from "./store";
 import {
   buildSystemPrompt,
@@ -328,6 +329,19 @@ export class LocalAgent {
         continue;
       }
       if (toolName.startsWith("commit_") || toolName.startsWith("reject_")) {
+        // Never reaches mc.executeTool (loadTools already dropped commit_/
+        // reject_ from what the model was told about), so nothing would
+        // otherwise append to activityLog for this attempt — but the same
+        // class of denial from a cloud host or the manual console IS
+        // logged, and the attestation receipt's disclosure.denied count
+        // reads straight from this ledger. A local-model hallucination that
+        // reaches for a commit verb belongs in that count too.
+        activityLog.add({
+          kind: "denied",
+          tool: toolName,
+          args: turn.arguments ?? {},
+          summary: "Committing is the human's job — the local agent cannot call commit_*/reject_* tools.",
+        });
         this.push({ kind: "notice", tool: toolName, text: "Committing is the human's job — proposing instead is enough." });
         history.push({
           role: "user",
