@@ -66,6 +66,10 @@ createServer(async (req, res) => {
       "Cross-Origin-Embedder-Policy": "require-corp",
       "Cross-Origin-Resource-Policy": "cross-origin",
       "X-Content-Type-Options": "nosniff",
+      // Match production: WebMCP hosts gate tool discovery on origin
+      // isolation, so local runs must send what Netlify sends.
+      "Origin-Agent-Cluster": "?1",
+      "Permissions-Policy": "tools=(self)",
     });
     res.end(body);
   } catch (e) {

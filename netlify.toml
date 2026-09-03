@@ -112,6 +112,8 @@
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Embedder-Policy = "require-corp"
     Content-Type = "text/html; charset=UTF-8"
+    Origin-Agent-Cluster = "?1"
+    Permissions-Policy = "tools=(self)"
 
 # Catch-all for any .html files
 [[headers]]
@@ -121,3 +123,5 @@
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Embedder-Policy = "require-corp"
     Content-Type = "text/html; charset=UTF-8"
+    Origin-Agent-Cluster = "?1"
+    Permissions-Policy = "tools=(self)"
