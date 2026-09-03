@@ -471,6 +471,18 @@ export class LocalModelStore {
     }
     if (intent === "load" && s !== "ready") return;
 
+    // Ask the browser to make this origin's storage durable before writing
+    // ~1 GB of weights into the Cache API. Without a persisted bucket the
+    // browser can evict them under storage pressure and the model appears to
+    // re-download every few days. Fire-and-forget; the boot path asks too, but
+    // a click is the moment a UA is most likely to grant it.
+    if (intent === "download") {
+      void navigator.storage
+        ?.persisted?.()
+        .then((ok) => (ok ? undefined : navigator.storage?.persist?.()))
+        .catch(() => undefined);
+    }
+
     const id = this.state.selectedModelId;
     const cached = this.state.cache.cachedModelIds.includes(id);
     const totalBytes = this.expectedBytes(id);

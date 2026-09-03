@@ -171,6 +171,14 @@ export function ModelDownloadDialog() {
           in Local mode, everything it reads stays on this device: not the file,
           not a value, not your questions.
         </p>
+        <p className="leading-relaxed text-slate-500">
+          Airlock asks your browser to keep this cache durably. If it hasn&rsquo;t
+          granted that,{" "}
+          <span className="text-slate-400">
+            bookmark this page or install it as an app
+          </span>{" "}
+          so the weights survive a storage cleanup instead of re-downloading.
+        </p>
 
         <div className="rounded-lg border border-ink-800 bg-ink-950/40 p-3">
           <p className="panel-title mb-1">Hardware</p>

@@ -96,6 +96,13 @@ export interface PersistenceState {
   sessions: SessionMeta[];
   /** A save / restore / switch is in flight. */
   busy: boolean;
+  /**
+   * `navigator.storage.persisted()` — the origin's storage bucket is durable.
+   * When false, the browser may evict IndexedDB *and the Cache API* (where the
+   * on-device model weights live) under storage pressure, which is why a model
+   * appears to re-download "every few days". `null` until checked / unknown.
+   */
+  persisted: boolean | null;
 }
 
 // ── observable state (for the Session menu via useSyncExternalStore) ─────────
@@ -109,6 +116,7 @@ let snapshot: PersistenceState = {
   currentSessionId: null,
   sessions: [],
   busy: false,
+  persisted: null,
 };
 
 function setState(patch: Partial<PersistenceState>): void {
@@ -428,11 +436,38 @@ async function clearWorkspace(): Promise<void> {
 
 // ── boot + autosave install (called once, from <SessionMenu>) ────────────────
 
+/**
+ * Ask the browser to make this origin's storage durable — protects both the
+ * session DB and the Cache API bucket that holds the on-device model weights.
+ * Chrome grants this without a prompt for a site with enough engagement (a
+ * revisit, a bookmark, an installed PWA); Firefox prompts. Safe to call more
+ * than once — a no-op once granted. Returns the resulting persisted state.
+ */
+export async function ensurePersistentStorage(): Promise<boolean | null> {
+  const sm = navigator.storage;
+  if (!sm?.persisted) {
+    setState({ persisted: null });
+    return null;
+  }
+  try {
+    let ok = await sm.persisted();
+    if (!ok && typeof sm.persist === "function") ok = await sm.persist();
+    setState({ persisted: ok });
+    return ok;
+  } catch {
+    setState({ persisted: null });
+    return null;
+  }
+}
+
 export async function bootSession(): Promise<void> {
   if (!snapshot.available) {
     suspended = false;
     return;
   }
+  // Request durable storage as early as possible — before the user has a chance
+  // to download a model into an evictable bucket.
+  void ensurePersistentStorage();
   try {
     await refreshSessions();
     const id = await readCurrentSessionId();
