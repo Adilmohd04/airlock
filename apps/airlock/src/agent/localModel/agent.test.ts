@@ -202,6 +202,33 @@ describe("LocalAgent loop", () => {
     expect(model.seenSystemPrompts.length).toBe(2);
   });
 
+  it("blocks a repeated identical read instead of re-executing it", async () => {
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    const mc = makeMc({
+      tools: READ_TOOLS,
+      calls,
+      onExecute: () => ({ content: [{ type: "text", text: "25 rows" }] }),
+    });
+    const model = new FakeModel([
+      '{"reasoning":"look","tool":"run_sql","arguments":{"query":"SELECT * FROM dataset"}}',
+      '{"reasoning":"look again","tool":"run_sql","arguments":{"query":"SELECT * FROM dataset"}}',
+      '{"reasoning":"and again","tool":"run_sql","arguments":{"query":"SELECT * FROM dataset"}}',
+      '{"reasoning":"done","final_answer":"ok"}',
+    ]);
+    const agent = new LocalAgent(model as never, () => mc as never);
+
+    await agent.run("summarize");
+
+    // run_sql executed exactly once; the two identical repeats were blocked.
+    expect(calls.filter((c) => c.name === "run_sql")).toHaveLength(1);
+    expect(
+      agent.getState().events.some(
+        (e) => e.kind === "notice" && /Already called run_sql/.test(e.text)
+      )
+    ).toBe(true);
+    expect(agent.getState().status).toBe("done");
+  });
+
   it("stops at a propose_* call and resumes when the human APPROVES", async () => {
     const calls: { name: string; args: Record<string, unknown> }[] = [];
     let staged: Proposal | null = null;
