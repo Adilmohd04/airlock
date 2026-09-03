@@ -34,6 +34,7 @@ import {
   assertSelectOnly,
   assertExpression,
   assertIdentifier,
+  assertNoTopLevelClauses,
 } from "../duckdb";
 
 const RUNS = { numRuns: 100 } as const;
@@ -689,6 +690,35 @@ describe("Property 10 — literal values containing markers are still accepted",
   it("still rejects a URL-shaped value inside a string (unchanged by the fix)", () => {
     expect(() =>
       assertSelectOnly("SELECT * FROM dataset WHERE note = 'see http://x -- fine'")
+    ).toThrow(/Remote URLs/);
+  });
+});
+
+describe("assertNoTopLevelClauses — fragment shape for where/expression", () => {
+  it.each([
+    "base_salary < market_median * 0.85",
+    "department = 'Engineering'",
+    "base_salary > (SELECT AVG(base_salary) FROM dataset)",
+    "base_salary > (SELECT AVG(base_salary) FROM dataset GROUP BY department)",
+    "note = 'order by request'",
+  ])("accepts %s", (expr) => {
+    expect(assertNoTopLevelClauses(expr)).toBe(expr.trim());
+  });
+
+  it.each([
+    "base_salary > 1 GROUP BY gender",
+    "x = 1 ORDER BY x",
+    "x = 1 LIMIT 4",
+    "x = 1 HAVING COUNT(*) > 1",
+    "x = 1 OFFSET 5",
+  ])("rejects %s with the one-expression rule", (expr) => {
+    expect(() => assertNoTopLevelClauses(expr)).toThrow(/ONE expression only/);
+  });
+
+  it("still applies the security rules underneath", () => {
+    expect(() => assertNoTopLevelClauses("1; DROP TABLE t")).toThrow();
+    expect(() =>
+      assertNoTopLevelClauses("x = read_csv('http://a/b.csv')")
     ).toThrow(/Remote URLs/);
   });
 });

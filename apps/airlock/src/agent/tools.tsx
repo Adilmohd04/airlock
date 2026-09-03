@@ -31,7 +31,7 @@ import { workspaceStore } from "../engine/workspaceStore";
 import {
   runQuery,
   assertSelectOnly,
-  assertExpression,
+  assertNoTopLevelClauses,
   assertNoRedactedColumns,
   assertNoStarProjection,
 } from "../engine/duckdb";
@@ -112,21 +112,14 @@ function guardRedaction(sql: string): void {
 }
 
 /**
- * assertExpression, but with the rule small models keep tripping on spelled
- * out: `where`/`expression` is ONE boolean/scalar expression — GROUP BY,
- * ORDER BY and LIMIT live in run_sql's `query`, never here. Without the hint
- * the model retries the same bad fragment until the step cap.
+ * assertNoTopLevelClauses, kept behind this one switch point: `where` /
+ * `expression` is ONE boolean/scalar expression — GROUP BY, ORDER BY and
+ * LIMIT live in run_sql's `query`, never here. The guard's own error already
+ * states the rule with an example, so it passes through unwrapped (wrapping
+ * it would print the rule twice and burn model context).
  */
 function checkFragment(fragment: string): void {
-  try {
-    assertExpression(fragment);
-  } catch (e) {
-    throw new Error(
-      `${e instanceof Error ? e.message : String(e)} ` +
-        `(The where/expression must be ONE expression only — no SELECT, GROUP BY, ` +
-        `ORDER BY or LIMIT. Example: base_salary < market_median * 0.85.)`
-    );
-  }
+  assertNoTopLevelClauses(fragment);
 }
 
 /** Drop any result column that matches a redacted identifier (final safety net). */
@@ -311,11 +304,15 @@ export function useAirlockTools(): void {
           description:
             "Full profile of one column: type, non-null count, nulls, distinct count, numeric min/max/mean, and up to 5 example values. Pass the column as `column` (`column_name` also works). A redacted column returns shape only (count / nulls / distinct) — no min/max, no examples.",
           inputSchema: {
+            // Both names are accepted because the schema is validated by the
+            // host/polyfill BEFORE execute runs — a runtime-only alias would
+            // never be reached. `required` is intentionally empty: with
+            // neither name we throw an honest "No column" error instead.
             type: "object",
             properties: {
               column: { type: "string", description: "Column name (display or base name)." },
+              column_name: { type: "string", description: "Alias for column." },
             },
-            required: ["column"],
           },
           annotations: { readOnlyHint: true, untrustedContentHint: true },
           execute: (input) => {

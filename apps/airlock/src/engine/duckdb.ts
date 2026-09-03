@@ -368,6 +368,45 @@ export function assertExpression(expr: string): string {
   return assertNoAbuse(expr).trimmed;
 }
 
+/**
+ * Shape check for WHERE/expression fragments, on top of the security check:
+ * GROUP BY / ORDER BY / HAVING / LIMIT / OFFSET belong in run_sql's full
+ * query, never inside a fragment — DuckDB reports those as bare parser
+ * errors, which small models retry verbatim until the step cap. Runs on the
+ * lexer's neutralized copy (string literals emptied, comments spaced) tracking
+ * parenthesis depth, so a subquery's own inner GROUP BY stays allowed.
+ */
+export function assertNoTopLevelClauses(expr: string): string {
+  const trimmed = assertExpression(expr);
+  const neutralized = scanCopies(trimmed).neutralized;
+  let depth = 0;
+  let segment = "";
+  const flush = (seg: string): void => {
+    if (/\b(group\s+by|order\s+by|having|limit|offset)\b/i.test(seg)) {
+      throw new Error(
+        "The where/expression must be ONE expression only — no GROUP BY, ORDER BY, " +
+          "HAVING, LIMIT or OFFSET. Put those in run_sql's query instead. " +
+          "Example: base_salary < market_median * 0.85."
+      );
+    }
+  };
+  for (const ch of neutralized) {
+    if (ch === "(") {
+      flush(segment);
+      segment = "";
+      depth += 1;
+    } else if (ch === ")") {
+      flush(segment);
+      segment = "";
+      depth = Math.max(0, depth - 1);
+    } else if (depth === 0) {
+      segment += ch;
+    }
+  }
+  flush(segment);
+  return trimmed;
+}
+
 /** A bare column identifier (join keys). Letters, digits, underscore only. */
 export function assertIdentifier(id: string): string {
   const t = id.trim();
