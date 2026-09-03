@@ -59,12 +59,22 @@ import {
 /** Max model turns per run before we stop and report. */
 const DEFAULT_STEP_CAP = 12;
 /** Per-turn wall-clock budget. Measured on an Intel gen-12lp iGPU (~5-10 tok/s
- * for a 1.5B q4f16), a full 640-token turn can approach two minutes — the old
- * 90s deadline aborted turns mid-JSON and read as "malformed output". Slow
- * iGPUs are exactly the hardware god mode targets, so the budget assumes them. */
+ * for a 1.5B q4f16), a full turn can approach two minutes — the old 90s deadline
+ * aborted turns mid-JSON and read as "malformed output". Slow iGPUs are exactly
+ * the hardware god mode targets, so the budget assumes them. */
 const STEP_DEADLINE_MS = 240_000;
-/** How many malformed turns in a row we tolerate before giving up. */
-const MAX_MALFORMED_RETRIES = 2;
+/** Generation budget per turn. `write_report` stages a full paragraph and
+ * `run_sql` can be long, so 640 truncated real turns; 1024 clears them with
+ * headroom without a meaningful latency cost on the models we ship. */
+const MAX_TURN_TOKENS = 1024;
+/** How many unparseable turns in a row we tolerate before giving up. A weak
+ * model (the 1.5B deploy default) needs a few tries; `parseTurn` recovers most
+ * grammar breaks now, so the ones that reach here are genuinely broken. */
+const MAX_MALFORMED_RETRIES = 4;
+/** After this many malformed turns, drop the JSON-schema grammar and fall back
+ * to plain `json_object` — a strict schema that XGrammar can't hold for a given
+ * quant produces worse output than a loose one the forgiving parser can read. */
+const SCHEMA_FALLBACK_AFTER = 2;
 /** Longest tool-result text we replay verbatim; longer is truncated (context). */
 const MAX_RESULT_CHARS = 1400;
 /** How many prior turns we replay verbatim before summarizing older ones. */
@@ -271,7 +281,7 @@ export class LocalAgent {
       if (this.aborted) return;
       this.set({ status: "thinking", step: step + 1 });
 
-      const reply = await this.callModel(system, history);
+      const reply = await this.callModel(system, history, malformed >= SCHEMA_FALLBACK_AFTER);
       if (this.aborted) return;
 
       const turn = parseTurn(reply);
@@ -280,17 +290,19 @@ export class LocalAgent {
         if (malformed > MAX_MALFORMED_RETRIES) {
           this.push({
             kind: "error",
-            text: "The model kept returning output I couldn't parse. Stopping.",
+            text: "The model kept returning output I couldn't parse. Stopping — try the 3B model, or narrow the goal.",
           });
           this.set({ status: "error" });
           return;
         }
         this.push({ kind: "notice", text: "Model output wasn't valid JSON — asking it to retry." });
-        history.push({ role: "assistant", content: clip(reply, 400) });
+        history.push({ role: "assistant", content: clip(reply, 300) });
         history.push({
           role: "user",
           content:
-            'Your last message was not the required JSON object. Reply with exactly one JSON object like {"reasoning":"…","tool":"…","arguments":{…}} or {"reasoning":"…","final_answer":"…"}. Nothing else.',
+            "That was not one JSON object. Reply with ONLY this, on one line, no prose, no code fence:\n" +
+            '{"reasoning":"<one sentence>","tool":"<tool name or empty>","arguments":{<inputs>},"final_answer":"<summary or empty>"}\n' +
+            "Set tool + arguments to call a tool, OR final_answer when done. Not both.",
         });
         continue;
       }
@@ -422,7 +434,8 @@ export class LocalAgent {
 
   private async callModel(
     system: string,
-    history: { role: "user" | "assistant"; content: string }[]
+    history: { role: "user" | "assistant"; content: string }[],
+    looseGrammar = false
   ): Promise<string> {
     const stepAbort = new AbortController();
     const timer = setTimeout(() => stepAbort.abort(), STEP_DEADLINE_MS);
@@ -433,8 +446,13 @@ export class LocalAgent {
       const res = await this.store.chat({
         messages: [{ role: "system", content: system }, ...history],
         temperature: 0.2,
-        maxTokens: 640,
-        format: { type: "json_object", schema: RESPONSE_SCHEMA_JSON },
+        maxTokens: MAX_TURN_TOKENS,
+        // A strict JSON schema the grammar engine can't hold for a given quant
+        // yields worse output than a loose object it can. After a couple of
+        // malformed turns the loop asks for the looser constraint.
+        format: looseGrammar
+          ? { type: "json_object" }
+          : { type: "json_object", schema: RESPONSE_SCHEMA_JSON },
         signal,
       });
       if (res.finishReason === "abort" && stepAbort.signal.aborted && !this.aborted) {

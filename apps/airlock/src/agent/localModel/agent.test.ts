@@ -120,6 +120,60 @@ describe("parseTurn", () => {
     expect(t?.tool).toBeUndefined();
     expect(t?.finalAnswer).toBe("hi");
   });
+
+  it("recovers flattened arguments (the #1 small-model mistake)", () => {
+    const t = parseTurn(
+      '{"reasoning":"filter","tool":"propose_add_filter","expression":"base_salary < 100000","label":"low"}'
+    );
+    expect(t?.tool).toBe("propose_add_filter");
+    expect(t?.arguments).toEqual({
+      expression: "base_salary < 100000",
+      label: "low",
+    });
+  });
+
+  it("accepts args/name/reason aliases", () => {
+    const t = parseTurn('{"reason":"go","name":"run_sql","args":{"query":"SELECT 1"}}');
+    expect(t?.tool).toBe("run_sql");
+    expect(t?.arguments).toEqual({ query: "SELECT 1" });
+    expect(t?.reasoning).toBe("go");
+  });
+
+  it("recovers a stringified arguments object", () => {
+    const t = parseTurn(
+      '{"reasoning":"x","tool":"run_sql","arguments":"{\\"query\\":\\"SELECT 1\\"}"}'
+    );
+    expect(t?.arguments).toEqual({ query: "SELECT 1" });
+  });
+
+  it("strips a <think> block", () => {
+    const t = parseTurn(
+      '<think>let me plan</think>{"reasoning":"x","tool":"get_dataset_summary"}'
+    );
+    expect(t?.tool).toBe("get_dataset_summary");
+    expect(t?.arguments).toEqual({});
+  });
+
+  it("takes the first object from an array wrapper", () => {
+    const t = parseTurn('[{"reasoning":"x","tool":"list_columns"}]');
+    expect(t?.tool).toBe("list_columns");
+  });
+
+  it("repairs a turn truncated mid-value at the token cap", () => {
+    const t = parseTurn(
+      '{"reasoning":"summarizing","tool":"get_dataset_summary","arguments":{'
+    );
+    expect(t?.tool).toBe("get_dataset_summary");
+  });
+
+  it("rejects a reasoning-only turn (not actionable)", () => {
+    expect(parseTurn('{"reasoning":"I am thinking about it"}')).toBeNull();
+  });
+
+  it("defaults arguments to {} for a no-arg tool call", () => {
+    const t = parseTurn('{"reasoning":"x","tool":"describe_workspace"}');
+    expect(t?.arguments).toEqual({});
+  });
 });
 
 // ── the loop ─────────────────────────────────────────────────────────────────
@@ -269,7 +323,16 @@ describe("LocalAgent loop", () => {
       calls: [],
       onExecute: () => ({ content: [{ type: "text", text: "ok" }] }),
     });
-    const model = new FakeModel(["nope", "still nope", "nope again", "and again"]);
+    // MAX_MALFORMED_RETRIES tolerates a few (a weak model needs them); feed
+    // more than that so the loop gives up rather than spinning.
+    const model = new FakeModel([
+      "nope",
+      "still nope",
+      "nope again",
+      "and again",
+      "one more",
+      "and another",
+    ]);
     const agent = new LocalAgent(model as never, () => mc as never);
 
     await agent.run("do a thing");

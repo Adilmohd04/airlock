@@ -80,45 +80,143 @@ export interface AgentTurn {
   finalAnswer?: string;
 }
 
+// Field-name aliases a 1-3B model reaches for when it doesn't follow the schema
+// exactly. Order matters only for readability; first match wins.
+const TOOL_KEYS = ["tool", "tool_name", "toolName", "name", "action", "function", "function_name"];
+const ARG_KEYS = ["arguments", "args", "params", "parameters", "input", "tool_input", "toolInput", "function_arguments"];
+const FINAL_KEYS = ["final_answer", "finalAnswer", "final", "answer", "summary", "result", "response", "output"];
+const REASON_KEYS = ["reasoning", "reason", "thought", "thinking", "rationale", "plan"];
+const RESERVED = new Set([...TOOL_KEYS, ...ARG_KEYS, ...FINAL_KEYS, ...REASON_KEYS]);
+
 /**
- * Parse and normalize one model turn. Returns null when the text is not the
- * object we constrained for — the loop turns that into a corrective retry
- * rather than a crash (small models occasionally break the grammar on the first
- * token under memory pressure).
+ * Parse and normalize one model turn. Returns null only when nothing
+ * object-shaped can be recovered at all — the loop turns that into a corrective
+ * retry rather than a crash.
+ *
+ * A 1-3B model under memory pressure breaks the grammar in a handful of
+ * predictable ways: it wraps the object in a ```json fence or a `<think>` block,
+ * emits an array, uses `args`/`params`/`name` instead of the schema's keys, or
+ * — most common — *flattens* the tool arguments to siblings of `tool` instead
+ * of nesting them under `arguments`. Every one of those is recovered here so a
+ * weak model still completes the demo.
  */
 export function parseTurn(text: string): AgentTurn | null {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(text);
-  } catch {
-    // Some models wrap the object in prose or a ```json fence despite the
-    // grammar; salvage the first balanced object before giving up.
-    const salvaged = extractFirstObject(text);
-    if (salvaged == null) return null;
+  const o = coerceObject(text);
+  if (!o) return null;
+
+  const reasoning = firstString(o, REASON_KEYS) ?? "";
+  const tool = trimmedOrUndef(firstString(o, TOOL_KEYS));
+  const finalAnswer = trimmedOrUndef(firstString(o, FINAL_KEYS));
+
+  // Arguments: an explicit wrapper object (under any alias), or — when the
+  // model flattened them — every key that isn't one of ours.
+  let args: Record<string, unknown> | undefined;
+  for (const k of ARG_KEYS) {
+    const v = o[k];
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      args = v as Record<string, unknown>;
+      break;
+    }
+    if (typeof v === "string") {
+      // Some models stringify the args object. Try to recover it.
+      try {
+        const p = JSON.parse(v);
+        if (p && typeof p === "object" && !Array.isArray(p)) {
+          args = p as Record<string, unknown>;
+          break;
+        }
+      } catch {
+        /* not JSON — ignore, fall through to flattened recovery */
+      }
+    }
+  }
+  if (!args && tool) {
+    const rest: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(o)) if (!RESERVED.has(k)) rest[k] = v;
+    if (Object.keys(rest).length > 0) args = rest;
+  }
+
+  // A turn with neither a tool nor a final answer isn't actionable. Reject so
+  // the loop nudges the model rather than spinning on an empty step.
+  if (!tool && !finalAnswer) return null;
+
+  return {
+    reasoning,
+    tool,
+    arguments: tool ? (args ?? {}) : undefined,
+    finalAnswer,
+  };
+}
+
+/** Recover the one JSON object from a model turn, tolerating the usual noise. */
+function coerceObject(text: string): Record<string, unknown> | null {
+  let t = String(text ?? "").trim();
+  // Chain-of-thought tags some instruct models still emit despite the grammar.
+  t = t.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  // A leading ```json / ``` fence and its close.
+  t = t.replace(/^`{3,}(?:json|js)?\s*/i, "").replace(/\s*`{3,}\s*$/i, "").trim();
+
+  const tryParse = (s: string): Record<string, unknown> | null => {
     try {
-      raw = JSON.parse(salvaged);
+      const v = JSON.parse(s);
+      if (Array.isArray(v)) {
+        const first = v.find((x) => x && typeof x === "object" && !Array.isArray(x));
+        return (first as Record<string, unknown>) ?? null;
+      }
+      return v && typeof v === "object" ? (v as Record<string, unknown>) : null;
     } catch {
       return null;
     }
+  };
+
+  return (
+    tryParse(t) ??
+    tryParse(extractFirstObject(t) ?? "") ??
+    // Last resort: a truncated object (hit the token cap mid-value). Close the
+    // open strings/braces and retry — a partial `get_dataset_summary` call is
+    // still worth salvaging.
+    tryParse(repairTruncated(extractFirstOpenObject(t) ?? ""))
+  );
+}
+
+function firstString(o: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const k of keys) if (typeof o[k] === "string") return o[k] as string;
+  return undefined;
+}
+function trimmedOrUndef(s: string | undefined): string | undefined {
+  const v = s?.trim();
+  return v && v.length > 0 ? v : undefined;
+}
+
+/** Like extractFirstObject but returns from the first `{` even if never closed. */
+function extractFirstOpenObject(text: string): string | null {
+  const start = text.indexOf("{");
+  return start < 0 ? null : text.slice(start);
+}
+
+/** Close dangling strings and braces on a truncated JSON object. Best-effort. */
+function repairTruncated(s: string): string {
+  if (!s) return "";
+  let inStr = false;
+  let esc = false;
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === "{" || c === "[") depth++;
+    else if (c === "}" || c === "]") depth--;
   }
-  if (typeof raw !== "object" || raw === null) return null;
-  const o = raw as Record<string, unknown>;
-
-  const reasoning = typeof o.reasoning === "string" ? o.reasoning : "";
-  const tool =
-    typeof o.tool === "string" && o.tool.trim().length > 0
-      ? o.tool.trim()
-      : undefined;
-  const args =
-    o.arguments && typeof o.arguments === "object" && !Array.isArray(o.arguments)
-      ? (o.arguments as Record<string, unknown>)
-      : undefined;
-  const finalAnswer =
-    typeof o.final_answer === "string" && o.final_answer.trim().length > 0
-      ? o.final_answer.trim()
-      : undefined;
-
-  return { reasoning, tool, arguments: args, finalAnswer };
+  let out = s.replace(/,\s*$/, "");
+  if (inStr) out += '"';
+  out = out.replace(/,\s*$/, "").replace(/:\s*$/, ': ""');
+  while (depth-- > 0) out += "}";
+  return out;
 }
 
 /** Pull the first balanced `{...}` out of a string. Cheap brace counter. */
