@@ -208,13 +208,28 @@ export class LocalAgent {
       return;
     }
     if (this.store.getState().status !== "running") {
-      this.reset(goal);
-      this.push({
-        kind: "error",
-        text: "The local model is not loaded. Download and load it first.",
-      });
-      this.set({ status: "error" });
-      return;
+      const s = this.store.getState();
+      // Weights cached but not on the GPU — load them rather than making the
+      // user go find the button.
+      const cached = s.cache?.cachedModelIds?.includes(s.selectedModelId) ?? false;
+      if (cached && typeof this.store.download === "function") {
+        this.reset(goal);
+        this.push({ kind: "notice", text: "Loading the model onto your GPU…" });
+        try {
+          await this.store.download();
+        } catch {
+          /* fall through to the error below */
+        }
+      }
+      if (this.store.getState().status !== "running") {
+        this.reset(goal);
+        this.push({
+          kind: "error",
+          text: "The local model is not loaded. Open the model panel and click Download or Load.",
+        });
+        this.set({ status: "error" });
+        return;
+      }
     }
 
     this.reset(goal);

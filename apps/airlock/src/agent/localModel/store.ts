@@ -796,15 +796,45 @@ export class LocalModelStore {
    * the store knowing whether the model is mid-turn.
    */
   async chat(request: LocalChatRequest): Promise<LocalChatResult> {
-    const engine = this.engine;
-    if (!engine || this.state.status !== "running") {
-      throw new Error("The local model is not loaded.");
+    if (!this.engine || this.state.status !== "running") {
+      // The store thinks it's loaded but the engine is gone, or the weights are
+      // cached and just not on the GPU yet. Bring it back rather than failing.
+      if (this.state.cache.cachedModelIds.includes(this.state.selectedModelId)) {
+        // `download` is the universal "get to running" call — instant when the
+        // weights are already cached, and it works from ready/paused/error,
+        // unlike `load` which only resumes from `ready`.
+        await this.warm("download");
+      }
+      if (!this.engine || this.state.status !== "running") {
+        throw new Error(
+          "The local model is not loaded. Open the model panel and click Load."
+        );
+      }
     }
     this.set({ generating: true, error: null });
     try {
-      return await engine.chat(request);
+      return await this.engine.chat(request);
     } catch (err) {
-      this.set({ error: messageOf(err) });
+      const m = messageOf(err);
+      // WebLLM lost the model (GPU context loss, or its own internal unload):
+      // "Model not loaded before trying to complete ChatCompletionRequest".
+      // Reload once and retry before surfacing the failure to the loop.
+      if (
+        /model not loaded|not been loaded|reload\(|CreateMLCEngine/i.test(m) &&
+        this.state.cache.cachedModelIds.includes(this.state.selectedModelId)
+      ) {
+        this.engine = null;
+        this.set({ status: "ready" });
+        await this.warm("download");
+        // `warm` reassigns `this.engine`; read it through a fresh access so
+        // TS drops the `null` narrowing from the assignment above (a plain
+        // const initializer would inherit it and narrow to `never`).
+        const revived = this.getEngine();
+        if (revived && this.state.status === "running") {
+          return await revived.chat(request);
+        }
+      }
+      this.set({ error: m });
       throw err;
     } finally {
       this.set({ generating: false });
