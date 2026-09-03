@@ -363,7 +363,7 @@ export function LocalModelPanel() {
         aria-expanded={open}
         aria-haspopup="dialog"
         title="Run the agent on a model on your device"
-        className="flex items-center gap-2 rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1 text-xs hover:bg-ink-800"
+        className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1 text-xs hover:bg-ink-800"
       >
         <span
           className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${pill.dot}`}

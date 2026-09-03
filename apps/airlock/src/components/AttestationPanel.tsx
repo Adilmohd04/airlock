@@ -102,7 +102,7 @@ export function AttestationPanel() {
     <div className="relative">
       <button
         type="button"
-        className="btn btn-ghost !px-2 !py-1 text-xs"
+        className="btn btn-ghost shrink-0 whitespace-nowrap !px-2 !py-1 text-xs"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         title="Produce a signed, verifiable record of what the agent did this session"

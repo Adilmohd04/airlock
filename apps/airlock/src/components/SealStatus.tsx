@@ -49,7 +49,7 @@ export function SealStatus() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${tone.border}`}
+        className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${tone.border}`}
         title="What has left this browser over the network"
       >
         <span className={`inline-block h-1.5 w-1.5 rounded-full ${tone.dot}`} />

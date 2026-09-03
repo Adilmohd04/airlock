@@ -57,7 +57,7 @@ export function SessionMenu() {
             ? "Named sessions — saved in this browser (IndexedDB), never uploaded"
             : "Storage is unavailable here — this workspace will not be saved"
         }
-        className="flex max-w-[16rem] items-center gap-2 rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1 text-xs hover:bg-ink-800"
+        className="flex max-w-[13rem] shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1 text-xs hover:bg-ink-800"
       >
         <span
           className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${

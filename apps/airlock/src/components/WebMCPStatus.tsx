@@ -83,10 +83,10 @@ export function WebMCPStatus() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${tone.border}`}
+        className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${tone.border}`}
         title={badge.detail}
       >
-        <span className={`inline-block h-1.5 w-1.5 rounded-full ${tone.dot}`} />
+        <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} />
         <span className={tone.text}>{headline}</span>
       </button>
 
