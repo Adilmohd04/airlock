@@ -276,6 +276,12 @@ export class LocalAgent {
       { role: "user", content: `Goal: ${goal}` },
     ];
     let malformed = 0;
+    // Small models loop: they re-call the same read tool because the context
+    // window dropped the evidence they already have it. Track recent call
+    // signatures and how many reads have gone by without an action, and push
+    // back before executing a repeat or letting the model stall.
+    const recentCalls: string[] = [];
+    let readsSinceAction = 0;
 
     for (let step = 0; step < this.state.stepCap; step++) {
       if (this.aborted) return;
@@ -364,6 +370,26 @@ export class LocalAgent {
       }
 
       const isPropose = toolName.startsWith("propose_");
+
+      // Repeat guard: the model just asked for something it already has.
+      const sig = `${toolName}|${stableArgs(turn.arguments)}`;
+      if (!isPropose && recentCalls.slice(-4).includes(sig)) {
+        this.push({
+          kind: "notice",
+          tool: toolName,
+          text: `Already called ${toolName} — skipping the repeat.`,
+        });
+        history.push({
+          role: "user",
+          content:
+            `You already called ${toolName} with those arguments and its result is above. ` +
+            `Do not call it again. The goal is: ${goal}\n` +
+            `You have enough to act — call a propose_* tool now, or give final_answer.`,
+        });
+        readsSinceAction++;
+        continue;
+      }
+
       this.set({ status: "calling-tool" });
       this.push({
         kind: "tool-call",
@@ -382,6 +408,7 @@ export class LocalAgent {
 
       // A propose_* call: staged a diff. Stop and wait for the human.
       if (isPropose && outcome.proposalId) {
+        readsSinceAction = 0;
         const summary = outcome.summary || "change";
         this.push({
           kind: "waiting",
@@ -412,11 +439,24 @@ export class LocalAgent {
       }
 
       // A read tool: feed the (summarized) result back.
+      recentCalls.push(sig);
+      readsSinceAction++;
       const resultText = clip(outcome.text ?? "(no output)", MAX_RESULT_CHARS);
       this.push({ kind: "tool-result", tool: toolName, text: resultText });
       history.push({ role: "user", content: `Result of ${toolName}:\n${resultText}` });
 
-      this.windowHistory(history);
+      // Read a lot, done nothing. Push toward an action before the step cap.
+      if (readsSinceAction >= 4) {
+        history.push({
+          role: "user",
+          content:
+            `That is ${readsSinceAction} reads with no action. Stop exploring. The goal is: ${goal}\n` +
+            `If the data supports it, call a propose_* tool now (a filter, a flag, a chart, or write_report). ` +
+            `If the dataset can't answer the goal — e.g. a needed column isn't there — say so in final_answer.`,
+        });
+      }
+
+      this.windowHistory(history, goal);
     }
 
     this.push({
@@ -600,7 +640,8 @@ export class LocalAgent {
    * model keeps the goal and recent state without replaying every tool dump.
    */
   private windowHistory(
-    history: { role: "user" | "assistant"; content: string }[]
+    history: { role: "user" | "assistant"; content: string }[],
+    goal: string
   ): void {
     const KEEP = RECENT_TURNS_KEPT * 2; // user+assistant per exchange
     if (history.length <= KEEP + 1) return;
@@ -609,9 +650,13 @@ export class LocalAgent {
     const droppedCount = history.length - 1 - recent.length;
     history.length = 0;
     history.push(head);
+    // Restate the goal in the summary line — without it the model forgets what
+    // it was doing and re-explores from scratch.
     history.push({
       role: "user",
-      content: `(${droppedCount} earlier steps omitted to save context. Keep pursuing the goal.)`,
+      content:
+        `(${droppedCount} earlier steps summarised away. You have already inspected the ` +
+        `dataset. Goal: ${goal} — now act on it: propose a change or give final_answer.)`,
     });
     history.push(...recent);
   }
@@ -689,6 +734,13 @@ function argsPreview(args: Record<string, unknown> | undefined): string {
   if (!args || Object.keys(args).length === 0) return "()";
   const s = JSON.stringify(args);
   return s.length > 200 ? `${s.slice(0, 197)}…` : s;
+}
+
+/** Order-independent JSON of args, for detecting a repeated identical call. */
+function stableArgs(args: Record<string, unknown> | undefined): string {
+  if (!args) return "";
+  const keys = Object.keys(args).sort();
+  return JSON.stringify(keys.map((k) => [k, args[k]]));
 }
 
 /** Combine AbortSignals into one that fires when any input fires. */
