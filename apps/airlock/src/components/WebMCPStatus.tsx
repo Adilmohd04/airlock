@@ -11,6 +11,12 @@ import { uiStore } from "../engine/uiStore";
 import { getEgress, subscribeEgress, type EgressState } from "../lib/egress";
 import { activityLog } from "../agent/activity";
 import { useActivity } from "../agent/hooks";
+import {
+  clearEndpoint,
+  configureEndpoint,
+  endpointHost,
+  isEndpointConfigured,
+} from "../agent/byo/client";
 
 // Static because `tools.tsx` is frozen and registers the surface
 // unconditionally. Keep in step with `agent/tools.tsx`: 8 `registerTool`
@@ -40,6 +46,8 @@ export function WebMCPStatus() {
   const [open, setOpen] = useState(false);
   const [byoUrl, setByoUrl] = useState(mode.byo?.url ?? "");
   const [byoKey, setByoKey] = useState("");
+  const [byoModel, setByoModel] = useState("gpt-4o-mini");
+  const [byoError, setByoError] = useState<string | null>(null);
   const [egress, setEgress] = useState<EgressState>(getEgress);
 
   useEffect(() => subscribeEgress(() => setEgress(getEgress())), []);
@@ -74,9 +82,22 @@ export function WebMCPStatus() {
   const headline = measuredHeadline(mode, egressClear, { hasCalls });
 
   const commitByo = () => {
+    setByoError(null);
     agentModeStore.setByoConfig(
       byoUrl ? { url: byoUrl, hasKey: byoKey.length > 0 } : null
     );
+    // Wire the live client: the key stays in tab memory only (never stored,
+    // never ledgered). Clearing the URL forgets everything including the key.
+    try {
+      if (byoUrl && byoKey) {
+        configureEndpoint({ url: byoUrl, apiKey: byoKey, model: byoModel });
+      } else if (!byoUrl) {
+        clearEndpoint();
+        setByoKey("");
+      }
+    } catch (e) {
+      setByoError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const openLedger = () => {
@@ -163,13 +184,37 @@ export function WebMCPStatus() {
                   value={byoKey}
                   onChange={(e) => setByoKey(e.target.value)}
                   onBlur={commitByo}
-                  placeholder="sk-..."
+                  placeholder="sk-... (memory only, never stored)"
                   className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-2 py-1 font-mono text-slate-200"
                 />
               </label>
+              <label className="block text-slate-500">
+                Model
+                <input
+                  value={byoModel}
+                  onChange={(e) => setByoModel(e.target.value)}
+                  onBlur={commitByo}
+                  placeholder="gpt-4o-mini"
+                  className="mt-1 w-full rounded border border-ink-700 bg-ink-950 px-2 py-1 font-mono text-slate-200"
+                />
+              </label>
+              {byoError && (
+                <p className="text-[11px] text-danger">{byoError}</p>
+              )}
               <p className="text-[10px] leading-relaxed text-slate-600">
-                Preview control only — this connection is not wired up in this
-                build (Tier 2). Nothing is sent here yet.
+                {isEndpointConfigured() ? (
+                  <>
+                    Connected to {endpointHost()}. Queries and answers travel
+                    there — counted in egress and the Seal, never zero-claimed.
+                    The key lives in this tab&apos;s memory only.
+                  </>
+                ) : (
+                  <>
+                    An OpenAI-compatible endpoint (Azure OpenAI, OpenAI, local
+                    Ollama via http://localhost). Drive it from the Agent
+                    console&apos;s BYO tab.
+                  </>
+                )}
               </p>
             </div>
           )}
@@ -200,6 +245,9 @@ function surfaceLabel(state: AgentModeState): string {
     (state.localModelStatus === "running" || state.localModelStatus === "ready")
   ) {
     return "in-browser model";
+  }
+  if (state.mode === "byo-endpoint" && isEndpointConfigured()) {
+    return `your endpoint (${endpointHost()})`;
   }
   if (state.host.kind === "polyfill-only") return "local polyfill · Agent console";
   return "none active";

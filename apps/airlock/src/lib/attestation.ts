@@ -22,6 +22,7 @@
 import { activityLog, type ActivityEntry } from "../agent/activity";
 import { getEgress } from "./egress";
 import { agentModeStore } from "../agent/agentMode";
+import { endpointHost, endpointModel } from "../agent/byo/client";
 import { workspaceStore } from "../engine/workspaceStore";
 import {
   canonicalize,
@@ -56,6 +57,8 @@ export interface ReceiptBody {
     modes: string[];
     cloud?: { host: string; rowsDisclosed: number; distinctColumns: number };
     local?: { modelId: string; ranOnDevice: true };
+    /** User's own endpoint drove (host + model only — the key is never recorded anywhere). */
+    byo?: { host: string; model: string };
   };
   disclosure: {
     rowsDisclosed: number;
@@ -186,8 +189,15 @@ export async function buildReceipt(
     agent.local = { modelId: mode.activeModel, ranOnDevice: true };
   }
   if (mode.mode === "byo-endpoint") modes.add("byo-endpoint");
+  // Endpoint host + model only. The key lives in tab memory and is never
+  // written to any store, so there is nothing here that could leak it.
+  const byoHost = endpointHost();
+  const byoModel = endpointModel();
+  if (byoHost && byoModel) {
+    modes.add("byo-endpoint");
+    agent.byo = { host: byoHost, model: byoModel };
+  }
   agent.modes = [...modes];
-
   const dataset = await collectDatasets();
   const ledgerSha256 = await canonicalSha256Hex(ledgerFingerprint(entries));
 
@@ -319,7 +329,8 @@ export function receiptToPrintableHtml(r: AttestationReceipt): string {
 <h2>Agent</h2>
 <p>Modes: ${b.agent.modes.map(esc).join(", ") || "none"}.
 ${b.agent.local ? `Local model <span class="mono">${esc(b.agent.local.modelId)}</span> ran on-device. ` : ""}
-${b.agent.cloud ? `Cloud host <span class="mono">${esc(b.agent.cloud.host)}</span> received ${b.agent.cloud.rowsDisclosed} disclosed row(s) across ${b.agent.cloud.distinctColumns} column(s). ` : ""}</p>
+${b.agent.cloud ? `Cloud host <span class="mono">${esc(b.agent.cloud.host)}</span> received ${b.agent.cloud.rowsDisclosed} disclosed row(s) across ${b.agent.cloud.distinctColumns} column(s). ` : ""}
+${b.agent.byo ? `Own endpoint <span class="mono">${esc(b.agent.byo.host)}</span> (${esc(b.agent.byo.model)}) drove the agent; its traffic is counted in egress above. ` : ""}</p>
 <h2>Disclosure</h2>
 <p>${b.disclosure.toolCalls} tool call(s); ${b.disclosure.commits} approved commit(s); ${b.disclosure.denied} denied. ${b.disclosure.rowsDisclosed} row(s) disclosed across ${b.disclosure.distinctColumnsSeen.length} distinct column(s).</p>
 <h2>Verification</h2>

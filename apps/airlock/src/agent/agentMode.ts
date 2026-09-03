@@ -277,15 +277,17 @@ export function describeMode(
     return {
       headline: `Endpoint · ${host}`,
       detail:
-        `Configured to use your own model endpoint at ${host}. This build doesn't ` +
-        `open that connection yet (Tier 2) — nothing is sent to it.`,
+        `Your own model endpoint at ${host} drives Airlock through the same staged ` +
+        `gate: reads run at once, changes wait for your approval. Queries and answers ` +
+        `travel to that endpoint — counted in egress and the Seal, never zero. ` +
+        `Your key stays in this tab's memory only and is never stored or logged.`,
     };
   }
   return {
     headline: "Endpoint · not set",
     detail:
-      "Add your own OpenAI-compatible endpoint URL and key to use it here. This " +
-      "is a preview control; the connection isn't wired up yet.",
+      "Add your own OpenAI-compatible endpoint URL, key and model to drive the agent. " +
+      "The key stays in this tab's memory only.",
   };
 }
 

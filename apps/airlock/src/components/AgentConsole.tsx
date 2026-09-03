@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { uiStore } from "../engine/uiStore";
 import { LocalAgentConsole } from "./LocalAgentConsole";
+import { ByoAgentConsole } from "./ByoAgentConsole";
 
 /**
  * The Agent console — a developer / demo surface, NOT a hidden LLM.
@@ -74,10 +75,11 @@ export function AgentConsole() {
   const [args, setArgs] = useState("{}");
   const [out, setOut] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  // The console has two faces: the local agent (drives the model itself) and
-  // the manual tool caller (developer/demo surface). Default to the agent —
-  // it's the headline.
-  const [view, setView] = useState<"agent" | "manual">("agent");
+  // The console has three faces: the local agent (drives the on-device
+  // model), the BYO agent (drives the user's own endpoint), and the manual
+  // tool caller (developer/demo surface). Default to the local agent — it's
+  // the headline.
+  const [view, setView] = useState<"agent" | "byo" | "manual">("agent");
 
   useEffect(() => {
     if (shim) {
@@ -118,6 +120,12 @@ export function AgentConsole() {
               Local agent
             </button>
             <button
+              className={`px-2 py-0.5 ${view === "byo" ? "bg-ink-700 text-slate-100" : "text-slate-500 hover:text-slate-300"}`}
+              onClick={() => setView("byo")}
+            >
+              BYO agent
+            </button>
+            <button
               className={`px-2 py-0.5 ${view === "manual" ? "bg-ink-700 text-slate-100" : "text-slate-500 hover:text-slate-300"}`}
               onClick={() => setView("manual")}
             >
@@ -139,6 +147,10 @@ export function AgentConsole() {
       {view === "agent" ? (
         <div className="h-[calc(100%-33px)]">
           <LocalAgentConsole />
+        </div>
+      ) : view === "byo" ? (
+        <div className="h-[calc(100%-33px)]">
+          <ByoAgentConsole />
         </div>
       ) : (
       <div className="grid h-[calc(100%-33px)] grid-cols-[200px_1fr_1fr]">
