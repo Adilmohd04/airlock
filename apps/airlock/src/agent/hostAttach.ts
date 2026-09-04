@@ -56,16 +56,22 @@ function snapshotBaseline(): void {
 }
 
 /**
- * One synchronous re-check. On a transition to a new native host it flips the
- * bootstrap flag, refreshes agent-mode state (the pill follows), and notifies
- * subscribers (the app re-registers its tools on the native instance).
- * Returns true exactly on transitions. No-ops outside a DOM and when nothing
- * changed — safe to call from any event or panel-open effect.
+ * One synchronous re-check. Fires on a transition to a *new* native host, or
+ * when the store disagrees with a native live instance (native was already
+ * there at baseline — e.g. present from page load while the store still holds
+ * boot-time values — so identity comparison alone would stay silent forever).
+ * On firing it flips the bootstrap flag, refreshes agent-mode state (the
+ * pill follows), and notifies subscribers (the app re-registers its tools on
+ * the native instance). Returns true exactly when it fired. No-ops outside a
+ * DOM and when page and store agree — safe to call from any event, beat,
+ * poll, or panel-open effect.
  */
 export function recheckHostAttach(): boolean {
   snapshotBaseline();
   const mc = currentModelContext();
-  if (classifyHost(mc) !== "native" || mc === baseline) return false;
+  if (classifyHost(mc) !== "native") return false;
+  const storeSaysNative = agentModeStore.getState().host.kind === "native";
+  if (mc === baseline && storeSaysNative) return false;
   baseline = mc;
   if (typeof window !== "undefined") {
     (window as unknown as { __airlockWebMCP?: string }).__airlockWebMCP =

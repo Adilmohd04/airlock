@@ -14,7 +14,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { installEgressMonitor } from "./lib/egress";
-import { removeNonFunctionalStub } from "./agent/hostAttach";
+import { agentModeStore } from "./agent/agentMode";
+import {
+  classifyHost,
+  removeNonFunctionalStub,
+} from "./agent/hostAttach";
 import { App } from "./App";
 import "./index.css";
 
@@ -63,7 +67,21 @@ async function bootstrap() {
       autoInitialize: true,
       installTestingShim: "if-missing",
     });
+    // A host can appear while the polyfill chunk was loading — re-probe the
+    // live instance (never the polyfill itself) before freezing the flag.
+    if (
+      classifyHost((document as Document).modelContext as unknown) ===
+      "native"
+    ) {
+      (window as unknown as { __airlockWebMCP: string }).__airlockWebMCP =
+        "native";
+    }
   }
+
+  // Sync the store with the flag. Without this the pill reads boot-time
+  // module state forever — even a host present from page load would show
+  // "not connected", and no transition watcher could ever fire for it.
+  agentModeStore.refreshDetection();
 
   createRoot(document.getElementById("root")!).render(
     <StrictMode>

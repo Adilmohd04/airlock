@@ -110,12 +110,20 @@ describe("recheckHostAttach", () => {
     }
   });
 
-  it("stays silent when a native host was there from the start", () => {
+  it("heals when a native host was there from the start but the store is stale", () => {
     globals().document = {
       modelContext: nativeInstance(),
       visibilityState: "visible",
     };
     globals().window = {};
+    // Force the stale boot-time state: nothing told the store yet.
+    agentModeStore.refreshDetection();
+    expect(agentModeStore.getState().host.kind).not.toBe("native");
+
+    // Identity comparison alone would stay silent (same object) — the store
+    // disagreement must still fire exactly once.
+    expect(recheckHostAttach()).toBe(true);
+    expect(agentModeStore.getState().host.kind).toBe("native");
     expect(recheckHostAttach()).toBe(false);
   });
 
