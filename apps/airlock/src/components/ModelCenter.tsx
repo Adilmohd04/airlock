@@ -499,6 +499,18 @@ function CloudRuntimeBody({ nativeHost }: { nativeHost: boolean }) {
         Local mode is the only mode where nothing the agent reads leaves this
         tab. Cloud trades that for a stronger model and no download.
       </p>
+      <details className="rounded-lg border border-ink-800 bg-ink-950/40 px-3 py-2">
+        <summary className="cursor-pointer select-none text-[11px] font-medium text-slate-300">
+          Still shows “not connected” in the top bar?
+        </summary>
+        <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[11px] leading-relaxed text-slate-500">
+          <li>Open this page in the ChatGPT desktop app's built-in browser (latest version), not a regular browser tab.</li>
+          <li>Let the agent open the page itself — a tab you navigated to by hand has no agent attached to it.</li>
+          <li>Drive it with ChatGPT Work or Codex on Sol or Terra (Luna has site tools disabled).</li>
+          <li>Site tools aren't offered in Enterprise or Edu workspaces.</li>
+          <li>Load a dataset in this tab first — the tools only exist once a dataset is loaded.</li>
+        </ul>
+      </details>
     </div>
   );
 }
