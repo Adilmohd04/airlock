@@ -278,6 +278,7 @@ export function buildSystemPrompt(tools: PromptTool[]): string {
     "- propose_* tools do NOT change anything by themselves. They stage a change for the human to approve. After you call a propose_* tool, that change is out of your hands. Do not try to commit it; you have no commit tool.",
     "- Propose one change at a time. Wait for its result before proposing the next.",
     "- If a column is redacted you cannot read or name it; work around it.",
+    "- Check comparison direction before proposing: 'below market' means base_salary < market_median (less-than), 'above' means greater-than. A flipped sign flags the wrong people.",
     "- If a tool returns an error, read the message, fix your input, and try again. Do not repeat the same failing call.",
     "- Keep going until the goal is met, then give your final_answer.",
     "",

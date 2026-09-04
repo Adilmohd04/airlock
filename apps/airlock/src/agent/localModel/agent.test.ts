@@ -229,6 +229,62 @@ describe("LocalAgent loop", () => {
     expect(agent.getState().status).toBe("done");
   });
 
+  it("streams partial tokens into a live event that collapses into the reasoning", async () => {
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    const mc = makeMc({
+      tools: READ_TOOLS,
+      calls,
+      onExecute: () => ({ content: [{ type: "text", text: "12 rows" }] }),
+    });
+    const model = new FakeModel([
+      '{"reasoning":"look","tool":"run_sql","arguments":{"query":"SELECT 1"}}',
+      '{"reasoning":"done","final_answer":"Found 12 rows."}',
+    ]);
+    const origChat = model.chat.bind(model);
+    let streamedTurns = 0;
+    model.chat = async (req) => {
+      req.onToken?.("tok-a ");
+      req.onToken?.("tok-b");
+      streamedTurns += 1;
+      return origChat(req);
+    };
+    const agent = new LocalAgent(model as never, () => mc as never);
+
+    await agent.run("count rows");
+
+    expect(streamedTurns).toBe(2);
+    const st = agent.getState();
+    // No raw tokens leak; each turn leaves exactly one reasoning event.
+    expect(st.events.some((e) => e.text.includes("tok-a"))).toBe(false);
+    expect(
+      st.events.filter((e) => e.kind === "reasoning" && e.text === "look")
+    ).toHaveLength(1);
+    expect(st.status).toBe("done");
+  });
+
+  it("fails fast after three consecutive blocked repeats", async () => {
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    const mc = makeMc({
+      tools: READ_TOOLS,
+      calls,
+      onExecute: () => ({ content: [{ type: "text", text: "25 rows" }] }),
+    });
+    const same =
+      '{"reasoning":"again","tool":"run_sql","arguments":{"query":"SELECT * FROM dataset"}}';
+    const model = new FakeModel([same, same, same, same, same]);
+    const agent = new LocalAgent(model as never, () => mc as never);
+
+    await agent.run("summarize", { stepCap: 12 });
+
+    // One execution, then a fast honest stop — never a 12-step burn.
+    expect(calls.filter((c) => c.name === "run_sql")).toHaveLength(1);
+    const st = agent.getState();
+    expect(st.status).toBe("error");
+    expect(
+      st.events.some((e) => e.kind === "error" && /same call was repeated/.test(e.text))
+    ).toBe(true);
+  });
+
   it("stops at a propose_* call and resumes when the human APPROVES", async () => {
     const calls: { name: string; args: Record<string, unknown> }[] = [];
     let staged: Proposal | null = null;

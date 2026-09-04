@@ -77,6 +77,8 @@ const MAX_MALFORMED_RETRIES = 4;
 const SCHEMA_FALLBACK_AFTER = 2;
 /** Longest tool-result text we replay verbatim; longer is truncated (context). */
 const MAX_RESULT_CHARS = 1400;
+/** Live token preview per turn in the transcript; the full text still drives. */
+const MAX_STREAM_PREVIEW_CHARS = 1500;
 /** How many prior turns we replay verbatim before summarizing older ones. */
 const RECENT_TURNS_KEPT = 6;
 
@@ -335,7 +337,14 @@ export class LocalAgent {
         continue;
       }
       malformed = 0;
-      if (turn.reasoning) this.push({ kind: "reasoning", text: turn.reasoning });
+      // The streamed preview already collapsed into this reasoning — don't
+      // push it a second time.
+      if (turn.reasoning) {
+        const last = this.state.events[this.state.events.length - 1];
+        if (!(last && last.kind === "reasoning" && last.text === turn.reasoning)) {
+          this.push({ kind: "reasoning", text: turn.reasoning });
+        }
+      }
 
       // Finished?
       if (!turn.tool && turn.finalAnswer) {
@@ -529,6 +538,11 @@ export class LocalAgent {
       [this.runAbort?.signal, stepAbort.signal].filter(Boolean) as AbortSignal[]
     );
     try {
+      // Stream tokens into one live event so a minutes-long turn on an iGPU
+      // visibly progresses instead of sitting dead. The preview collapses
+      // into the parsed reasoning below; the full text still drives the loop.
+      let streamId: number | null = null;
+      let truncated = false;
       const res = await this.store.chat({
         messages: [{ role: "system", content: system }, ...history],
         temperature: 0.2,
@@ -540,10 +554,36 @@ export class LocalAgent {
           ? { type: "json_object" }
           : { type: "json_object", schema: RESPONSE_SCHEMA_JSON },
         signal,
+        onToken: (delta) => {
+          if (this.aborted || truncated) return;
+          if (streamId === null) {
+            this.push({ kind: "reasoning", text: delta });
+            streamId = this.eventSeq;
+            return;
+          }
+          const ev = this.state.events.find((e) => e.id === streamId);
+          if (!ev) return;
+          if (ev.text.length + delta.length > MAX_STREAM_PREVIEW_CHARS) {
+            ev.text += " …(live preview truncated)";
+            truncated = true;
+          } else {
+            ev.text += delta;
+          }
+          this.emit();
+        },
       });
       if (res.finishReason === "abort" && stepAbort.signal.aborted && !this.aborted) {
         // The step timed out (not a user stop). Surface it as a recoverable notice.
         this.push({ kind: "notice", text: "A model step timed out; retrying." });
+      }
+      if (streamId !== null) {
+        const ev = this.state.events.find((e) => e.id === streamId);
+        if (ev) {
+          const parsed = parseTurn(res.text ?? "");
+          ev.text =
+            parsed?.reasoning || parsed?.finalAnswer || clip(res.text ?? "", 300);
+          this.emit();
+        }
       }
       return res.text ?? "";
     } finally {
