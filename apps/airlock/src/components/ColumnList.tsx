@@ -93,6 +93,10 @@ export function ColumnList() {
                 )}
               </div>
 
+              {/* Collapsed: a glanceable shape only. Full stats are one click
+                  away (the same click that focuses the column) — showing
+                  every number for every column at once is the density the
+                  redesign asks to cut. */}
               {p && !isRedacted && (
                 <div className="mt-1">
                   {p.histogram ? (
@@ -102,23 +106,27 @@ export function ColumnList() {
                       <div
                         className="h-1 rounded-full bg-airlock-600"
                         style={{
-                          width: `${Math.min(
-                            100,
-                            (p.distinctCount / Math.max(1, p.count)) * 100
-                          )}%`,
+                          width: `${Math.min(100, (p.distinctCount / Math.max(1, p.count)) * 100)}%`,
                         }}
                       />
                     </div>
                   )}
-                  <div className="mt-1 flex gap-2 font-mono text-[10px] text-slate-600">
-                    <span>{num(p.distinctCount)} distinct</span>
-                    {p.nullCount > 0 && (
-                      <span className="text-pending/80">
-                        {pct(p.nullCount, p.count + p.nullCount)} null
-                      </span>
-                    )}
-                    {p.mean !== undefined && <span>μ {num(p.mean)}</span>}
-                  </div>
+                  {focused ? (
+                    <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 font-mono text-[10.5px] text-slate-500">
+                      <span>{num(p.distinctCount)} distinct values</span>
+                      {p.nullCount > 0 ? (
+                        <span className="text-pending/80">{pct(p.nullCount, p.count + p.nullCount)} null</span>
+                      ) : (
+                        <span className="text-slate-600">0% null</span>
+                      )}
+                      {p.mean !== undefined && <span className="col-span-2">mean {num(p.mean)}</span>}
+                    </div>
+                  ) : (
+                    <p className="mt-1 font-mono text-[10px] text-slate-600">
+                      {num(p.distinctCount)} distinct
+                      {p.nullCount > 0 && ` · ${pct(p.nullCount, p.count + p.nullCount)} null`}
+                    </p>
+                  )}
                 </div>
               )}
 

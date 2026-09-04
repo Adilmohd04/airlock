@@ -4,13 +4,12 @@ import { LocalAgentConsole } from "./LocalAgentConsole";
 import { ByoAgentConsole } from "./ByoAgentConsole";
 
 /**
- * The Agent console — a developer / demo surface, NOT a hidden LLM.
- *
- * It lists the WebMCP tools this page has registered and lets you invoke one
- * with a JSON argument object, using the polyfill's testing shim
- * (`navigator.modelContextTesting`) or the Chrome preview's equivalent. It's how
- * you exercise the full propose → approve → commit loop without ChatGPT, and
- * it's what the demo video drives.
+ * The assistant panel — Airlock's conversational front, backed by the local
+ * agent (T1-b) or the user's own endpoint. "Developer tools" is the same
+ * manual tool-caller as before (the polyfill's testing shim), tucked behind a
+ * toggle instead of sitting as an equal third tab — it's how you exercise the
+ * propose → approve → commit loop without a model at all, and it's what the
+ * demo video can drive directly, but it isn't the first thing a user sees.
  */
 
 interface TestingShim {
@@ -75,11 +74,8 @@ export function AgentConsole() {
   const [args, setArgs] = useState("{}");
   const [out, setOut] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  // The console has three faces: the local agent (drives the on-device
-  // model), the BYO agent (drives the user's own endpoint), and the manual
-  // tool caller (developer/demo surface). Default to the local agent — it's
-  // the headline.
-  const [view, setView] = useState<"agent" | "byo" | "manual">("agent");
+  const [brain, setBrain] = useState<"agent" | "byo">("agent");
+  const [devTools, setDevTools] = useState(false);
 
   useEffect(() => {
     if (shim) {
@@ -97,9 +93,7 @@ export function AgentConsole() {
     setOut("");
     try {
       const res = await shim.executeTool(t, a);
-      setOut(
-        typeof res === "string" ? res : JSON.stringify(res, null, 2)
-      );
+      setOut(typeof res === "string" ? res : JSON.stringify(res, null, 2));
     } catch (e) {
       setOut(`Error: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -108,100 +102,95 @@ export function AgentConsole() {
   };
 
   return (
-    <div className="h-80 shrink-0 border-t border-ink-700 bg-ink-950">
-      <div className="flex items-center justify-between border-b border-ink-800 px-3 py-1.5">
-        <div className="flex items-center gap-1">
-          <span className="panel-title">Agent console</span>
-          <div className="ml-2 flex overflow-hidden rounded border border-ink-700 text-[11px]">
-            <button
-              className={`px-2 py-0.5 ${view === "agent" ? "bg-ink-700 text-slate-100" : "text-slate-500 hover:text-slate-300"}`}
-              onClick={() => setView("agent")}
-            >
-              Local agent
-            </button>
-            <button
-              className={`px-2 py-0.5 ${view === "byo" ? "bg-ink-700 text-slate-100" : "text-slate-500 hover:text-slate-300"}`}
-              onClick={() => setView("byo")}
-            >
-              BYO agent
-            </button>
-            <button
-              className={`px-2 py-0.5 ${view === "manual" ? "bg-ink-700 text-slate-100" : "text-slate-500 hover:text-slate-300"}`}
-              onClick={() => setView("manual")}
-            >
-              Manual tools
-              <span className="ml-1.5 font-normal text-slate-600">
-                {shim ? tools.length : "—"}
-              </span>
-            </button>
-          </div>
+    <div className="flex h-96 shrink-0 flex-col border-t border-ink-700 bg-ink-950">
+      <div className="flex shrink-0 items-center justify-between border-b border-ink-800 px-3 py-2">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold text-white">Ask Airlock</span>
+          {!devTools && (
+            <div className="flex overflow-hidden rounded-md border border-ink-700 text-[11px]">
+              <button
+                className={`px-2.5 py-1 ${brain === "agent" ? "bg-ink-700 text-slate-100" : "text-slate-500 hover:text-slate-300"}`}
+                onClick={() => setBrain("agent")}
+              >
+                On-device
+              </button>
+              <button
+                className={`px-2.5 py-1 ${brain === "byo" ? "bg-ink-700 text-slate-100" : "text-slate-500 hover:text-slate-300"}`}
+                onClick={() => setBrain("byo")}
+              >
+                Your endpoint
+              </button>
+            </div>
+          )}
         </div>
-        <button
-          className="text-xs text-slate-500 hover:text-slate-300"
-          onClick={() => uiStore.toggleConsole()}
-        >
-          close  (Ctrl/Cmd + `)
-        </button>
-      </div>
-
-      {view === "agent" ? (
-        <div className="h-[calc(100%-33px)]">
-          <LocalAgentConsole />
-        </div>
-      ) : view === "byo" ? (
-        <div className="h-[calc(100%-33px)]">
-          <ByoAgentConsole />
-        </div>
-      ) : (
-      <div className="grid h-[calc(100%-33px)] grid-cols-[200px_1fr_1fr]">
-        <div className="overflow-y-auto border-r border-ink-800 p-2">
-          <p className="panel-title mb-1">Quick calls</p>
-          {SNIPPETS.map((s) => (
-            <button
-              key={s.label}
-              className="mb-1 block w-full rounded px-2 py-1 text-left text-[11px] text-slate-400 hover:bg-ink-800 hover:text-slate-200"
-              onClick={() => {
-                setTool(s.tool);
-                setArgs(JSON.stringify(s.args, null, 2));
-                void run(s.tool, JSON.stringify(s.args));
-              }}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-col gap-2 border-r border-ink-800 p-2">
-          <select
-            value={tool}
-            onChange={(e) => setTool(e.target.value)}
-            className="rounded-md border border-ink-700 bg-ink-900 px-2 py-1 font-mono text-xs text-slate-200"
-          >
-            {(tools.length ? tools : [tool]).map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          <textarea
-            value={args}
-            onChange={(e) => setArgs(e.target.value)}
-            spellCheck={false}
-            className="min-h-0 flex-1 resize-none rounded-md border border-ink-700 bg-ink-900 p-2 font-mono text-[11px] text-slate-200 focus:border-airlock-600 focus:outline-none"
-          />
+        <div className="flex items-center gap-3">
           <button
-            className="btn btn-primary text-xs"
-            onClick={() => run()}
-            disabled={busy || !shim}
+            className="text-[11px] text-slate-500 hover:text-slate-300"
+            onClick={() => setDevTools((v) => !v)}
           >
-            {busy ? "Running…" : "Execute"}
+            {devTools ? "← back to assistant" : `Developer tools${shim ? ` (${tools.length})` : ""}`}
+          </button>
+          <button
+            className="text-xs text-slate-500 hover:text-slate-300"
+            onClick={() => uiStore.toggleConsole()}
+            aria-label="Close assistant panel"
+            title="Close (Ctrl/Cmd + `)"
+          >
+            close
           </button>
         </div>
-
-        <pre className="overflow-auto whitespace-pre-wrap p-2 font-mono text-[11px] text-slate-400">
-          {out || "result appears here"}
-        </pre>
       </div>
+
+      {devTools ? (
+        <div className="grid min-h-0 flex-1 grid-cols-[200px_1fr_1fr]">
+          <div className="overflow-y-auto border-r border-ink-800 p-2">
+            <p className="panel-title mb-1">Quick calls</p>
+            {SNIPPETS.map((s) => (
+              <button
+                key={s.label}
+                className="mb-1 block w-full rounded px-2 py-1 text-left text-[11px] text-slate-400 hover:bg-ink-800 hover:text-slate-200"
+                onClick={() => {
+                  setTool(s.tool);
+                  setArgs(JSON.stringify(s.args, null, 2));
+                  void run(s.tool, JSON.stringify(s.args));
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-2 border-r border-ink-800 p-2">
+            <select
+              value={tool}
+              onChange={(e) => setTool(e.target.value)}
+              className="rounded-md border border-ink-700 bg-ink-900 px-2 py-1 font-mono text-xs text-slate-200"
+            >
+              {(tools.length ? tools : [tool]).map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <textarea
+              value={args}
+              onChange={(e) => setArgs(e.target.value)}
+              spellCheck={false}
+              className="min-h-0 flex-1 resize-none rounded-md border border-ink-700 bg-ink-900 p-2 font-mono text-[11px] text-slate-200 focus:border-airlock-600 focus:outline-none"
+            />
+            <button className="btn btn-primary text-xs" onClick={() => run()} disabled={busy || !shim}>
+              {busy ? "Running…" : "Execute"}
+            </button>
+          </div>
+
+          <pre className="overflow-auto whitespace-pre-wrap p-2 font-mono text-[11px] text-slate-400">
+            {out || "result appears here"}
+          </pre>
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1">
+          {brain === "agent" ? <LocalAgentConsole /> : <ByoAgentConsole />}
+        </div>
       )}
     </div>
   );

@@ -52,19 +52,19 @@ export function SealStatus() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${tone.border}`}
+        className={`badge shrink-0 transition-colors ${tone.border}`}
         title="What has left this browser over the network"
       >
-        <span className={`inline-block h-1.5 w-1.5 rounded-full ${tone.dot}`} />
+        <span className={`badge-dot ${tone.dot}`} />
         {breached
           ? `${egress.externalRequests} external · ${bytes(egress.bytesSent)}`
           : hostConnected
             ? hostCalls > 0
               ? rows > 0
-                ? `Host connected · ${rows.toLocaleString()} rows disclosed`
-                : "Host connected · 0 rows so far"
-              : "WebMCP ready · no calls yet"
-            : "Sealed · 0 bytes out"}
+                ? `${rows.toLocaleString()} rows disclosed`
+                : "Connected · 0 rows so far"
+              : "Ready · no calls yet"
+            : "Secure · 0 bytes out"}
       </button>
 
       {open && (

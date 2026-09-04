@@ -31,6 +31,9 @@ export default {
       boxShadow: {
         lift: "0 10px 28px -14px rgb(0 0 0 / 0.65)",
         glow: "0 0 26px -8px rgb(76 224 205 / 0.4)",
+        // One step up from `lift` — for the Model Center and other modal-grade
+        // surfaces that float above popovers, not just above the rail.
+        popover: "0 24px 60px -20px rgb(0 0 0 / 0.75), 0 0 0 1px rgb(255 255 255 / 0.04)",
       },
       fontFamily: {
         mono: [
@@ -40,11 +43,16 @@ export default {
           "Consolas",
           "monospace",
         ],
+        // System stack, deliberately — see index.css header for why this isn't
+        // a self-hosted webfont. Ordered so each platform gets its native
+        // grotesque (SF on macOS, Segoe on Windows) instead of a shared web font.
         sans: [
-          "system-ui",
           "-apple-system",
+          "system-ui",
           "Segoe UI",
           "Roboto",
+          "Helvetica Neue",
+          "Arial",
           "sans-serif",
         ],
       },
@@ -61,11 +69,21 @@ export default {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        "scale-in": {
+          from: { opacity: "0", transform: "scale(0.97) translateY(6px)" },
+          to: { opacity: "1", transform: "scale(1) translateY(0)" },
+        },
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
       },
       animation: {
         "commit-flash": "commit-flash 1.2s ease-out",
         "pending-pulse": "pending-pulse 2s ease-in-out infinite",
         "slide-in": "slide-in 0.18s ease-out",
+        "scale-in": "scale-in 0.16s cubic-bezier(0.16, 1, 0.3, 1)",
+        "fade-in": "fade-in 0.15s ease-out",
       },
     },
   },

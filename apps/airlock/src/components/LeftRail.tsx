@@ -6,7 +6,7 @@ import { useState } from "react";
 export function LeftRail() {
   const [adding, setAdding] = useState(false);
   return (
-    <aside className="flex w-64 shrink-0 flex-col bg-ink-900">
+    <aside className="flex w-72 shrink-0 flex-col bg-ink-900">
       <DatasetSwitcher />
       <ColumnList />
       <div className="border-t border-ink-800 p-3">

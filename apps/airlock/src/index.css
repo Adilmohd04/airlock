@@ -18,7 +18,12 @@ body {
     radial-gradient(1200px 500px at 50% -10%, rgb(29 187 172 / 0.07), transparent 60%),
     #06090e;
   color: #e8ebf1;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* System stack, not a webfont: a Google Fonts (or any CDN) @import would be
+     an external request on every load, which the Seal would then have to
+     admit to — the one thing this product cannot afford to get wrong. The
+     native stack (SF Pro / Segoe UI / Roboto per platform) reads as "premium
+     app" on its own; see tailwind.config.js `fontFamily.sans` for the order. */
+  font-family: -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
@@ -111,6 +116,12 @@ body {
   .btn-primary {
     @apply bg-airlock-500 text-ink-950 shadow-glow hover:bg-airlock-400;
   }
+  .btn-secondary {
+    /* One step quieter than primary, one step louder than ghost — for a
+       second action that still matters (e.g. "Manage models" next to "Run"). */
+    @apply border border-airlock-700/50 bg-airlock-700/10 text-airlock-300
+      hover:border-airlock-600/60 hover:bg-airlock-700/20;
+  }
   .btn-ghost {
     @apply border border-ink-700 bg-ink-850/60 text-slate-300 hover:border-ink-500 hover:bg-ink-800 hover:text-white;
   }
@@ -125,9 +136,56 @@ body {
     @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400;
   }
 
+  /* Section label inside a dense panel — one step down from panel-title:
+     sans (not tracked-caps mono-adjacent) so it reads as prose grouping,
+     not another status readout. */
+  .section-label {
+    @apply text-[11px] font-medium uppercase tracking-wide text-slate-500;
+  }
+
   /* Raised card for popovers, dialogs and staged diffs. */
   .card {
     @apply rounded-xl border border-ink-700 bg-ink-900 shadow-lift;
+  }
+
+  /* One step up from `.card` — the Model Center and other modal-grade
+     surfaces. Same family, heavier shadow, so nested elevation stays legible
+     (rail < card < modal) instead of every floating surface looking equal. */
+  .modal-panel {
+    @apply rounded-2xl border border-ink-700 bg-ink-900 shadow-popover;
+  }
+  .modal-overlay {
+    @apply fixed inset-0 z-40 flex items-start justify-center bg-ink-950/70 backdrop-blur-sm animate-fade-in;
+  }
+
+  /* Status badges — one visual family for every "state of a thing" pill
+     (secure, pending, error, neutral). Dot + label, semantic color only. */
+  .badge {
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium;
+  }
+  .badge-dot {
+    @apply inline-block h-1.5 w-1.5 shrink-0 rounded-full;
+  }
+  .badge-teal {
+    @apply border-airlock-700/50 bg-airlock-700/10 text-airlock-300;
+  }
+  .badge-amber {
+    @apply border-pending/40 bg-pending/10 text-pending;
+  }
+  .badge-green {
+    @apply border-commit/40 bg-commit/10 text-commit;
+  }
+  .badge-red {
+    @apply border-danger/40 bg-danger/10 text-danger;
+  }
+  .badge-neutral {
+    @apply border-ink-700 bg-ink-850 text-slate-400;
+  }
+
+  /* A number that matters (row counts, VRAM, tok/s) — tabular so a changing
+     value never reflows its neighbours, and set apart from body text. */
+  .stat-num {
+    @apply font-mono tabular-nums text-slate-100;
   }
 }
 
