@@ -485,6 +485,12 @@ function ModelRow({
 // ── Cloud runtime ────────────────────────────────────────────────────────
 
 function CloudRuntimeBody({ nativeHost }: { nativeHost: boolean }) {
+  // What the page itself measured at load (main.tsx bootstrap): whether the
+  // browser exposed a real WebMCP API, or only the testing-flag/polyfill
+  // surface with no agent driving. This is the honest "why not connected" —
+  // everything beyond it (app version, model, workspace) is outside what the
+  // page can observe, so that stays a checklist, not a claim.
+  const { host } = useAgentMode();
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-pending/30 bg-pending/5 p-4">
@@ -495,6 +501,24 @@ function CloudRuntimeBody({ nativeHost }: { nativeHost: boolean }) {
             : "Connect Airlock to ChatGPT (or another WebMCP host) to drive it from there. The slices of data a cloud model queries leave this tab to that provider — this is the one mode that does not claim zero egress, and the ledger records exactly what left."}
         </p>
       </div>
+      {!nativeHost && (
+        <div className="rounded-lg border border-ink-800 bg-ink-950/40 px-3 py-2.5 text-[11px] leading-relaxed">
+          <p className="font-medium text-slate-300">Why “not connected”, measured on this page:</p>
+          {host.kind === "none" ? (
+            <p className="mt-1 text-slate-400">
+              This browser exposed <span className="font-mono text-slate-200">no WebMCP API</span> when
+              the page loaded — so this tab is not running inside a WebMCP host, or the host app is too
+              old to offer one. Work through the checklist below from the top.
+            </p>
+          ) : (
+            <p className="mt-1 text-slate-400">
+              A WebMCP API <span className="text-slate-200">exists in this browser</span>, but no agent
+              has attached to this page — typical for a tab you opened by hand that the agent is only
+              viewing. Switch to chat and ask Work or Codex to open and drive this page itself.
+            </p>
+          )}
+        </div>
+      )}
       <p className="text-[11px] leading-relaxed text-slate-500">
         Local mode is the only mode where nothing the agent reads leaves this
         tab. Cloud trades that for a stronger model and no download.
