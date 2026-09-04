@@ -16,7 +16,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { uiStore, useUI } from "../engine/uiStore";
-import { recheckHostAttach } from "../agent/hostAttach";
+import { classifyHost, recheckHostAttach } from "../agent/hostAttach";
 import {
   agentModeStore,
   describeMode,
@@ -494,7 +494,15 @@ function CloudRuntimeBody({ nativeHost }: { nativeHost: boolean }) {
   // surface with no agent driving. This is the honest "why not connected" —
   // everything beyond it (app version, model, workspace) is outside what the
   // page can observe, so that stays a checklist, not a claim.
-  const { host } = useAgentMode();
+  //
+  // NOTE: classified live on every render — not from the agent-mode store,
+  // whose host.kind is frozen at module-load values from BEFORE the polyfill
+  // installs. Reading the store here would report "no API" for a tab that
+  // actually has the local shim up with nobody attached.
+  const live =
+    typeof document === "undefined"
+      ? ("absent" as const)
+      : classifyHost((document as Document).modelContext as unknown);
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-pending/30 bg-pending/5 p-4">
@@ -507,18 +515,21 @@ function CloudRuntimeBody({ nativeHost }: { nativeHost: boolean }) {
       </div>
       {!nativeHost && (
         <div className="rounded-lg border border-ink-800 bg-ink-950/40 px-3 py-2.5 text-[11px] leading-relaxed">
-          <p className="font-medium text-slate-300">Why “not connected” (re-checked whenever you return to the tab or open this panel):</p>
-          {host.kind === "none" ? (
+          <p className="font-medium text-slate-300">Why “not connected” (re-checked every time this panel opens):</p>
+          {live === "absent" ? (
             <p className="mt-1 text-slate-400">
-              This browser exposed <span className="font-mono text-slate-200">no WebMCP API</span> when
-              the page loaded — so this tab is not running inside a WebMCP host, or the host app is too
-              old to offer one. Work through the checklist below from the top.
+              There is <span className="font-mono text-slate-200">no WebMCP API object</span> on
+              this page at all — not even Airlock&apos;s built-in local shim. That means the
+              page&apos;s WebMCP layer didn&apos;t initialize. Reload the tab; if this message
+              persists, the app bundle itself failed to start that layer.
             </p>
           ) : (
             <p className="mt-1 text-slate-400">
-              A WebMCP API <span className="text-slate-200">exists in this browser</span>, but no agent
-              has attached to this page — typical for a tab you opened by hand that the agent is only
-              viewing. Switch to chat and ask Work or Codex to open and drive this page itself.
+              The page exposes its <span className="text-slate-200">local shim only</span> — no
+              host is attached to this tab. A host appears here when the testing flag is on{" "}
+              <span className="text-slate-200">and</span> the browser was relaunched (Chrome
+              build permitting), or when ChatGPT&apos;s browser drives the page. Work through
+              the checklist below from the top.
             </p>
           )}
         </div>
