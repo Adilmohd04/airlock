@@ -145,3 +145,29 @@ export function __resetHostAttachForTests(): void {
   baseline = undefined;
   listeners.clear();
 }
+
+/**
+ * Drop a registerTool-less `document.modelContext` stub so the polyfill can
+ * install. The polyfill refuses to shadow an existing property, so a dead
+ * stub (e.g. injected by a half-working extension — no registerTool, nothing
+ * any consumer can call) would otherwise leave the page with no usable API
+ * at all: not native, and no testing shim either. A functional instance is
+ * never touched. Returns true when a stub was removed. Never throws.
+ */
+export function removeNonFunctionalStub(): boolean {
+  if (typeof document === "undefined") return false;
+  const doc = document as unknown as Record<string, unknown>;
+  const mc = doc.modelContext;
+  if (
+    !mc ||
+    typeof (mc as { registerTool?: unknown }).registerTool === "function"
+  ) {
+    return false;
+  }
+  try {
+    delete doc.modelContext;
+  } catch {
+    return false;
+  }
+  return doc.modelContext === undefined;
+}

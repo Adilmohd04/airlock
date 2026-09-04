@@ -14,6 +14,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { installEgressMonitor } from "./lib/egress";
+import { removeNonFunctionalStub } from "./agent/hostAttach";
 import { App } from "./App";
 import "./index.css";
 
@@ -54,6 +55,9 @@ async function bootstrap() {
     hasNativeWebMCP ? "native" : "polyfill";
 
   if (!hasNativeWebMCP) {
+    // A dead stub would block the polyfill below (it never shadows an
+    // existing property) while being callable by nobody — clear it first.
+    removeNonFunctionalStub();
     const { initializeWebMCPPolyfill } = await import("@mcp-b/webmcp-polyfill");
     initializeWebMCPPolyfill({
       autoInitialize: true,

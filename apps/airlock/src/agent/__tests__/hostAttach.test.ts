@@ -11,6 +11,7 @@ import {
   classifyHost,
   recheckHostAttach,
   onHostAttach,
+  removeNonFunctionalStub,
   scheduleLateRechecks,
   watchForNativeHost,
   LATE_RECHECK_DELAYS,
@@ -129,8 +130,7 @@ describe("recheckHostAttach", () => {
   });
 });
 
-describe("scheduleLateRechecks", () => {
-  it("re-checks on each beat and stops after cleanup", () => {
+describe("scheduleLateRechecks", () => {  it("re-checks on each beat and stops after cleanup", () => {
     vi.useFakeTimers();
     try {
       let calls = 0;
@@ -240,5 +240,50 @@ describe("watchForNativeHost", () => {
     vi.advanceTimersByTime(10 * 60_000);
     expect(calls).toBe(0);
     offAttach();
+  });
+});
+
+describe("removeNonFunctionalStub", () => {
+  let savedDocument: unknown;
+
+  beforeEach(() => {
+    savedDocument = globals().document;
+    delete globals().document;
+    __resetHostAttachForTests();
+  });
+
+  afterEach(() => {
+    if (savedDocument === undefined) delete globals().document;
+    else globals().document = savedDocument as Globals["document"];
+    __resetHostAttachForTests();
+  });
+
+  it("no-ops without a document", () => {
+    expect(removeNonFunctionalStub()).toBe(false);
+  });
+
+  it("removes a registerTool-less stub", () => {
+    globals().document = {
+      modelContext: { someField: 1 },
+      visibilityState: "visible",
+    };
+    expect(removeNonFunctionalStub()).toBe(true);
+    expect(globals().document!.modelContext).toBe(undefined);
+  });
+
+  it("keeps functional and polyfill instances", () => {
+    globals().document = {
+      modelContext: nativeInstance(),
+      visibilityState: "visible",
+    };
+    expect(removeNonFunctionalStub()).toBe(false);
+    expect(globals().document!.modelContext).toBeDefined();
+
+    globals().document = {
+      modelContext: polyfillInstance(),
+      visibilityState: "visible",
+    };
+    expect(removeNonFunctionalStub()).toBe(false);
+    expect(globals().document!.modelContext).toBeDefined();
   });
 });
