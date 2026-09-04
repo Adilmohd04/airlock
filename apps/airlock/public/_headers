@@ -90,3 +90,9 @@
   X-Content-Type-Options: nosniff
   X-Frame-Options: SAMEORIGIN
   Referrer-Policy: strict-origin-when-cross-origin
+  # WebMCP needs an origin-isolated document: without Origin-Agent-Cluster a
+  # host may not expose document.modelContext at all, and the page silently
+  # looks tool-less. The tools permission defaults to self; stating it keeps
+  # cross-origin iframes out unless we explicitly allow them (we don't).
+  Origin-Agent-Cluster: ?1
+  Permissions-Policy: tools=(self)
