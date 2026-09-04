@@ -105,6 +105,12 @@
     Cross-Origin-Embedder-Policy = "require-corp"
 
 # Ensure index.html is never cached (falls back for routing)
+# NOTE: no Permissions-Policy `tools` directive on purpose. Chrome reported
+# "Origin trial controlled feature not enabled: 'tools'" while our header
+# carried `tools=(self)` next to a valid trial token — the directive fought
+# the trial instead of helping host discovery. Default policy allows; the
+# trial token alone gates exposure. Do NOT re-add without re-testing the
+# pill in Chrome stable with only the token present.
 [[headers]]
   for = "/"
   [headers.values]
@@ -113,9 +119,8 @@
     Cross-Origin-Embedder-Policy = "require-corp"
     Content-Type = "text/html; charset=UTF-8"
     Origin-Agent-Cluster = "?1"
-    Permissions-Policy = "tools=(self)"
 
-# Catch-all for any .html files
+# Catch-all for any .html files (same: no `tools` directive — see note above)
 [[headers]]
   for = "/*.html"
   [headers.values]
@@ -124,4 +129,3 @@
     Cross-Origin-Embedder-Policy = "require-corp"
     Content-Type = "text/html; charset=UTF-8"
     Origin-Agent-Cluster = "?1"
-    Permissions-Policy = "tools=(self)"
