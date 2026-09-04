@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { uiStore, useUI } from "../engine/uiStore";
+import { recheckHostAttach } from "../agent/hostAttach";
 import {
   agentModeStore,
   describeMode,
@@ -69,6 +70,9 @@ export function ModelCenter() {
 
   useEffect(() => {
     if (open) void localModelStore.refresh();
+    // Opening this panel is an explicit "is a host here now?" moment — catch
+    // a host that attached after page load (pill + tools follow via App).
+    if (open) recheckHostAttach();
   }, [open]);
 
   // Focus trap + Escape, same contract as ModelDownloadDialog.
@@ -503,7 +507,7 @@ function CloudRuntimeBody({ nativeHost }: { nativeHost: boolean }) {
       </div>
       {!nativeHost && (
         <div className="rounded-lg border border-ink-800 bg-ink-950/40 px-3 py-2.5 text-[11px] leading-relaxed">
-          <p className="font-medium text-slate-300">Why “not connected”, measured on this page:</p>
+          <p className="font-medium text-slate-300">Why “not connected” (re-checked whenever you return to the tab or open this panel):</p>
           {host.kind === "none" ? (
             <p className="mt-1 text-slate-400">
               This browser exposed <span className="font-mono text-slate-200">no WebMCP API</span> when

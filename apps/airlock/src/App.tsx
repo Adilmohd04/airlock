@@ -1,7 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useActiveDataset } from "./engine/useDataset";
 import { useUI, uiStore } from "./engine/uiStore";
 import { useAirlockTools } from "./agent/tools";
+import {
+  onHostAttach,
+  watchForNativeHost,
+} from "./agent/hostAttach";
 import { TopBar } from "./components/TopBar";
 import { LeftRail } from "./components/LeftRail";
 import { CenterTabs } from "./components/CenterTabs";
@@ -15,10 +19,23 @@ import { AgentConsole } from "./components/AgentConsole";
 import { LoadingIndicator } from "./components/LoadingIndicator";
 
 export function App() {
-  useAirlockTools();
+  // Bumped whenever a native WebMCP host attaches after page load: the
+  // tools effect below disposes the polyfill registrations and re-registers
+  // the same suite on the native instance the real host reads.
+  const [hostGen, setHostGen] = useState(0);
+  useAirlockTools(hostGen);
   const { state } = useActiveDataset();
   const ui = useUI();
   const loaded = !!state?.loaded;
+
+  useEffect(() => {
+    const offWatch = watchForNativeHost();
+    const offAttach = onHostAttach(() => setHostGen((g) => g + 1));
+    return () => {
+      offWatch();
+      offAttach();
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

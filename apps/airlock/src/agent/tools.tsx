@@ -168,8 +168,13 @@ function exportFileName(
 /**
  * Register the full tool suite for the lifetime of the app. Safe to call when
  * WebMCP is unavailable — `registerTool` / `registerStagedTool` no-op cleanly.
+ *
+ * `hostGen` re-runs registration: when a native host attaches late (see
+ * `agent/hostAttach`), the app bumps the generation, the old effect cleanup
+ * unregisters from the previous instance first, and the suite lands on the
+ * native one the real host reads.
  */
-export function useAirlockTools(): void {
+export function useAirlockTools(hostGen: number = 0): void {
   useEffect(() => {
     const mc = getModelContext();
     const disposers: (() => void)[] = [];
@@ -1137,6 +1142,7 @@ export function useAirlockTools(): void {
     return () => {
       for (const d of disposers) d();
     };
+    // Re-runs only when the host generation bumps (late native attach).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hostGen]);
 }
