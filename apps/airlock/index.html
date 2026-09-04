@@ -2,6 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- WebMCP origin trial: Vite substitutes %VITE_WEBMCP_ORIGIN_TRIAL_TOKEN%
+         at BUILD time, so the served HTML carries a parser-seen token and
+         Chrome enables document.modelContext before any module script runs.
+         The token value itself never lives in git — only the deploy
+         environment holds it. main.tsx keeps a runtime-injection fallback for
+         builds made without the variable (a leftover placeholder is inert;
+         Chrome ignores tokens it cannot parse). -->
+    <meta http-equiv="origin-trial" content="%VITE_WEBMCP_ORIGIN_TRIAL_TOKEN%" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
