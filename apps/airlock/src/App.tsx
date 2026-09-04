@@ -4,6 +4,7 @@ import { useUI, uiStore } from "./engine/uiStore";
 import { useAirlockTools } from "./agent/tools";
 import {
   onHostAttach,
+  scheduleLateRechecks,
   watchForNativeHost,
 } from "./agent/hostAttach";
 import { TopBar } from "./components/TopBar";
@@ -31,9 +32,11 @@ export function App() {
   useEffect(() => {
     const offWatch = watchForNativeHost();
     const offAttach = onHostAttach(() => setHostGen((g) => g + 1));
+    const offLate = scheduleLateRechecks();
     return () => {
       offWatch();
       offAttach();
+      offLate();
     };
   }, []);
 

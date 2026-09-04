@@ -6,11 +6,13 @@
  * the shapes `hostAttach` actually reads: `document.modelContext` and a
  * mutable `window` for the bootstrap flag.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   classifyHost,
   recheckHostAttach,
   onHostAttach,
+  scheduleLateRechecks,
+  LATE_RECHECK_DELAYS,
   __resetHostAttachForTests,
 } from "../hostAttach";
 import { agentModeStore } from "../agentMode";
@@ -117,5 +119,29 @@ describe("recheckHostAttach", () => {
     globals().window = {};
     expect(recheckHostAttach()).toBe(false);
     expect(recheckHostAttach()).toBe(false);
+  });
+});
+
+describe("scheduleLateRechecks", () => {
+  it("re-checks on each beat and stops after cleanup", () => {
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const off = scheduleLateRechecks(() => {
+        calls += 1;
+      });
+      expect(calls).toBe(0);
+      vi.advanceTimersByTime(LATE_RECHECK_DELAYS[0]);
+      expect(calls).toBe(1);
+      vi.advanceTimersByTime(
+        LATE_RECHECK_DELAYS[1] - LATE_RECHECK_DELAYS[0]
+      );
+      expect(calls).toBe(2);
+      off();
+      vi.advanceTimersByTime(60_000);
+      expect(calls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

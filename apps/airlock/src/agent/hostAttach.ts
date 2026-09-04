@@ -106,6 +106,26 @@ export function watchForNativeHost(): () => void {
   };
 }
 
+/**
+ * Post-load beats: Chrome activates a trial-gated API asynchronously after it
+ * processes the injected token meta, so the API can appear seconds after
+ * bootstrap already ran its one check. Re-check on these beats even if the
+ * human never leaves the tab (no focus/visibility event would fire then).
+ */
+export const LATE_RECHECK_DELAYS = [1500, 5000, 15000];
+
+export function scheduleLateRechecks(
+  recheck: () => void = recheckHostAttach
+): () => void {
+  if (typeof setTimeout === "undefined") return () => {};
+  const ids: ReturnType<typeof setTimeout>[] = LATE_RECHECK_DELAYS.map((ms) =>
+    setTimeout(() => recheck(), ms)
+  );
+  return () => {
+    for (const id of ids) clearTimeout(id);
+  };
+}
+
 /** Test-only reset for the module-level baseline and listeners. */
 export function __resetHostAttachForTests(): void {
   baselineSeen = false;
