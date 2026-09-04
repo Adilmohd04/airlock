@@ -282,22 +282,15 @@ function LocalRuntimeBody({
           </div>
         )}
         {(s.status === "ready" || s.status === "running") && (
-          <div className="mt-2 grid grid-cols-2 gap-3 text-xs">
-            <Stat label="Hardware">
-              <HardwareLine hardware={s.hardware} />
-            </Stat>
+          <div className="mt-2 flex justify-end">
             {s.status === "running" ? (
-              <div className="flex items-end">
-                <button className="btn btn-ghost !py-1 text-xs" onClick={() => void localModelStore.unload()}>
-                  Unload (frees GPU)
-                </button>
-              </div>
+              <button className="btn btn-ghost !py-1 text-xs" onClick={() => void localModelStore.unload()}>
+                Unload (frees GPU)
+              </button>
             ) : (
-              <div className="flex items-end">
-                <button className="btn btn-primary !py-1 text-xs" onClick={() => void localModelStore.load()}>
-                  Load model
-                </button>
-              </div>
+              <button className="btn btn-primary !py-1 text-xs" onClick={() => void localModelStore.load()}>
+                Load model
+              </button>
             )}
           </div>
         )}
@@ -312,6 +305,17 @@ function LocalRuntimeBody({
         {s.status === "error" && (
           <p className="mt-2 text-xs leading-relaxed text-danger">{s.error}</p>
         )}
+      </div>
+
+      {/* Always visible — not gated on status. The GPU check runs
+          independently of whether a model is installed yet, and "is my
+          hardware even capable" is the first thing a first-time visitor
+          wants answered, not something buried behind a download. */}
+      <div>
+        <p className="section-label mb-1.5">Hardware</p>
+        <div className="rounded-lg border border-ink-800 bg-ink-850/60 px-3 py-2.5 text-xs">
+          <HardwareLine hardware={s.hardware} />
+        </div>
       </div>
 
       {installed.length > 0 && (
@@ -474,15 +478,6 @@ function ModelRow({
         {sub && <p className="mt-1 text-[11px] leading-snug text-slate-500">{sub}</p>}
       </div>
       <div className="shrink-0">{children}</div>
-    </div>
-  );
-}
-
-function Stat({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-[10.5px] uppercase tracking-wide text-slate-600">{label}</p>
-      <div className="mt-0.5">{children}</div>
     </div>
   );
 }
