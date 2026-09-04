@@ -24,7 +24,7 @@ export function EmptyState() {
   }, []);
 
   return (
-    <div className="flex flex-1 items-center justify-center overflow-y-auto p-8">
+    <div className="relative isolate flex flex-1 items-center justify-center overflow-y-auto p-8">
       <div className="grid w-full max-w-5xl gap-12 md:grid-cols-2 md:gap-16">
         <div className="flex flex-col justify-center">
           <span className="badge badge-teal mb-4 w-fit">Private by construction</span>
