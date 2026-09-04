@@ -158,24 +158,32 @@ export function ModelCenter() {
           {RUNTIME_TAB.map((t) => {
             const avail = agentModeStore.availability(t.id);
             const active = nativeHost ? t.id === "cloud" : tab === t.id;
+            // A blocked runtime is still viewable — clicking it always shows
+            // *why* (LocalRuntimeBody surfaces the specific reason below).
+            // Only the actual mode-select side effect is gated. A disabled
+            // <button> can't be reached by click or keyboard, which is what
+            // hid this diagnosis from view in the first place.
             return (
               <button
                 key={t.id}
                 type="button"
-                disabled={!avail.available}
-                title={avail.reason}
+                title={avail.available ? undefined : avail.reason}
                 onClick={() => {
                   setTab(t.id);
-                  if (!nativeHost) agentModeStore.setMode(t.id);
+                  if (!nativeHost && avail.available) agentModeStore.setMode(t.id);
                 }}
-                className={`flex-1 rounded-lg border px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                className={`flex-1 rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
                   active
                     ? "border-airlock-500/60 bg-airlock-700/15 text-airlock-200"
-                    : "border-ink-700 text-slate-400 hover:bg-ink-850 hover:text-white"
+                    : avail.available
+                      ? "border-ink-700 text-slate-400 hover:bg-ink-850 hover:text-white"
+                      : "border-ink-800 text-slate-600 hover:bg-ink-850"
                 }`}
               >
                 <span className="block font-medium">{t.label}</span>
-                <span className="mt-0.5 block text-[10.5px] text-slate-500">{t.hint}</span>
+                <span className="mt-0.5 block text-[10.5px] text-slate-500">
+                  {avail.available ? t.hint : "Unavailable — click to see why"}
+                </span>
               </button>
             );
           })}
