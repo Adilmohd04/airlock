@@ -141,7 +141,11 @@ export function AssistantTranscript({
         <p className="text-[13px] leading-relaxed text-slate-500">
           {ready ? emptyReady : emptyNotReady}
         </p>
-        {ready && examples.length > 0 && (
+        {/* Shown regardless of `ready` — these help most before setup is
+            done (draft your question while the model loads), not after.
+            Clicking one when not ready fills the composer without running
+            (the caller's `start`/`run` no-ops until `ready`). */}
+        {examples.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {examples.map((ex) => (
               <button
