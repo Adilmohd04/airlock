@@ -181,6 +181,7 @@ export function useAirlockTools(): void {
       registerTool(
         {
           name: "list_datasets",
+          title: "List datasets",
           description:
             "List every dataset loaded in the workspace with row/column counts, its SQL table name, and which one is active. The active dataset's base table is also always queryable as `dataset`.",
           annotations: { readOnlyHint: true, untrustedContentHint: true },
@@ -212,6 +213,7 @@ export function useAirlockTools(): void {
       registerTool(
         {
           name: "get_dataset_summary",
+          title: "Dataset summary",
           description:
             "Summarize the active dataset: file name, SQL table name, row count, and every column with its type. Start here. In run_sql you can refer to this table as `dataset` or by its real `tableName`.",
           annotations: { readOnlyHint: true, untrustedContentHint: true },
@@ -265,6 +267,7 @@ export function useAirlockTools(): void {
       registerTool(
         {
           name: "list_columns",
+          title: "List columns",
           description:
             "List the active dataset's columns with type, null fraction and distinct count.",
           annotations: { readOnlyHint: true, untrustedContentHint: true },
@@ -301,6 +304,7 @@ export function useAirlockTools(): void {
       registerTool(
         {
           name: "profile_column",
+          title: "Profile a column",
           description:
             "Full profile of one column: type, non-null count, nulls, distinct count, numeric min/max/mean, and up to 5 example values. Pass the column as `column` (`column_name` also works). A redacted column returns shape only (count / nulls / distinct) — no min/max, no examples.",
           inputSchema: {
@@ -355,6 +359,7 @@ export function useAirlockTools(): void {
       registerTool(
         {
           name: "preview_rows",
+          title: "Preview rows",
           description:
             "Return rows from the CURRENT VIEW of the active dataset (all filters, derived columns and renames applied). Redacted columns are omitted. Optional extra WHERE clause and row limit.",
           inputSchema: {
@@ -409,8 +414,9 @@ export function useAirlockTools(): void {
       registerTool(
         {
           name: "run_sql",
+          title: "Run read-only SQL",
           description:
-            "Run ONE read-only SQL query (SELECT / WITH / VALUES / EXPLAIN) and return up to 200 rows. The active dataset is available as `dataset` (e.g. \"SELECT department, avg(base_salary) FROM dataset GROUP BY 1\"); other loaded datasets use the `tableName` from list_datasets. Cannot modify data, read files, or reach the network — use the staged propose_* tools for changes. While any column is redacted, name your columns explicitly (`SELECT *` is refused) and do not reference a redacted column in any form.",
+            "Run ONE read-only query (SELECT / WITH / VALUES / EXPLAIN), up to 200 rows. The active dataset is `dataset` (e.g. \"SELECT department, avg(base_salary) FROM dataset GROUP BY 1\"). Cannot modify data or reach the network — use propose_* for changes. While any column is redacted, name columns explicitly (no SELECT *) and never reference a redacted column.",
           inputSchema: {
             type: "object",
             properties: { query: { type: "string" } },
@@ -445,6 +451,7 @@ export function useAirlockTools(): void {
       registerTool(
         {
           name: "describe_workspace",
+          title: "Describe workspace",
           description:
             "List everything currently applied to the active dataset: filters, derived columns, renames, charts, flag sets, and redaction state — plus how many are agent-originated. Check `redaction` here so you know what you cannot see rather than guessing.",
           annotations: { readOnlyHint: true, untrustedContentHint: true },
@@ -499,6 +506,7 @@ export function useAirlockTools(): void {
       registerTool(
         {
           name: "get_activity_log",
+          title: "Activity ledger",
           description:
             "Return the transparency ledger: every tool call this session, what it did, and a summary of the data returned to the agent. Each entry's `id` is what a write_report [cite:<id>] marker points at — cite the read entry that produced each number.",
           annotations: { readOnlyHint: true, untrustedContentHint: true },
