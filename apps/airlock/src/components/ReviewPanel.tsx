@@ -51,15 +51,9 @@ export function ReviewPanel() {
 
   return (
     <section className="flex min-h-0 flex-col">
-      <div className="flex items-center justify-between px-3 py-2">
-        <p className="panel-title">
-          Review queue
-          {pending.length > 0 && (
-            <span className="ml-1.5 rounded-full bg-pending/20 px-1.5 text-pending">
-              {pending.length}
-            </span>
-          )}
-        </p>
+      <div className="flex items-center gap-2 px-3.5 py-3">
+        <p className="text-sm font-semibold text-white">Review queue</p>
+        {pending.length > 0 && <span className="badge badge-amber !py-0.5">{pending.length} pending</span>}
       </div>
 
       {/* `aria-relevant="additions removals"` announces a card entering/leaving
@@ -71,9 +65,10 @@ export function ReviewPanel() {
         aria-relevant="additions removals"
       >
         {pending.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-ink-800 px-3 py-6 text-center text-xs text-slate-600">
-            Nothing staged. When the agent proposes a change it appears here as a
-            diff for you to approve or reject.
+          <div className="rounded-lg border border-dashed border-ink-800 px-3 py-6 text-center text-xs leading-relaxed text-slate-600">
+            Nothing staged yet. When Airlock&apos;s agent wants to change
+            something, it appears here first — as a plain-language diff you
+            approve or reject. Nothing changes on its own.
           </div>
         ) : (
           pending.map((p, i) => (

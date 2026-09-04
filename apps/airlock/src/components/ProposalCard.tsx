@@ -32,27 +32,19 @@ export function ProposalCard({
 
   return (
     <div
-      className={`agent-pending animate-slide-in rounded-xl border bg-ink-850 p-3 shadow-lift ${
+      className={`agent-pending animate-slide-in rounded-xl border bg-ink-850 p-3.5 shadow-lift ${
         primary ? "border-pending/50" : "border-ink-700"
       }`}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="rounded bg-airlock-700/20 px-1.5 py-0.5 font-mono text-[10px] text-airlock-300">
-            ✦ {proposal.toolName}
-          </span>
-          {primary && (
-            <span className="text-[10px] text-pending animate-pending-pulse">
-              awaiting you
-            </span>
-          )}
-        </div>
-        <span className="text-[10px] text-slate-600">
-          {relativeTime(proposal.createdAt)}
+        <span className="section-label text-pending">
+          {primary ? "Review required" : "Also staged"}
         </span>
+        <span className="text-[10px] text-slate-600">{relativeTime(proposal.createdAt)}</span>
       </div>
 
-      <p className="mb-2 text-xs text-slate-300">{proposal.summary}</p>
+      <p className="mb-1 text-[13px] leading-snug text-slate-100">{proposal.summary}</p>
+      <p className="mb-2.5 font-mono text-[10px] text-slate-600">✦ {proposal.toolName}</p>
 
       <div className="mb-3">
         <PreviewBody preview={preview} />
@@ -67,7 +59,7 @@ export function ProposalCard({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="reason (optional)"
-            className="w-full rounded-md border border-ink-700 bg-ink-950 px-2 py-1 text-xs text-slate-200 placeholder:text-slate-600 focus:border-danger/50 focus:outline-none"
+            className="w-full rounded-md border border-ink-700 bg-ink-950 px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:border-danger/50 focus:outline-none"
             onKeyDown={(e) => {
               if (e.key === "Enter") rejectProposal(proposal, note || undefined);
               if (e.key === "Escape") setRejecting(false);
@@ -75,15 +67,12 @@ export function ProposalCard({
           />
           <div className="flex gap-2">
             <button
-              className="btn btn-reject flex-1 !py-1 text-xs"
+              className="btn btn-reject flex-1 !py-1.5 text-xs"
               onClick={() => rejectProposal(proposal, note || undefined)}
             >
               Confirm reject
             </button>
-            <button
-              className="btn btn-ghost !py-1 text-xs"
-              onClick={() => setRejecting(false)}
-            >
+            <button className="btn btn-ghost !py-1.5 text-xs" onClick={() => setRejecting(false)}>
               Back
             </button>
           </div>
@@ -91,14 +80,14 @@ export function ProposalCard({
       ) : (
         <div className="flex gap-2">
           <button
-            className="btn btn-approve flex-1 !py-1 text-xs"
+            className="btn btn-approve flex-1 !py-1.5 text-xs font-semibold"
             onClick={approve}
             disabled={busy}
           >
             {busy ? "Applying…" : primary ? "Approve  ⏎" : "Approve"}
           </button>
           <button
-            className="btn btn-reject !py-1 text-xs"
+            className="btn btn-reject !py-1.5 text-xs"
             onClick={() => setRejecting(true)}
             disabled={busy}
           >
