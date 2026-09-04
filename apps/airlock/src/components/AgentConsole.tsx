@@ -1,26 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { uiStore } from "../engine/uiStore";
+import {
+  resolveConsoleShim,
+  type ConsoleShim,
+} from "../agent/consoleShim";
 import { LocalAgentConsole } from "./LocalAgentConsole";
 import { ByoAgentConsole } from "./ByoAgentConsole";
 
 /**
  * The assistant panel — Airlock's conversational front, backed by the local
  * agent (T1-b) or the user's own endpoint. "Developer tools" is the same
- * manual tool-caller as before (the polyfill's testing shim), tucked behind a
- * toggle instead of sitting as an equal third tab — it's how you exercise the
- * propose → approve → commit loop without a model at all, and it's what the
- * demo video can drive directly, but it isn't the first thing a user sees.
+ * manual tool-caller as before, tucked behind a toggle instead of sitting as
+ * an equal third tab — it's how you exercise the propose → approve → commit
+ * loop without a model at all, and it's what the demo video can drive
+ * directly, but it isn't the first thing a user sees.
+ *
+ * Transport comes from `agent/consoleShim`: the polyfill's testing shim when
+ * there is no host, the native `getTools`/`executeTool` surface when there
+ * is. Either way the calls run the same registered functions the ledger
+ * records.
  */
-
-interface TestingShim {
-  listTools: () => { name: string; description?: string }[];
-  executeTool: (name: string, argsJson: string) => Promise<unknown>;
-}
-
-function getShim(): TestingShim | null {
-  const n = navigator as unknown as { modelContextTesting?: TestingShim };
-  return n.modelContextTesting ?? null;
-}
 
 const SNIPPETS: { label: string; tool: string; args: Record<string, unknown> }[] = [
   { label: "Summarize the dataset", tool: "get_dataset_summary", args: {} },
@@ -68,7 +67,7 @@ const SNIPPETS: { label: string; tool: string; args: Record<string, unknown> }[]
 ];
 
 export function AgentConsole() {
-  const shim = useMemo(getShim, []);
+  const [shim, setShim] = useState<ConsoleShim | null>(null);
   const [tools, setTools] = useState<string[]>([]);
   const [tool, setTool] = useState("get_dataset_summary");
   const [args, setArgs] = useState("{}");
@@ -78,13 +77,29 @@ export function AgentConsole() {
   const [devTools, setDevTools] = useState(false);
 
   useEffect(() => {
-    if (shim) {
-      try {
-        setTools(shim.listTools().map((t) => t.name).sort());
-      } catch {
-        /* ignore */
-      }
-    }
+    let alive = true;
+    void resolveConsoleShim().then((s) => {
+      if (alive && s) setShim(s);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!shim) return;
+    let alive = true;
+    void shim
+      .listTools()
+      .then((list) => {
+        if (alive) setTools(list.map((t) => t.name).sort());
+      })
+      .catch(() => {
+        /* a host that refuses discovery leaves the default tool selected */
+      });
+    return () => {
+      alive = false;
+    };
   }, [shim]);
 
   const run = async (t = tool, a = args) => {

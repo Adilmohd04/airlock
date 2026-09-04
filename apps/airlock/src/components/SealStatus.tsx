@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { subscribeEgress, getEgress, type EgressState } from "../lib/egress";
 import { bytes } from "../lib/format";
 import { activityLog } from "../agent/activity";
@@ -26,10 +26,31 @@ import { uiStore } from "../engine/uiStore";
 export function SealStatus() {
   const [egress, setEgress] = useState<EgressState>(getEgress);
   const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const mode = useAgentMode();
   useActivity(); // re-render when the ledger changes, for the counts below
 
   useEffect(() => subscribeEgress(() => setEgress(getEgress())), []);
+
+  // A stuck-open popover covers the workspace it explains — dismiss on
+  // outside pointer-down or Escape, same contract as the AI panel.
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: PointerEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   const breached = egress.externalRequests > 0 || egress.bytesSent > 0;
   const hostConnected = mode.host.kind === "native";
@@ -48,7 +69,7 @@ export function SealStatus() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapRef}>
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
