@@ -12,13 +12,20 @@ import {
   recheckHostAttach,
   onHostAttach,
   scheduleLateRechecks,
+  watchForNativeHost,
   LATE_RECHECK_DELAYS,
+  NATIVE_HOST_POLL_MS,
   __resetHostAttachForTests,
 } from "../hostAttach";
 import { agentModeStore } from "../agentMode";
 
 type Globals = {
-  document?: { modelContext?: unknown; visibilityState?: string };
+  document?: {
+    modelContext?: unknown;
+    visibilityState?: string;
+    addEventListener?: (...args: unknown[]) => void;
+    removeEventListener?: (...args: unknown[]) => void;
+  };
   window?: { __airlockWebMCP?: string };
 };
 
@@ -143,5 +150,95 @@ describe("scheduleLateRechecks", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("watchForNativeHost", () => {
+  let savedDocument: unknown;
+  let savedWindow: unknown;
+
+  function fakeWindow() {
+    return {
+      __airlockWebMCP: undefined as string | undefined,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    };
+  }
+
+  beforeEach(() => {
+    savedDocument = globals().document;
+    savedWindow = globals().window;
+    delete globals().document;
+    delete globals().window;
+    __resetHostAttachForTests();
+  });
+
+  afterEach(() => {
+    if (savedDocument === undefined) delete globals().document;
+    else globals().document = savedDocument as Globals["document"];
+    if (savedWindow === undefined) delete globals().window;
+    else globals().window = savedWindow as Globals["window"];
+    __resetHostAttachForTests();
+    vi.useRealTimers();
+  });
+
+  it("polls until a late native host appears, then stops", () => {
+    vi.useFakeTimers();
+    const nat = nativeInstance();
+    const noopEvents = () => undefined;
+    globals().document = {
+      modelContext: polyfillInstance(),
+      visibilityState: "visible",
+      addEventListener: noopEvents,
+      removeEventListener: noopEvents,
+    };
+    globals().window = fakeWindow();
+
+    let calls = 0;
+    const offAttach = onHostAttach(() => {
+      calls += 1;
+    });
+    const offWatch = watchForNativeHost();
+    try {
+      // Beats of polling with no host: silent.
+      vi.advanceTimersByTime(NATIVE_HOST_POLL_MS * 3);
+      expect(calls).toBe(0);
+
+      // Host arrives late (long after any scheduled beat would run).
+      vi.advanceTimersByTime(10 * 60_000);
+      globals().document!.modelContext = nat;
+      vi.advanceTimersByTime(NATIVE_HOST_POLL_MS);
+      expect(calls).toBe(1);
+
+      // Poll cleared itself: no repeat notifications.
+      vi.advanceTimersByTime(10 * 60_000);
+      expect(calls).toBe(1);
+    } finally {
+      offAttach();
+      offWatch();
+    }
+  });
+
+  it("unsubscribing stops the poll", () => {
+    vi.useFakeTimers();
+    const noopEvents = () => undefined;
+    globals().document = {
+      modelContext: polyfillInstance(),
+      visibilityState: "visible",
+      addEventListener: noopEvents,
+      removeEventListener: noopEvents,
+    };
+    globals().window = fakeWindow();
+
+    let calls = 0;
+    const offAttach = onHostAttach(() => {
+      calls += 1;
+    });
+    const offWatch = watchForNativeHost();
+    offWatch();
+    globals().document!.modelContext = nativeInstance();
+    vi.advanceTimersByTime(10 * 60_000);
+    expect(calls).toBe(0);
+    offAttach();
   });
 });

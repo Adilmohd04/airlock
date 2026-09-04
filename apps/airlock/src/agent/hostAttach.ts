@@ -85,8 +85,14 @@ export function onHostAttach(l: Listener): () => void {
 /**
  * Re-check at the moments a late-attaching host would plausibly have
  * appeared: the human returns to the tab (focus / visible / pageshow).
- * No polling. Returns an unsubscribe function. No-op without a window.
+ * Plus a slow poll, because a testing host can expose the API minutes after
+ * load (on demand) — long after the scheduled beats above have run. The poll
+ * clears itself permanently on the first transition, so a connected tab pays
+ * one property read every 5s only until it connects. Returns an unsubscribe
+ * function that stops everything. No-op without a window.
  */
+export const NATIVE_HOST_POLL_MS = 5000;
+
 export function watchForNativeHost(): () => void {
   snapshotBaseline();
   if (typeof window === "undefined") return () => {};
@@ -99,10 +105,17 @@ export function watchForNativeHost(): () => void {
   window.addEventListener("focus", onEvent);
   document.addEventListener("visibilitychange", onVisibility);
   window.addEventListener("pageshow", onEvent);
+  const poll =
+    typeof setInterval === "undefined"
+      ? undefined
+      : setInterval(() => {
+          if (recheckHostAttach() && poll !== undefined) clearInterval(poll);
+        }, NATIVE_HOST_POLL_MS);
   return () => {
     window.removeEventListener("focus", onEvent);
     document.removeEventListener("visibilitychange", onVisibility);
     window.removeEventListener("pageshow", onEvent);
+    if (poll !== undefined) clearInterval(poll);
   };
 }
 
