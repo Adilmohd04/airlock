@@ -92,7 +92,10 @@
   Referrer-Policy: strict-origin-when-cross-origin
   # WebMCP needs an origin-isolated document: without Origin-Agent-Cluster a
   # host may not expose document.modelContext at all, and the page silently
-  # looks tool-less. The tools permission defaults to self; stating it keeps
-  # cross-origin iframes out unless we explicitly allow them (we don't).
+  # looks tool-less.
+  # Deliberately NO Permissions-Policy `tools` directive: Chrome logged
+  # "Origin trial controlled feature not enabled: 'tools'" while this file
+  # carried `tools=(self)` next to a valid trial token. Default policy
+  # allows; the trial token alone gates exposure. Do NOT re-add without
+  # re-testing the pill in Chrome stable with only the token present.
   Origin-Agent-Cluster: ?1
-  Permissions-Policy: tools=(self)
