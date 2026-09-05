@@ -1582,3 +1582,38 @@ switched from patching to a proper rewrite (the epoch counter) instead of
 a fourth special case. Two clean passes after that found nothing new. If a
 change needs a third patch to its own patch, stop and redesign rather than
 patch again.
+
+### [2026-09-03] hoplite — main-flow UX papercut audit: three fixes, all verified live in a real browser
+
+Audited the main user flows for UX papercuts, fixed the three highest-impact
+findings with small focused changes, and verified each by running the app
+(Vite dev server, Chrome) rather than by code reading alone:
+
+1. **Clipboard paste only worked when focus was on the dropzone.** The UI
+   promises "paste data", but a spreadsheet copy happens while focus is
+   anywhere on the page — the old `onPaste` lived on the dropzone div only.
+   Fixed with a document-level paste listener that imports table-shaped text
+   (tabs/newlines) from anywhere, skipping INPUT/TEXTAREA/SELECT/
+   contentEditable so the filter box, goal box and paste textarea are never
+   hijacked. Gate is `looksTabularText()` in `lib/importFormats.ts` (4 new
+   unit tests). Verified live: paste at `document` imported the CSV; paste
+   targeting a filter `<input>` did not import.
+2. **The chart "Add" form never submitted on Enter.** Enter in the title box
+   or SQL box did nothing — the only path was clicking Add. Fixed: Enter in
+   the title submits, Ctrl/Cmd+Enter in the SQL textarea submits, and Add is
+   disabled until SQL is non-empty. Verified live: chart created via
+   keyboard-only, tab count updated, form closed.
+3. **Dataset remove and session delete were one-click destructive.** A stray
+   click on the ✕ killed a dataset or an IndexedDB session with no way back.
+   Fixed with a new `ConfirmButton` (arm → confirm, Escape / outside click /
+   4s inactivity disarms, "keep" escape hatch) wired into `DatasetSwitcher`
+   and `SessionMenu`, matching the existing two-step confirm idiom from
+   `LocalModelPanel`. Verified live on both surfaces: first click arms
+   without deleting, Escape disarms, the timer disarms, "keep" disarms, and
+   confirm actually deletes.
+
+Full gate: `npm run typecheck --workspace apps/airlock` clean; airlock test
+suite 491/491 green across 18 files. Also recorded the working dev setup
+(build `webmcp-staged` dist before `npm run dev`; port 3000) in
+`.hoplite/settings.json` so a fresh sandbox boots without the missing-`dist`
+Vite error.
