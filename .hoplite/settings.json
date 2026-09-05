@@ -1,0 +1,28 @@
+{
+	"version": 1,
+	"ports": {
+		"preview": 3000,
+		"additional": {
+			"airlock": 3000
+		}
+	},
+	"scripts": {
+		"setup": {
+			"enabled": true,
+			"command": "npm install && npm run build --workspace packages/webmcp-staged"
+		},
+		"run": {
+			"enabled": true,
+			"command": "npm run dev --workspace apps/airlock -- --port 3000"
+		},
+		"archive": {
+			"enabled": true,
+			"command": null
+		},
+		"check": {
+			"enabled": true,
+			"command": null
+		}
+	},
+	"mcpServers": []
+}

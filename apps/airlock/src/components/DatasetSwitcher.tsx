@@ -1,6 +1,7 @@
 import { useWorkspace } from "../engine/useDataset";
 import { workspaceStore } from "../engine/workspaceStore";
 import { num } from "../lib/format";
+import { ConfirmButton } from "./ConfirmButton";
 
 export function DatasetSwitcher() {
   const ws = useWorkspace();
@@ -40,17 +41,18 @@ export function DatasetSwitcher() {
                 {num(st.totalRows)}
               </span>
               {ws.datasets.length > 1 && (
-                <button
-                  // Opacity (not `hidden`/display:none) so the button stays in
-                  // the tab order — a keyboard user can reach it even though a
-                  // mouse user only sees it on hover.
+                <ConfirmButton
+                  // Opacity (not `hidden`/display:none) so the resting ✕ stays
+                  // in the tab order — a keyboard user can reach it even though
+                  // a mouse user only sees it on hover.
                   className="shrink-0 text-slate-600 opacity-0 hover:text-danger group-hover:opacity-100 focus-visible:opacity-100"
-                  onClick={() => void workspaceStore.removeDataset(h.id).catch(() => {})}
-                  aria-label={`Remove dataset ${st.fileName}`}
+                  onConfirm={() => void workspaceStore.removeDataset(h.id).catch(() => {})}
+                  ariaLabel={`Remove dataset ${st.fileName}`}
+                  confirmLabel="remove?"
                   title="Remove dataset"
                 >
                   ✕
-                </button>
+                </ConfirmButton>
               )}
             </div>
           );

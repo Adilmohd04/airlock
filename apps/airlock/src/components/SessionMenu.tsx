@@ -19,6 +19,7 @@ import {
   useSessionBoot,
 } from "../lib/persistence";
 import { relativeTime } from "../lib/format";
+import { ConfirmButton } from "./ConfirmButton";
 
 export function SessionMenu() {
   useSessionBoot();
@@ -166,15 +167,15 @@ export function SessionMenu() {
                             >
                               rename
                             </button>
-                            <button
-                              type="button"
+                            <ConfirmButton
                               className="px-1 text-slate-500 hover:text-danger"
                               title="Delete this session"
-                              aria-label={`Delete session ${s.name}`}
-                              onClick={() => void deleteSession(s.id)}
+                              ariaLabel={`Delete session ${s.name}`}
+                              confirmLabel="Delete?"
+                              onConfirm={() => void deleteSession(s.id)}
                             >
                               ✕
-                            </button>
+                            </ConfirmButton>
                           </div>
                         </div>
                       )}

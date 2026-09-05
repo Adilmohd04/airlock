@@ -152,6 +152,15 @@ function AddChartForm({
   const [sql, setSql] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
+  const submit = async () => {
+    setErr(null);
+    try {
+      await onAdd(title || "Chart", kind, sql);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   return (
     <div className="rounded-lg border border-ink-800 bg-ink-900 p-3">
       <div className="flex gap-2">
@@ -159,6 +168,12 @@ function AddChartForm({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Chart title"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void submit();
+            }
+          }}
           className="flex-1 rounded-md border border-ink-700 bg-ink-950 px-2 py-1 text-xs text-slate-200 placeholder:text-slate-600 focus:border-airlock-600 focus:outline-none"
         />
         <select
@@ -175,20 +190,21 @@ function AddChartForm({
         onChange={(e) => setSql(e.target.value)}
         placeholder="SELECT department, avg(base_salary) FROM dataset GROUP BY 1 ORDER BY 2 DESC"
         rows={2}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            void submit();
+          }
+        }}
         className="mt-2 w-full rounded-md border border-ink-700 bg-ink-950 px-2 py-1 font-mono text-xs text-slate-200 placeholder:text-slate-600 focus:border-airlock-600 focus:outline-none"
       />
       {err && <p className="mt-1 text-[11px] text-danger">{err}</p>}
       <div className="mt-2 flex gap-2">
         <button
           className="btn btn-primary text-xs"
-          onClick={async () => {
-            setErr(null);
-            try {
-              await onAdd(title || "Chart", kind, sql);
-            } catch (e) {
-              setErr(e instanceof Error ? e.message : String(e));
-            }
-          }}
+          disabled={!sql.trim()}
+          title={sql.trim() ? "Add chart (Enter in the title, Ctrl/Cmd+Enter in SQL)" : "Enter the chart SQL first"}
+          onClick={() => void submit()}
         >
           Add
         </button>
