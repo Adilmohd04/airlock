@@ -18,6 +18,7 @@ import { agentModeStore } from "./agent/agentMode";
 import {
   classifyHost,
   removeNonFunctionalStub,
+  revealNativePrototypeHost,
 } from "./agent/hostAttach";
 import { App } from "./App";
 import "./index.css";
@@ -69,6 +70,9 @@ async function bootstrap() {
     });
     // A host can appear while the polyfill chunk was loading — re-probe the
     // live instance (never the polyfill itself) before freezing the flag.
+    // This also unshadows a native prototype getter the polyfill install
+    // may have just covered.
+    revealNativePrototypeHost();
     if (
       classifyHost((document as Document).modelContext as unknown) ===
       "native"

@@ -12,6 +12,7 @@ import {
   recheckHostAttach,
   onHostAttach,
   removeNonFunctionalStub,
+  revealNativePrototypeHost,
   scheduleLateRechecks,
   watchForNativeHost,
   LATE_RECHECK_DELAYS,
@@ -293,5 +294,110 @@ describe("removeNonFunctionalStub", () => {
     };
     expect(removeNonFunctionalStub()).toBe(false);
     expect(globals().document!.modelContext).toBeDefined();
+  });
+});
+
+describe("revealNativePrototypeHost", () => {
+  let savedDocument: unknown;
+
+  beforeEach(() => {
+    savedDocument = globals().document;
+    delete globals().document;
+    __resetHostAttachForTests();
+  });
+
+  afterEach(() => {
+    if (savedDocument === undefined) delete globals().document;
+    else globals().document = savedDocument as Globals["document"];
+    __resetHostAttachForTests();
+  });
+
+  function shadowedDoc(protoValue: unknown) {
+    const proto = {
+      get modelContext() {
+        return protoValue;
+      },
+    };
+    const doc = Object.create(proto);
+    // Same mechanism as the polyfill: a configurable own data property that
+    // shadows the prototype getter (plain assignment would throw in strict
+    // mode because the prototype only has a getter).
+    Object.defineProperty(doc, "modelContext", {
+      value: polyfillInstance(),
+      configurable: true,
+      enumerable: true,
+      writable: false,
+    });
+    return doc;
+  }
+
+  it("no-ops without a document", () => {
+    expect(revealNativePrototypeHost()).toBe(false);
+  });
+
+  it("unshadows a native prototype getter behind the polyfill", () => {
+    const nat = nativeInstance();
+    const doc = shadowedDoc(nat);
+    globals().document = doc;
+    // Ordinary reads see only the polyfill shadow.
+    expect(classifyHost(doc.modelContext)).toBe("polyfill");
+
+    expect(revealNativePrototypeHost()).toBe(true);
+    expect(doc.modelContext).toBe(nat);
+    expect(classifyHost(doc.modelContext)).toBe("native");
+  });
+
+  it("leaves the shadow when no prototype getter exists", () => {
+    const poly = polyfillInstance();
+    globals().document = { modelContext: poly, visibilityState: "visible" };
+    expect(revealNativePrototypeHost()).toBe(false);
+    expect(globals().document!.modelContext).toBe(poly);
+  });
+
+  it("leaves the shadow when the getter yields nothing usable", () => {
+    for (const value of [
+      undefined,
+      {},
+      { registerTool: "not-a-function" },
+      polyfillInstance(),
+    ]) {
+      const doc = shadowedDoc(value);
+      globals().document = doc;
+      expect(revealNativePrototypeHost()).toBe(false);
+      expect(classifyHost(doc.modelContext)).toBe("polyfill");
+    }
+  });
+
+  it("never touches a live native instance or an absent API", () => {
+    const nat = nativeInstance();
+    globals().document = { modelContext: nat, visibilityState: "visible" };
+    expect(revealNativePrototypeHost()).toBe(false);
+    expect(globals().document!.modelContext).toBe(nat);
+
+    globals().document = { visibilityState: "visible" };
+    expect(revealNativePrototypeHost()).toBe(false);
+  });
+
+  it("a revealed host flows through recheck exactly once", () => {
+    const nat = nativeInstance();
+    globals().document = shadowedDoc(nat);
+    globals().window = {};
+    // Force stale boot-time store state so the firing is deterministic
+    // regardless of test order (refresh sees no flag yet).
+    agentModeStore.refreshDetection();
+    expect(agentModeStore.getState().host.kind).not.toBe("native");
+    let calls = 0;
+    const off = onHostAttach(() => {
+      calls += 1;
+    });
+    try {
+      expect(recheckHostAttach()).toBe(true);
+      expect(calls).toBe(1);
+      expect(agentModeStore.getState().host.kind).toBe("native");
+      expect(recheckHostAttach()).toBe(false);
+      expect(calls).toBe(1);
+    } finally {
+      off();
+    }
   });
 });

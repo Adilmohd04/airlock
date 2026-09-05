@@ -17,6 +17,8 @@
 import { useEffect, useRef, useState } from "react";
 import { uiStore, useUI } from "../engine/uiStore";
 import { classifyHost, recheckHostAttach } from "../agent/hostAttach";
+import { activityLog } from "../agent/activity";
+import { useActivity } from "../agent/hooks";
 import {
   agentModeStore,
   describeMode,
@@ -56,6 +58,7 @@ export function ModelCenter() {
   const mode = useAgentMode();
   const s = useLocalModelStore();
   const panelRef = useRef<HTMLDivElement>(null);
+  useActivity(); // re-render the moment a call lands, while the panel is open
 
   // A native host overrides whatever runtime tab is stored (same rule as the
   // old WebMCPStatus) — reflect that instead of showing a stale selection.
@@ -115,7 +118,12 @@ export function ModelCenter() {
 
   if (!open) return null;
 
-  const badge = describeMode(mode, { hasCalls: true }); // detail copy is calls-count-agnostic here
+  // API presence is not activity: with the testing flag / origin-trial token on
+  // and nothing attached, `mode.host.kind` reads "native" with zero calls made.
+  // The banner below must not claim a host "is driving Airlock" until the
+  // ledger shows it actually has.
+  const hasCalls = activityLog.list().length > 0;
+  const badge = describeMode(mode, { hasCalls });
   const activeModel = getModel(s.activeModelId ?? s.selectedModelId);
   const nativeHost = mode.host.kind === "native";
 

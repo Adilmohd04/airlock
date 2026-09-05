@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { uiStore } from "../engine/uiStore";
 import {
   resolveConsoleShim,
+  subscribeConsoleDiscovery,
   type ConsoleShim,
 } from "../agent/consoleShim";
+import { useRegistrationStatus } from "../agent/registrationStatus";
 import { LocalAgentConsole } from "./LocalAgentConsole";
 import { ByoAgentConsole } from "./ByoAgentConsole";
 
@@ -75,40 +77,56 @@ export function AgentConsole() {
   const [busy, setBusy] = useState(false);
   const [brain, setBrain] = useState<"agent" | "byo">("agent");
   const [devTools, setDevTools] = useState(false);
+  const [discoveryVersion, setDiscoveryVersion] = useState(0);
+  const [discovering, setDiscovering] = useState(true);
+  const [discoveryError, setDiscoveryError] = useState("");
+  const registration = useRegistrationStatus();
 
   useEffect(() => {
     let alive = true;
-    void resolveConsoleShim().then((s) => {
-      if (alive && s) setShim(s);
-    });
+    const off = subscribeConsoleDiscovery(() => setDiscoveryVersion((v) => v + 1));
+    setDiscovering(true);
+    setDiscoveryError("");
+    setShim(null);
+    setTools([]);
+    void (async () => {
+      try {
+        const s = await resolveConsoleShim();
+        if (!s) throw new Error("Manual tool calling is unavailable: no supported discovery/execution surface. Attach a compatible host, then refresh discovery.");
+        const list = (await s.listTools()).map((t) => t.name).sort();
+        if (!alive) return;
+        setShim(s);
+        setTools(list);
+        setTool((selected) => list.includes(selected) ? selected : list[0] ?? "");
+      } catch (e) {
+        if (alive) setDiscoveryError(`Discovery failed: ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        if (alive) setDiscovering(false);
+      }
+    })();
     return () => {
       alive = false;
+      off();
     };
-  }, []);
+  }, [discoveryVersion, devTools]);
 
-  useEffect(() => {
-    if (!shim) return;
-    let alive = true;
-    void shim
-      .listTools()
-      .then((list) => {
-        if (alive) setTools(list.map((t) => t.name).sort());
-      })
-      .catch(() => {
-        /* a host that refuses discovery leaves the default tool selected */
-      });
-    return () => {
-      alive = false;
-    };
-  }, [shim]);
+  const unavailable = busy ? "A manual call is running." : discovering
+    ? "Discovering tools..." : discoveryError || (!shim
+      ? "Manual tool calling is unavailable. Refresh discovery to retry."
+      : !tools.length ? "No tools discovered. Load a dataset or attach a host, then refresh discovery." : "");
 
   const run = async (t = tool, a = args) => {
-    if (!shim) return;
+    if (unavailable || !tools.includes(t)) {
+      setOut(`Cannot execute: ${unavailable || `Tool not discovered: ${t}. Refresh discovery to retry.`}`);
+      return;
+    }
     setBusy(true);
     setOut("");
     try {
-      const res = await shim.executeTool(t, a);
-      setOut(typeof res === "string" ? res : JSON.stringify(res, null, 2));
+      const current = await resolveConsoleShim();
+      if (!current) throw new Error("Manual transport is no longer available. Refresh discovery to retry.");
+      const res = await current.executeTool(t, a);
+      setOut(typeof res === "string" ? res : JSON.stringify(res, null, 2) ?? "Call completed without a result.");
     } catch (e) {
       setOut(`Error: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -117,9 +135,9 @@ export function AgentConsole() {
   };
 
   return (
-    <div className="flex h-96 shrink-0 flex-col border-t border-ink-700 bg-ink-950">
-      <div className="flex shrink-0 items-center justify-between border-b border-ink-800 px-3 py-2">
-        <div className="flex items-center gap-3">
+    <div className="flex h-96 max-h-[50dvh] min-h-0 min-w-0 shrink-0 flex-col overflow-auto border-t border-ink-700 bg-ink-950">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-ink-800 px-3 py-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <span className="text-sm font-semibold text-white">Ask Airlock</span>
           {!devTools && (
             <div className="flex overflow-hidden rounded-md border border-ink-700 text-[11px]">
@@ -138,7 +156,7 @@ export function AgentConsole() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             className="text-[11px] text-slate-500 hover:text-slate-300"
             onClick={() => setDevTools((v) => !v)}
@@ -157,13 +175,37 @@ export function AgentConsole() {
       </div>
 
       {devTools ? (
-        <div className="grid min-h-0 flex-1 grid-cols-[200px_1fr_1fr]">
-          <div className="overflow-y-auto border-r border-ink-800 p-2">
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+          <div className="flex flex-wrap items-center gap-2 border-b border-ink-800 px-3 py-2 text-[11px] text-slate-400">
+            <p className="min-w-0 flex-1 basis-64">Manual test calls run registered tools. They do not prove ChatGPT is connected or has received data.</p>
+            <button className="btn text-xs" onClick={() => setDiscoveryVersion((v) => v + 1)}>
+              Refresh discovery
+            </button>
+            <p className={`w-full break-words ${discoveryError ? "text-danger" : ""}`} role={discoveryError ? "alert" : "status"}>
+              {unavailable || `${tools.length} tools discovered. Quick calls execute immediately; unavailable tools are marked below.`}
+            </p>
+            {registration.settling && !discovering && !discoveryError && (
+              <p className="w-full break-words" role="status">
+                Registering tools with the host…
+              </p>
+            )}
+            {registration.issues.length > 0 && (
+              <p className="w-full break-words text-danger" role="alert">
+                {registration.issues.length} registration{registration.issues.length === 1 ? "" : "s"} failed
+                ({registration.issues.map((i) => i.tool).join(", ")}). Those tools are missing for every
+                caller — host and console alike. Details in the browser console.
+              </p>
+            )}
+          </div>
+        <div className="grid min-w-0 grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="max-h-48 min-w-0 overflow-y-auto border-b border-ink-800 p-2 lg:max-h-60 lg:border-r">
             <p className="panel-title mb-1">Quick calls</p>
             {SNIPPETS.map((s) => (
               <button
                 key={s.label}
-                className="mb-1 block w-full rounded px-2 py-1 text-left text-[11px] text-slate-400 hover:bg-ink-800 hover:text-slate-200"
+                className="mb-1 block w-full rounded px-2 py-1 text-left text-[11px] text-slate-400 hover:bg-ink-800 hover:text-slate-200 disabled:opacity-50"
+                disabled={!!unavailable || !tools.includes(s.tool)}
+                title={unavailable || (!tools.includes(s.tool) ? "Tool not discovered. Refresh discovery to retry." : "Execute manual test call")}
                 onClick={() => {
                   setTool(s.tool);
                   setArgs(JSON.stringify(s.args, null, 2));
@@ -171,39 +213,44 @@ export function AgentConsole() {
                 }}
               >
                 {s.label}
+                {!discovering && !discoveryError && shim && !tools.includes(s.tool) && " (not discovered)"}
               </button>
             ))}
           </div>
 
-          <div className="flex flex-col gap-2 border-r border-ink-800 p-2">
+          <div className="flex min-w-0 flex-col gap-2 border-b border-ink-800 p-2 lg:border-r">
             <select
+              aria-label="Tool"
               value={tool}
               onChange={(e) => setTool(e.target.value)}
-              className="rounded-md border border-ink-700 bg-ink-900 px-2 py-1 font-mono text-xs text-slate-200"
+              className="min-w-0 max-w-full rounded-md border border-ink-700 bg-ink-900 px-2 py-1 font-mono text-xs text-slate-200"
             >
-              {(tools.length ? tools : [tool]).map((t) => (
+              {!tools.length && <option value="">No tools discovered</option>}
+              {tools.map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
               ))}
             </select>
             <textarea
+              aria-label="Tool arguments (JSON)"
               value={args}
               onChange={(e) => setArgs(e.target.value)}
               spellCheck={false}
-              className="min-h-0 flex-1 resize-none rounded-md border border-ink-700 bg-ink-900 p-2 font-mono text-[11px] text-slate-200 focus:border-airlock-600 focus:outline-none"
+              className="h-28 min-w-0 resize-y rounded-md border border-ink-700 bg-ink-900 p-2 font-mono text-[11px] text-slate-200 focus:border-airlock-600 focus:outline-none"
             />
-            <button className="btn btn-primary text-xs" onClick={() => run()} disabled={busy || !shim}>
+            <button className="btn btn-primary text-xs" onClick={() => run()} disabled={!!unavailable || !tools.includes(tool)} title={unavailable || "Execute manual test call"}>
               {busy ? "Running…" : "Execute"}
             </button>
           </div>
 
-          <pre className="overflow-auto whitespace-pre-wrap p-2 font-mono text-[11px] text-slate-400">
+          <pre className="max-h-60 min-h-24 min-w-0 overflow-auto whitespace-pre-wrap break-words p-2 font-mono text-[11px] text-slate-400" aria-live="polite">
             {out || "result appears here"}
           </pre>
         </div>
+        </div>
       ) : (
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto">
           {brain === "agent" ? <LocalAgentConsole /> : <ByoAgentConsole />}
         </div>
       )}

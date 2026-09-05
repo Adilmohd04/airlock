@@ -109,7 +109,12 @@ body {
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5
+    /* select-none: a click that drags a pixel or two (trackpad, fast click)
+       otherwise selects the label text, and Chrome/Windows render that as a
+       floating drag-ghost pill that follows the cursor over whatever's
+       underneath — looks exactly like a layout bug but isn't one. Buttons
+       aren't text to select. */
+    @apply inline-flex select-none items-center justify-center gap-1.5 rounded-lg px-3 py-1.5
       text-sm font-medium transition-all disabled:opacity-40
       disabled:pointer-events-none active:scale-[0.98];
   }

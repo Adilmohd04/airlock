@@ -67,6 +67,9 @@ function snapshotBaseline(): void {
  * poll, or panel-open effect.
  */
 export function recheckHostAttach(): boolean {
+  // A late native prototype getter hides behind the polyfill's own property;
+  // ordinary reads (including the baseline below) would miss it forever.
+  revealNativePrototypeHost();
   snapshotBaseline();
   const mc = currentModelContext();
   if (classifyHost(mc) !== "native") return false;
@@ -150,6 +153,56 @@ export function __resetHostAttachForTests(): void {
   baselineSeen = false;
   baseline = undefined;
   listeners.clear();
+}
+
+/**
+ * Reveal a native host hiding behind the polyfill's own property.
+ *
+ * WebIDL attributes such as `document.modelContext` live on
+ * `Document.prototype`, while the polyfill installs a configurable own data
+ * property on the document instance. If the browser exposes the native API
+ * late (e.g. an origin trial activating after bootstrap installed the
+ * polyfill), ordinary reads keep returning the polyfill and every recheck
+ * misses the transition forever.
+ *
+ * This removes ONLY a confirmed polyfill shadow and ONLY when the prototype
+ * chain currently yields a functional, non-polyfill host. Anything else —
+ * no document, no own-property shadow, no prototype getter, a getter that
+ * throws or yields anything unusable — leaves the page untouched.
+ * Returns true exactly when it unshadowed a native host.
+ */
+export function revealNativePrototypeHost(): boolean {
+  if (typeof document === "undefined") return false;
+  const doc = document as unknown as Record<string, unknown>;
+  const current = doc.modelContext;
+  if (
+    !current ||
+    (current as { __isWebMCPPolyfill?: unknown }).__isWebMCPPolyfill !== true
+  ) {
+    return false;
+  }
+  let protoHost: unknown;
+  try {
+    let proto: unknown = Object.getPrototypeOf(document);
+    while (proto && proto !== Object.prototype) {
+      const desc = Object.getOwnPropertyDescriptor(proto, "modelContext");
+      if (desc) {
+        if (typeof desc.get !== "function") return false;
+        protoHost = desc.get.call(document);
+        break;
+      }
+      proto = Object.getPrototypeOf(proto);
+    }
+  } catch {
+    return false;
+  }
+  if (classifyHost(protoHost) !== "native") return false;
+  try {
+    delete doc.modelContext;
+  } catch {
+    return false;
+  }
+  return classifyHost(doc.modelContext) === "native";
 }
 
 /**

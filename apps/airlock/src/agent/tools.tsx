@@ -27,6 +27,7 @@ import {
   registerTool,
 } from "webmcp-staged";
 import type { DatasetStore } from "../engine/datasetStore";
+import { registrationStatus, type RegistrationIssue } from "./registrationStatus";
 import { workspaceStore } from "../engine/workspaceStore";
 import {
   runQuery,
@@ -178,11 +179,30 @@ export function useAirlockTools(hostGen: number = 0): void {
   useEffect(() => {
     const mc = getModelContext();
     const disposers: (() => void)[] = [];
-    const add = (r: { unregister: () => void }) => disposers.push(r.unregister);
+    // Registration rejections are named failures (duplicate, permissions,
+    // security), not silent gaps: collect them for the Developer tools panel.
+    const gen = registrationStatus.beginGeneration();
+    const settled: Promise<RegistrationIssue | null>[] = [];
+    const add = (
+      label: string,
+      r: { unregister: () => void; ready: Promise<void> }
+    ) => {
+      disposers.push(r.unregister);
+      settled.push(
+        r.ready.then(
+          () => null,
+          (e) => ({
+            tool: label,
+            message: e instanceof Error ? e.message : String(e),
+          })
+        )
+      );
+    };
 
     // ───────────────────────── READ TOOLS ─────────────────────────
 
     add(
+      "list_datasets",
       registerTool(
         {
           name: "list_datasets",
@@ -215,6 +235,7 @@ export function useAirlockTools(hostGen: number = 0): void {
     );
 
     add(
+      "get_dataset_summary",
       registerTool(
         {
           name: "get_dataset_summary",
@@ -269,6 +290,7 @@ export function useAirlockTools(hostGen: number = 0): void {
     );
 
     add(
+      "list_columns",
       registerTool(
         {
           name: "list_columns",
@@ -306,6 +328,7 @@ export function useAirlockTools(hostGen: number = 0): void {
     );
 
     add(
+      "profile_column",
       registerTool(
         {
           name: "profile_column",
@@ -361,6 +384,7 @@ export function useAirlockTools(hostGen: number = 0): void {
     );
 
     add(
+      "preview_rows",
       registerTool(
         {
           name: "preview_rows",
@@ -416,6 +440,7 @@ export function useAirlockTools(hostGen: number = 0): void {
     );
 
     add(
+      "run_sql",
       registerTool(
         {
           name: "run_sql",
@@ -453,6 +478,7 @@ export function useAirlockTools(hostGen: number = 0): void {
     );
 
     add(
+      "describe_workspace",
       registerTool(
         {
           name: "describe_workspace",
@@ -508,6 +534,7 @@ export function useAirlockTools(hostGen: number = 0): void {
     );
 
     add(
+      "get_activity_log",
       registerTool(
         {
           name: "get_activity_log",
@@ -563,6 +590,7 @@ export function useAirlockTools(hostGen: number = 0): void {
       registerCommit(config.name, doCommit as (i: Record<string, unknown>) => Promise<string>);
 
       add(
+        config.name,
         registerStagedTool<T>(
           {
             name: config.name,
@@ -1137,6 +1165,15 @@ export function useAirlockTools(hostGen: number = 0): void {
         uiStore.setTab("report");
         return `Saved report "${title}".`;
       },
+    });
+
+    // Publish one settled outcome per pass; a stale pass (unmounted or
+    // superseded by a host generation bump) drops its results silently.
+    void Promise.all(settled).then((results) => {
+      registrationStatus.finishGeneration(
+        gen,
+        results.flatMap((r) => (r ? [r] : []))
+      );
     });
 
     return () => {

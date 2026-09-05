@@ -90,6 +90,8 @@ export interface StagedToolConfig<TInput extends Record<string, unknown>> {
 }
 
 export interface RegisterStagedToolResult {
+  /** Resolves after registration (or abort/no host); rejects on other failures. */
+  ready: Promise<void>;
   /** Abort to unregister every tool this staged action created. */
   unregister: () => void;
 }
@@ -128,7 +130,7 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
 
   if (!mc) {
     // No-op in browsers without WebMCP. The app UI still works.
-    return { unregister: () => {} };
+    return { ready: Promise.resolve(), unregister: () => {} };
   }
 
   const authority =
@@ -162,12 +164,8 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
   };
 
   // 1) propose_<name>
-  // Registration rejections for ABORTS are expected (React StrictMode
-  // double-mounts effects in dev, so every cleanup unregisters) — swallow
-  // those, report anything else instead of an unhandled rejection.
-  // `Promise.resolve` because fakes (and some hosts) return undefined.
-  trackRegistration(
-    mc.registerTool(
+  const proposeReady = trackRegistration(
+    () => mc.registerTool(
       {
         name: proposeMethod,
         title: `Propose: ${config.name}`,
@@ -184,12 +182,13 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
         },
       },
       registerOpts
-    )
+    ),
+    proposeMethod
   );
 
   // 2) commit_<name>
-  trackRegistration(
-    mc.registerTool(
+  const commitReady = trackRegistration(
+    () => mc.registerTool(
       {
         name: commitMethod,
         title: `Commit: ${config.name}`,
@@ -216,12 +215,13 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
         },
       },
       registerOpts
-    )
+    ),
+    commitMethod
   );
 
   // 3) reject_<name> — lets the agent withdraw a bad proposal it made.
-  trackRegistration(
-    mc.registerTool(
+  const rejectReady = trackRegistration(
+    () => mc.registerTool(
       {
         name: rejectMethod,
         title: `Reject: ${config.name}`,
@@ -242,24 +242,36 @@ export function registerStagedTool<TInput extends Record<string, unknown>>(
         },
       },
       registerOpts
-    )
+    ),
+    rejectMethod
   );
 
+  const ready = Promise.all([proposeReady, commitReady, rejectReady]).then(
+    () => {},
+    (error) => {
+      controller.abort(UNREGISTER_REASON);
+      throw error;
+    }
+  );
+  // Keep the returned promise rejectable without requiring callers to await it.
+  void ready.catch(() => {});
   return {
+    ready,
     unregister: () => controller.abort(UNREGISTER_REASON),
   };
 }
 
 /**
  * Register a plain (non-staged) WebMCP tool with feature detection. Returns an
- * `unregister` function. A no-op when WebMCP is unavailable.
+ * `unregister` function and `ready` promise. Aborts and unavailable hosts resolve
+ * `ready`; other registration failures reject it with the tool name.
  */
 export function registerTool(
   tool: WebMCPToolDefinition,
   options: { mc?: ModelContext | null; register?: RegisterToolOptions } = {}
-): { unregister: () => void } {
+): { ready: Promise<void>; unregister: () => void } {
   const mc = options.mc ?? getModelContext();
-  if (!mc) return { unregister: () => {} };
+  if (!mc) return { ready: Promise.resolve(), unregister: () => {} };
 
   const controller = new AbortController();
   const registerOpts: RegisterToolOptions = {
@@ -268,18 +280,30 @@ export function registerTool(
       ? anySignal([options.register.signal, controller.signal])
       : controller.signal,
   };
-  void trackRegistration(mc.registerTool(tool, registerOpts));
-  return { unregister: () => controller.abort(UNREGISTER_REASON) };
+  const ready = trackRegistration(() => mc.registerTool(tool, registerOpts), tool.name);
+  return { ready, unregister: () => controller.abort(UNREGISTER_REASON) };
 }
 
 /**
- * Watch a registration call without awaiting it. Abort rejections are routine
- * cleanup (StrictMode double-effects in dev unregister every tool) — swallow
- * those, surface anything else. `Promise.resolve` because fakes and some
- * hosts return undefined instead of a promise.
+ * Invoke immediately, catching synchronous throws as well as promise rejections.
+ * Abort rejections are routine cleanup; other failures remain awaitable even
+ * when the caller ignores ready. Await also accepts hosts returning undefined.
  */
-function trackRegistration(result: unknown): void {
-  void Promise.resolve(result).catch(swallowAbort);
+function trackRegistration(register: () => unknown, toolName: string): Promise<void> {
+  const ready = (async () => {
+    try {
+      await register();
+    } catch (error) {
+      if ((error as { name?: unknown } | null)?.name === "AbortError") return;
+      throw new Error(
+        `[webmcp-staged] registerTool "${toolName}" failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  })();
+  void ready.catch((error) => console.error(error));
+  return ready;
 }
 
 /**
@@ -293,26 +317,17 @@ const UNREGISTER_REASON =
     ? new DOMException("tool unregistered", "AbortError")
     : undefined;
 
-function swallowAbort(e: unknown): void {
-  const name =
-    e instanceof DOMException ? e.name : (e as { name?: unknown })?.name;
-  if (name === "AbortError") return;
-  console.error("[webmcp-staged] registerTool failed", e);
-}
-
 /** Combine multiple AbortSignals into one (aborts when any input aborts). */
 function anySignal(signals: AbortSignal[]): AbortSignal {
   const controller = new AbortController();
   const onAbort = () => {
-    controller.abort();
+    controller.abort(signals.find((s) => s.aborted)?.reason);
     for (const s of signals) s.removeEventListener("abort", onAbort);
   };
-  for (const s of signals) {
-    if (s.aborted) {
-      controller.abort();
-      break;
-    }
-    s.addEventListener("abort", onAbort);
+  if (signals.some((s) => s.aborted)) {
+    onAbort();
+  } else {
+    for (const s of signals) s.addEventListener("abort", onAbort);
   }
   return controller.signal;
 }

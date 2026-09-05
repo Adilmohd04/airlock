@@ -6,13 +6,14 @@
  * is NO native host. Under a native host the console would otherwise go
  * dead (no shim to call), so it falls back to the host object's own
  * producer-preview surface, `getTools()` / `executeTool()`. Native execution
- * takes the tool object from discovery (not just a name), so the adapter
- * caches one `getTools()` result and resolves names against it.
+ * takes the tool object from fresh discovery (not just a name).
  *
  * Either way the calls run the same registered `execute` functions the
- * activity ledger records — a host call and a console call are
- * indistinguishable downstream.
+ * activity ledger records. Manual calls are not evidence that ChatGPT
+ * connected or received any data.
  */
+
+import { classifyHost, onHostAttach } from "./hostAttach";
 
 export interface ConsoleToolInfo {
   name: string;
@@ -25,7 +26,7 @@ export interface ConsoleShim {
 }
 
 interface TestingShimHost {
-  listTools: () => ConsoleToolInfo[];
+  listTools: () => ConsoleToolInfo[] | Promise<ConsoleToolInfo[]>;
   executeTool: (name: string, argsJson: string) => Promise<unknown>;
 }
 
@@ -36,6 +37,7 @@ interface NativeToolInfo {
 }
 
 interface NativeHost {
+  __isWebMCPPolyfill?: boolean;
   getTools: () => Promise<NativeToolInfo[]>;
   executeTool: (tool: NativeToolInfo, argsJson: string) => Promise<unknown>;
 }
@@ -46,40 +48,99 @@ export function getTestingShim(): ConsoleShim | null {
   const t = (
     navigator as unknown as { modelContextTesting?: TestingShimHost }
   ).modelContextTesting;
-  if (!t) return null;
+  if (!t || typeof t.listTools !== "function" || typeof t.executeTool !== "function") {
+    return null;
+  }
   return {
-    listTools: () => Promise.resolve(t.listTools()),
-    executeTool: (name, argsJson) => t.executeTool(name, argsJson),
+    listTools: async () => t.listTools(),
+    executeTool: async (name, argsJson) => t.executeTool(name, argsJson),
   };
 }
 
-/** The native-host path — resolves names against one cached discovery. */
+/** Resolve against fresh discovery, passing the exact host-owned tool object. */
 export async function getNativeShim(): Promise<ConsoleShim | null> {
   if (typeof document === "undefined") return null;
   const mc = (document as unknown as { modelContext?: NativeHost })
     .modelContext;
   if (
     !mc ||
+    mc.__isWebMCPPolyfill === true ||
     typeof mc.getTools !== "function" ||
     typeof mc.executeTool !== "function"
   ) {
     return null;
   }
-  let cache: NativeToolInfo[] | null = null;
-  const infos = async (): Promise<NativeToolInfo[]> =>
-    (cache ??= await mc.getTools());
   return {
     listTools: async () =>
-      (await infos()).map((t) => ({ name: t.name, description: t.description })),
+      (await mc.getTools()).map((t) => ({ name: t.name, description: t.description })),
     executeTool: async (name, argsJson) => {
-      const info = (await infos()).find((t) => t.name === name);
+      const info = (await mc.getTools()).find((t) => t.name === name);
       if (!info) throw new Error(`Tool not found: ${name}`);
       return mc.executeTool(info, argsJson);
     },
   };
 }
 
-/** Testing shim wins when both exist (it is the explicit dev surface). */
+/** Never route a live native host's calls through a leftover polyfill shim. */
 export async function resolveConsoleShim(): Promise<ConsoleShim | null> {
-  return getTestingShim() ?? (await getNativeShim());
+  const native = await getNativeShim();
+  if (native) return native;
+  if (typeof document !== "undefined" && classifyHost(document.modelContext) === "native") {
+    return null;
+  }
+  return getTestingShim();
+}
+
+/** Listen on the contexts themselves; toolchange need not bubble to document. */
+export function subscribeConsoleDiscovery(onChange: () => void): () => void {
+  const contexts = (): unknown[] => [
+    typeof document === "undefined" ? undefined : document.modelContext,
+    typeof navigator === "undefined" ? undefined :
+      (navigator as unknown as { modelContext?: unknown }).modelContext,
+    typeof navigator === "undefined" ? undefined :
+      (navigator as unknown as { modelContextTesting?: unknown }).modelContextTesting,
+  ];
+  let current: unknown[] = [];
+  let cleanups: (() => void)[] = [];
+  const bind = () => {
+    for (const off of cleanups) off();
+    cleanups = [];
+    current = contexts();
+    for (const context of new Set(current)) {
+      const target = context as Partial<EventTarget> | undefined;
+      if (typeof target?.addEventListener !== "function" ||
+          typeof target.removeEventListener !== "function") continue;
+      target.addEventListener("toolchange", onChange);
+      cleanups.push(() => target.removeEventListener!("toolchange", onChange));
+    }
+  };
+  const checkContexts = () => {
+    if (contexts().some((context, i) => context !== current[i])) {
+      bind();
+      onChange();
+    }
+  };
+  bind();
+  const offAttach = onHostAttach(() => {
+    bind();
+    onChange();
+  });
+  if (typeof window !== "undefined") {
+    window.addEventListener("focus", checkContexts);
+    window.addEventListener("pageshow", checkContexts);
+  }
+  if (typeof document !== "undefined") {
+    document.addEventListener?.("visibilitychange", checkContexts);
+  }
+  return () => {
+    offAttach();
+    for (const off of cleanups) off();
+    if (typeof window !== "undefined") {
+      window.removeEventListener("focus", checkContexts);
+      window.removeEventListener("pageshow", checkContexts);
+    }
+    if (typeof document !== "undefined") {
+      document.removeEventListener?.("visibilitychange", checkContexts);
+    }
+  };
 }

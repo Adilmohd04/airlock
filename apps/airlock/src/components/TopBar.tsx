@@ -12,6 +12,8 @@ import { num } from "../lib/format";
 import { useAgentMode } from "../agent/agentMode";
 import { endpointHost, isEndpointConfigured } from "../agent/byo/client";
 import { localAgent } from "../agent/localModel/agent";
+import { activityLog } from "../agent/activity";
+import { useActivity } from "../agent/hooks";
 
 /** Live agent run status, so the assistant button can show when it's working. */
 function useAgentRunStatus() {
@@ -27,9 +29,16 @@ function useAgentRunStatus() {
 function useModelHeadline(): { dot: string; text: string } {
   const mode = useAgentMode();
   const local = useLocalModelStore();
+  useActivity(); // re-render the moment a call lands, so "connected" only fires on real activity
 
   if (mode.host.kind === "native") {
-    return { dot: "bg-pending", text: `Cloud · ${mode.host.name || "connected host"}` };
+    // The WebMCP API object existing is not a host driving it — the testing
+    // flag / origin-trial token alone put it there with nobody attached. Only
+    // claim "connected" once the ledger shows an actual tool call.
+    const hasCalls = activityLog.list().length > 0;
+    return hasCalls
+      ? { dot: "bg-pending", text: `Cloud · ${mode.host.name || "connected host"}` }
+      : { dot: "bg-ink-500", text: "Cloud · no host calls yet" };
   }
   if (mode.mode === "local") {
     const label = getModel(local.activeModelId ?? local.selectedModelId).label;
@@ -60,7 +69,7 @@ export function TopBar() {
   return (
     <>
     <MobileGate />
-    <header className="flex h-14 shrink-0 items-center gap-3 overflow-x-clip overflow-y-visible border-b border-ink-700/80 bg-gradient-to-b from-ink-850/90 to-ink-900/90 px-4 shadow-lift backdrop-blur">
+    <header className="relative z-20 flex h-14 shrink-0 items-center gap-3 overflow-x-clip overflow-y-visible border-b border-ink-700/80 bg-gradient-to-b from-ink-850/90 to-ink-900/90 px-4 shadow-lift backdrop-blur">
       {/* identity */}
       <div className="flex shrink-0 items-center gap-2">
         <div className="grid h-7 w-7 place-items-center rounded-lg bg-airlock-500 text-ink-950 shadow-glow">
