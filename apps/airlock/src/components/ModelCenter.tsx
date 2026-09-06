@@ -148,9 +148,11 @@ export function ModelCenter() {
               AI
             </h2>
             <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
-              {nativeHost
+              {nativeHost && hasCalls
                 ? `${mode.host.name || "A connected AI host"} is calling Airlock's tools directly.`
-                : "Choose what analyzes your data, and where it runs."}
+                : nativeHost
+                  ? "The WebMCP API is present, but no host has called a tool yet."
+                  : "Choose what analyzes your data, and where it runs."}
             </p>
           </div>
           <button
