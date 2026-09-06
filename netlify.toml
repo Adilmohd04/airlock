@@ -13,7 +13,12 @@
   # fresh CI checkout re-downloads it (there is no cache configured here yet);
   # a file already on disk with the right size is skipped, so a warm build
   # (or a local `--no-build` CLI deploy that already has it) pays nothing.
-  command = "npm install && npm run build:deploy"
+  # `--include=dev` is load-bearing: [context.production] below sets
+  # NODE_ENV=production, under which plain `npm install` skips devDependencies
+  # — including tsup/typescript/vite, which the build needs. Without it the
+  # build dies as `tsup: not found` (exit 127). Do not simplify this back to
+  # bare `npm install`.
+  command = "npm install --include=dev && npm run build:deploy"
   publish = "apps/airlock/dist"
 
 [build.environment]
