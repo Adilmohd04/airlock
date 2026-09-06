@@ -12,6 +12,7 @@
     "build": "npm run build --workspace packages/webmcp-staged && npm run build --workspace apps/airlock",
     "build:pkg": "npm run build --workspace packages/webmcp-staged",
     "build:app": "npm run build --workspace apps/airlock",
+    "build:deploy": "node scripts/fetch-models.mjs --deploy && npm run build",
     "preview": "npm run preview --workspace apps/airlock",
     "test": "npm run test --workspaces --if-present"
   },

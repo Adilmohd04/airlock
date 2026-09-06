@@ -199,8 +199,13 @@ node scripts/fetch-models.mjs --all
 node scripts/fetch-models.mjs --check --deploy
 ```
 
-Run this **before** `npm run build` (or in the build image), and make sure the
-resulting `apps/airlock/public/models/` ships with the site. `netlify.toml` and
+`npm run build:deploy` runs this automatically (`--deploy`, the 1.5B only)
+before building, so both the CI build command and a local `--no-build` CLI
+deploy get it for free — no separate step to remember, and no silent 404 when
+whoever builds hasn't mirrored it by hand. Opting up to the 3B, or fetching
+everything, is still a manual step (the commands above) followed by a plain
+`npm run build`. Either way, make sure the resulting
+`apps/airlock/public/models/` ships with the site. `netlify.toml` and
 `_headers` already:
 - **exclude `/models/*` from the SPA catch-all** so a missing weight returns a
   real 404 instead of `index.html` (a `200 text/html` fallback makes WebLLM
@@ -220,7 +225,10 @@ that URL.
 
 The root `netlify.toml` file configures:
 
-1. **Build command**: `npm install && npm run build`
+1. **Build command**: `npm install && npm run build:deploy` — mirrors the
+   deploy-default model (see [Mirroring for a deploy](#mirroring-for-a-deploy))
+   before running the normal build, so a fresh CI checkout (which never has
+   the git-ignored `apps/airlock/public/models/`) still ships Local mode.
 2. **Publish directory**: `apps/airlock/dist`
 3. **Node version**: pinned to `20` via `[build.environment] NODE_VERSION`
    (this repo's `package.json` declares `engines.node: >=20`)
@@ -326,7 +334,8 @@ absolute `/assets/...` paths.
 2. Click **"New site from Git"**
 3. Connect your GitHub repository, select this repo
 4. Netlify auto-detects `netlify.toml` and uses:
-   - Build command: `npm install && npm run build`
+   - Build command: `npm install && npm run build:deploy` (mirrors the
+     deploy-default model, then builds — see above)
    - Publish directory: `apps/airlock/dist`
    - Node version: `20` (from `[build.environment]`)
 5. Click **Deploy site**. Each push to `main` (or PR) triggers a new
@@ -345,7 +354,10 @@ netlify login
 netlify init
 
 # Build locally first, to fail fast before uploading
-npm run build
+# (build:deploy mirrors the deploy-default model first — see above; use plain
+# `npm run build` instead only if apps/airlock/public/models/ is already
+# populated the way you want, e.g. after opting up to the 3B by hand)
+npm run build:deploy
 
 # Deploy a preview (get a URL to sanity-check before going live)
 netlify deploy
@@ -358,7 +370,7 @@ netlify deploy --prod
 
 ```bash
 npm install
-npm run build
+npm run build:deploy
 # Upload the contents of apps/airlock/dist to Netlify via the dashboard's
 # manual-deploy drag-and-drop, or any other CI/CD that can push a static
 # folder to Netlify.
@@ -370,7 +382,7 @@ Run this before pushing, to catch config regressions without waiting on a
 Netlify build:
 
 ```bash
-npm run build
+npm run build:deploy
 npm run typecheck --workspace apps/airlock
 npm test
 

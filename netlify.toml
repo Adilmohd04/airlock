@@ -2,8 +2,18 @@
 # Agent-native data workspace with DuckDB-WASM running client-side
 
 [build]
-  # Build from the monorepo root
-  command = "npm install && npm run build"
+  # Build from the monorepo root. `build:deploy` runs
+  # `scripts/fetch-models.mjs --deploy` first — it mirrors the one model
+  # DEPLOY_DEFAULT_MODEL_ID names (the 1.5B, ~0.9 GB) into
+  # apps/airlock/public/models/ same-origin, since that directory is
+  # git-ignored (hundreds of MB to GB) and would otherwise be silently absent
+  # from any build that didn't run on a machine where someone had fetched it
+  # by hand — the exact failure that made Local mode 404 in production despite
+  # working locally. The fetch is a same-origin/`resolve/main` mirror, so a
+  # fresh CI checkout re-downloads it (there is no cache configured here yet);
+  # a file already on disk with the right size is skipped, so a warm build
+  # (or a local `--no-build` CLI deploy that already has it) pays nothing.
+  command = "npm install && npm run build:deploy"
   publish = "apps/airlock/dist"
 
 [build.environment]
