@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { uiStore } from "../engine/uiStore";
+import { useActiveDataset } from "../engine/useDataset";
 import {
   resolveConsoleShim,
   subscribeConsoleDiscovery,
@@ -23,12 +24,26 @@ import { ByoAgentConsole } from "./ByoAgentConsole";
  * records.
  */
 
-const SNIPPETS: { label: string; tool: string; args: Record<string, unknown> }[] = [
+/**
+ * `requiresColumns` names the base/derived columns a snippet's hardcoded SQL
+ * or expression touches. These snippets showcase the compensation demo
+ * specifically (comp ratio, market median) — they are not generic, so on a
+ * dataset that lacks the columns they'd otherwise send a raw DuckDB binder
+ * error (missing column) straight to the output pane. Declaring the
+ * dependency lets the button disable itself with an honest reason instead.
+ */
+const SNIPPETS: {
+  label: string;
+  tool: string;
+  args: Record<string, unknown>;
+  requiresColumns?: string[];
+}[] = [
   { label: "Summarize the dataset", tool: "get_dataset_summary", args: {} },
   {
     label: "Profile base_salary",
     tool: "profile_column",
     args: { column: "base_salary" },
+    requiresColumns: ["base_salary"],
   },
   {
     label: "SQL: avg pay by department",
@@ -37,16 +52,19 @@ const SNIPPETS: { label: string; tool: string; args: Record<string, unknown> }[]
       query:
         "SELECT department, round(avg(base_salary)) AS avg_pay, count(*) AS n FROM dataset GROUP BY 1 ORDER BY 2 DESC",
     },
+    requiresColumns: ["department", "base_salary"],
   },
   {
     label: "Propose: filter to underpaid",
     tool: "propose_add_filter",
     args: { expression: "base_salary < market_median * 0.9", label: "paid <90% of market" },
+    requiresColumns: ["base_salary", "market_median"],
   },
   {
     label: "Propose: comp_ratio column",
     tool: "propose_add_derived_column",
     args: { name: "comp_ratio", expression: "round(base_salary / market_median, 3)" },
+    requiresColumns: ["base_salary", "market_median"],
   },
   {
     label: "Propose: pay-gap chart",
@@ -56,6 +74,7 @@ const SNIPPETS: { label: string; tool: string; args: Record<string, unknown> }[]
       kind: "bar",
       sql: "SELECT department, avg(base_salary) FROM dataset GROUP BY 1 ORDER BY 2 DESC",
     },
+    requiresColumns: ["department", "base_salary"],
   },
   {
     label: "Propose: insight report",
@@ -81,6 +100,23 @@ export function AgentConsole() {
   const [discovering, setDiscovering] = useState(true);
   const [discoveryError, setDiscoveryError] = useState("");
   const registration = useRegistrationStatus();
+  const { state: dataset } = useActiveDataset();
+
+  // Columns a snippet's SQL could actually resolve right now: renamed base
+  // columns the agent may see (redaction is a hard blindfold — a redacted
+  // column is unreadable by name, same as if it didn't exist) plus derived
+  // columns. Used only to disable a schema-specific quick call honestly; it
+  // is not itself a security boundary (the real guard is in duckdb.ts).
+  const availableColumns = new Set(
+    dataset
+      ? [
+          ...dataset.columns
+            .filter((c) => !dataset.redactedColumns.includes(c))
+            .map((c) => dataset.renames[c] ?? c),
+          ...dataset.derived.map((d) => d.name),
+        ]
+      : []
+  );
 
   useEffect(() => {
     let alive = true;
@@ -200,22 +236,37 @@ export function AgentConsole() {
         <div className="grid min-w-0 grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)_minmax(0,1fr)]">
           <div className="max-h-48 min-w-0 overflow-y-auto border-b border-ink-800 p-2 lg:max-h-60 lg:border-r">
             <p className="panel-title mb-1">Quick calls</p>
-            {SNIPPETS.map((s) => (
-              <button
-                key={s.label}
-                className="mb-1 block w-full rounded px-2 py-1 text-left text-[11px] text-slate-400 hover:bg-ink-800 hover:text-slate-200 disabled:opacity-50"
-                disabled={!!unavailable || !tools.includes(s.tool)}
-                title={unavailable || (!tools.includes(s.tool) ? "Tool not discovered. Refresh discovery to retry." : "Execute manual test call")}
-                onClick={() => {
-                  setTool(s.tool);
-                  setArgs(JSON.stringify(s.args, null, 2));
-                  void run(s.tool, JSON.stringify(s.args));
-                }}
-              >
-                {s.label}
-                {!discovering && !discoveryError && shim && !tools.includes(s.tool) && " (not discovered)"}
-              </button>
-            ))}
+            {SNIPPETS.map((s) => {
+              const missing = (s.requiresColumns ?? []).filter(
+                (c) => !availableColumns.has(c)
+              );
+              const undiscovered = !tools.includes(s.tool);
+              return (
+                <button
+                  key={s.label}
+                  className="mb-1 block w-full rounded px-2 py-1 text-left text-[11px] text-slate-400 hover:bg-ink-800 hover:text-slate-200 disabled:opacity-50"
+                  disabled={!!unavailable || undiscovered || missing.length > 0}
+                  title={
+                    unavailable ||
+                    (undiscovered
+                      ? "Tool not discovered. Refresh discovery to retry."
+                      : missing.length > 0
+                        ? `This dataset has no ${missing.join(" / ")} column — this demo call is scoped to the compensation dataset.`
+                        : "Execute manual test call")
+                  }
+                  onClick={() => {
+                    setTool(s.tool);
+                    setArgs(JSON.stringify(s.args, null, 2));
+                    void run(s.tool, JSON.stringify(s.args));
+                  }}
+                >
+                  {s.label}
+                  {!discovering && !discoveryError && shim && undiscovered && " (not discovered)"}
+                  {!discovering && !discoveryError && shim && !undiscovered && missing.length > 0 &&
+                    ` (needs ${missing.join(", ")})`}
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex min-w-0 flex-col gap-2 border-b border-ink-800 p-2 lg:border-r">
